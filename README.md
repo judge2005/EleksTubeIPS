@@ -117,7 +117,7 @@ After you have connected successfully you should see this page (the clock will a
 
 Remember that hostname in the config portal? Go to [elekstubeips.local](http://elekstubeips.local) (or *whateverhostnameyouentered*.local) and you will see this display. If the device you are on doesn't recognize *.local* hostnames, you will need the IP address that is displayed briefly when the clock connects to WiFi.
 
-You can set the clock display format using the clock menu. All changes are immediately reflected in the clock display:
+You can set the clock display format using the clock menu. All changes are immediately reflected in the clock display. A key field here is the *Timezone Definition*, this sets the timezone and the DST rules. Follow the link on the GUI to find the right string for your location:
 
 ![Clock](docs/clock.jpg)
 
