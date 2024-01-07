@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<title>EleksTube IPS</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="apple-mobile-web-app-capable" content="yes" />
+	<!-- build:js script.js -->
+	<script src="/jquery/jquery-1.11.1.min.js"></script>
+	<script>
+		$(document).on("mobileinit", function () {
+			$.mobile.hashListeningEnabled = false;
+			$.mobile.pushStateEnabled = false;
+			$.mobile.changePage.defaults.changeHash = false;
+		});
+	</script>
+	<script src="/jquery/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+	<script src="/jquery/jquery.roundslider/1.3/roundslider.min.js"></script>
+	<!-- endbuild -->
+
+	<!-- build:css script.css -->
+	<link rel="stylesheet" href="/jquery/mobile/1.4.5/jquery.mobile-1.4.5.min.css" />
+	<link href="/jquery/jquery.roundslider/1.3/roundslider.min.css" rel="stylesheet" />
+	<!-- endbuild -->
+
+	<link rel="shortcut icon"
+		href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAABFFBMVEUAAACSkpIxMTEKCgo/Pz9YWFgMDAwMDAwPDw8gICAqKipqamqSkpJ1dXUICAgGBgYQEBAEBAQNDQ0LCwsPDw8REREKCgoODg4TExMPDw8PDw8TExMdHR0SEhIVFRUiIiISEhISEhI5OTlHR0cXFxcbGxsXFxcbGxsbGxs2NjYfHx8pKSkwMDAzMzNKSkouLi5NTU1ZWVkqKipdXV1OTk5BQUEREREHBwcJCQkLCwscHBwVFRUrKyshISE4ODgUFBQgICAWFhYbGxsbGxsSEhIlJSUqKipNTU0WFhZbW1tSUlIiIiIbGxs7Ozs9PT1bW1sfHx8yMjJvb282NjZRUVEmJiZWVlZCQkJnZ2fw8PAAAAAKCgo+WiZ7AAAAWnRSTlMABDHtGgno2sdeQSEJBvn59vbx5OPa1MG/vrGuq6qmnZeQi4F9e3FuaGBaTko9OicjIB8ZEg3p59vLyb27t6mfl5GLhXZ0cGxqZmZkWFZQTko2LCooKBwUEATs1IN1AAAA/0lEQVQ4y4WQRXIDQRAEexakRTFLFjOjmZkZy///hxXhmzXTzksdMk9Ff5jMXFIiXNfr1B7o/VVIdV0HAlZvOwvsyIJi2nYO8UvIW/VaStBj/qKWgx75znytBk6FzvbM6vA4ON6MkAS/JO53x9XurVkGNFlhdO7E0CC6tBCekpp5cgDdZgL7JheaHZwIZVBqIE6kFfaf5b6fDCK2XG9Ccq6uY9CJJYCt/4IK6z+BJzZoI8v6j43oiPNmOtrj/NRKaYwWzUTTZ/woU18Qw1veIJbCnPeLRHnABkUAa6bavwBYFuqgAawDUL9wBLRbcZwqgxaCPonuuTIwwg7x9EnOD7yqJHNnrSJeAAAAAElFTkSuQmCC" />
+	<style type="text/css">
+		/* Custom indentations are needed because the length of custom labels differs from
+   the length of the standard labels */
+		.custom-label-flipswitch.ui-flipswitch .ui-btn.ui-flipswitch-on {
+			text-indent: -3.4em;
+		}
+
+		.custom-label-flipswitch.ui-flipswitch .ui-flipswitch-off {
+			text-indent: 0.5em;
+		}
+
+		/* Custom widths are needed because the length of custom labels differs from
+   the length of the standard labels */
+		/*
+.custom-label-flipswitch.ui-flipswitch {
+    width: 8.875em;
+}
+.custom-label-flipswitch.ui-flipswitch.ui-flipswitch-active {
+    padding-left: 7em;
+    width: 1.875em;
+}
+@media (min-width: 28em) {
+    // Repeated from rule .ui-flipswitch above
+    .ui-field-contain > label + .custom-label-flipswitch.ui-flipswitch {
+        width: 1.875em;
+    }
+}
+*/
+		.headerText {
+			opacity: 1 !important;
+			background-color: #e9e9e9 !important;
+		}
+
+		.dispInline,
+		.dispInlineLabel {
+			display: inline-block;
+			border-bottom-width: 0;
+		}
+
+		.dispInlineLabel {
+			min-width: 150px;
+			vertical-align: middle;
+		}
+
+		.dispInline {
+			min-width: 150px;
+			vertical-align: middle;
+		}
+
+		.clearFloats {
+			clear: both;
+		}
+
+		.rs-control .rs-range-color {
+			background: #3080c0;
+		}
+
+		.rs-control .rs-path-color {
+			background-color: #e9e9e9;
+		}
+
+		.rs-control .rs-handle {
+			background-color: #f6f6f6;
+			border: 2px solid #d0d0d0;
+		}
+
+		.rs-tooltip-text {
+			font-size: 16px;
+		}
+
+		.rs-tooltip.hover {
+			background-color: #e9e9e9;
+		}
+
+		.ui-icon-trash:after {
+			background-image: url('data:image/svg+xml,<%3Fxml version="1.0" encoding="UTF-8" standalone="no"%3F><svg version="1.1" id="Layer_1" x="0px" y="0px" width="16px" height="16px" viewBox="0 0 500 500" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg"><rect style="fill:%23fefefe;fill-opacity:1;stroke-width:141.732;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:2" id="rect1939" width="263.87537" height="300.87634" x="64.264847" y="135.83252" /><path d="m 142.857,205.357 v 160.714 q 0,3.906 -2.511,6.417 -2.511,2.511 -6.417,2.511 h -17.857 q -3.906,0 -6.417,-2.511 -2.511,-2.511 -2.511,-6.417 V 205.357 q 0,-3.906 2.511,-6.417 2.511,-2.511 6.417,-2.511 h 17.857 q 3.906,0 6.417,2.511 2.511,2.511 2.511,6.417 z m 71.429,0 v 160.714 q 0,3.906 -2.511,6.417 -2.511,2.511 -6.417,2.511 h -17.857 q -3.906,0 -6.417,-2.511 -2.511,-2.511 -2.511,-6.417 V 205.357 q 0,-3.906 2.511,-6.417 2.511,-2.511 6.417,-2.511 h 17.857 q 3.906,0 6.417,2.511 2.511,2.511 2.511,6.417 z m 71.428,0 v 160.714 q 0,3.906 -2.511,6.417 -2.511,2.511 -6.417,2.511 h -17.857 q -3.906,0 -6.417,-2.511 -2.511,-2.511 -2.511,-6.417 V 205.357 q 0,-3.906 2.511,-6.417 2.511,-2.511 6.417,-2.511 h 17.857 q 3.906,0 6.417,2.511 2.511,2.511 2.511,6.417 z m 35.715,202.009 V 142.857 h -250 v 264.509 q 0,6.138 1.953,11.3 1.953,5.162 4.046,7.534 2.093,2.372 2.93,2.372 h 232.143 q 0.837,0 2.93,-2.372 2.093,-2.372 4.046,-7.534 1.953,-5.162 1.953,-11.3 z m -187.5,-300.223 h 125 L 245.536,74.498 q -1.953,-2.511 -4.743,-3.069 h -88.449 q -2.79,0.558 -4.743,3.069 z m 258.928,8.928 v 17.857 q 0,3.906 -2.511,6.417 -2.511,2.511 -6.417,2.511 h -26.786 v 264.509 q 0,23.159 -13.114,40.039 -13.114,16.88 -31.529,16.88 H 80.357 q -18.415,0 -31.529,-16.323 Q 35.714,431.638 35.714,408.48 V 142.855 H 8.928 q -3.906,0 -6.417,-2.511 Q 0,137.833 0,133.927 V 116.07 q 0,-3.906 2.511,-6.417 2.511,-2.511 6.417,-2.511 h 86.216 l 19.531,-46.596 q 4.185,-10.324 15.067,-17.578 10.882,-7.254 22.042,-7.254 h 89.286 q 11.161,0 22.042,7.254 10.881,7.254 15.067,17.578 l 19.531,46.596 h 86.216 q 3.906,0 6.417,2.511 2.511,2.511 2.511,6.417 z" fill="%23000000" id="path2" style="display:inline;fill:%23000000;fill-opacity:1" /></svg>');
+			background-position: 5px 3px;
+    		/*background-size: 70%;*/
+	    }
+
+		.item-disabled {
+    		pointer-events: none;
+    		/* other styles: grayed background etc. */
+		}
+
+		#test .rs-seperator {
+			border-width: 0px;
+		}
+
+		#test .rs-handle {
+			background-color: #3080c0;
+		}
+
+		#color-box {
+			width: 32px;
+			height: 32px;
+			border: 1px solid grey;
+			display: inline-block;
+			vertical-align: top;
+			margin-top: 10px;
+			background-image: url(/assets/favicon-32x32.png);
+			position: relative;
+		}
+
+		#color-overlay {
+			width: 100%;
+			height: 100%;
+			z-index: 2;
+		}
+
+		#logo {
+			position: absolute;
+			top: 40px;
+			right: 0;
+			bottom: 0;
+			left: 0;
+			background: url(/assets/logo_m_gray.jpg?embed);
+			background-repeat: no-repeat;
+			background-size: 100%;
+		}
+	</style>
+	<script>
+		var serverSetting = false;
+		function updateElements(values) {
+			serverSetting = true;
+			var val = values["display_on"];
+			if (typeof val != 'undefined') {
+				var range = $('#on_range')
+				range.roundSlider("setValue", val, 1);
+				delete values["display_on"];
+			}
+			var val = values["display_off"];
+			if (typeof val != 'undefined') {
+				$('#on_range').roundSlider("setValue", val, 2);
+				delete values["display_off"];
+			}
+			var val = values["face_files"];
+			if (typeof val != 'undefined') {
+				var listElement = $('#face_files');	// This shoud be the ul element
+				listElement.empty();
+				Object.keys(val).forEach(function (key, index) {
+					listElement.append('<li data-theme="c" id="face_item_' + key + '"><a href="#" onclick="setFace(\'' + key + '\');return false;"">' + key + '</a><a href="#" onclick="showDeletePopup(\'' + val[key] + '\');return false;" data-rel="popup" data-position-to="window" data-transition="pop">Delete Face</a></li>');
+				});
+				listElement.listview('refresh');
+				listElement.Selected=true;
+				delete values["face_files"];
+			}
+
+			var val = values["clock_face"];
+			if (typeof val != 'undefined') {
+				var anchor = $('#face_item_' + val +' a');
+				anchor.addClass("item-disabled").addClass('ui-btn-b').addClass('ui-btn-active').removeClass("ui-btn-c");
+			}
+
+			Object.keys(values).forEach(function (key, index) {
+				var container = $('#' + key + "_container");
+				container.show();
+
+				var element = $('#' + key);
+
+				var elType = element.attr('type');
+				if (elType == "checkbox") {
+					element.prop("checked", this[key]);
+					if ("flipswitch" == element.data('role')) {
+						element.flipswitch("refresh");
+					} else {
+						element.checkboxradio("refresh");
+					}
+				} else if (elType == "radio") {
+					element.prop("checked", true);
+					element.checkboxradio("refresh");
+				} else if (typeof elType == 'undefined') {
+					var radioEl = $("input:radio[name='" + key + "'][value='" + this[key] + "']");
+					if (typeof radioEl != undefined && radioEl.prop('type') == 'radio') {
+						radioEl.prop('checked', true);
+						radioEl.checkboxradio("refresh");
+					} else {
+						element.html(this[key]);
+					}
+				} else {
+					element.val(this[key]);
+					if (elType == "number") {
+						try {
+							element.slider("refresh");
+						} catch (ex) { }
+					} else if (elType == 'picklist') {
+						element.selectmenu("refresh");
+						element.change();
+					}
+				}
+			}, values);
+			serverSetting = false;
+		}
+
+		function updateStatus(msg) {
+			$("#status").html(msg);
+		}
+
+		function url(s) {
+			var l = window.location;
+			return ((l.protocol === "https:") ? "wss://" : "ws://") + l.host + s;
+		}
+
+		function getElementValue(element) {
+			element = $(element);
+			var elType = element.attr('type');
+			if (elType == "checkbox") {
+				return element.prop("checked");
+			} else {
+				return element.val();
+			}
+		}
+
+		var pageMap = {};
+
+		function getPageId(pageName) {
+			return pageMap[pageName];
+		}
+
+		function setVisibility(targetName, element, showVals) {
+			var elState = getElementValue(element);
+			var target = $('#' + targetName);
+
+			if (showVals.includes(elState)) {
+				target.show();
+			} else {
+				target.hide();
+			}
+		}
+
+		function elementBlur(element) {
+			if (serverSetting) {
+				return;
+			}
+			var pageId = getPageId($(".ui-page-active").attr("id"));
+			var value = getElementValue(element);
+			var elType = $(element).attr('type');
+			var name = element.id;
+
+			if (elType == "radio") {
+				name = $(element).attr('name');
+			}
+
+			var msg = '9:' + pageId + ':' + name + ':' + value;
+			safeSend(msg);
+		}
+
+		function elementChange(element) {
+			elementBlur(element);
+		}
+
+		function hsv_to_hsl(h, s, v) {
+			// both hsv and hsl values are in [0, 1]
+			var l = (2 - s) * v / 2;
+
+			if (l != 0) {
+				if (l == 1) {
+					s = 0
+				} else if (l < 0.5) {
+					s = s * v / (l * 2)
+				} else {
+					s = s * v / (2 - l * 2)
+				}
+			}
+
+			return [h, s, l]
+		}
+
+		function showDeletePopup(filename) {
+			$("#delete_face_file").val(filename);
+			$("#delete_face_text").text(filename);
+			$("#delete_face_popup").popup("open");
+		}
+
+		function setFace(key) {
+			$('#face_files a').addClass('ui-btn-c').removeClass("ui-btn-b").removeClass('ui-btn-active').removeClass("item-disabled");
+
+			var anchor = $('#face_item_' + key +' a');
+			anchor.addClass("item-disabled").addClass('ui-btn-b').addClass('ui-btn-active').removeClass("ui-btn-c");
+
+			if (serverSetting) {
+				return;
+			}
+
+			var pageId = getPageId($(".ui-page-active").attr("id"));
+
+			var msg = '9:' + pageId + ':clock_face:' + key;
+			safeSend(msg);
+		}
+
+		function deleteFace() {
+			var fileName = $('#delete_face_file').val();
+			$.ajax({
+						url : '/delete_face/' + fileName,
+						type : 'DELETE',
+						async: false,
+						cache: false,
+						success : function(data) {
+							console.log(data);
+						},
+						error: function (error) {
+							$.mobile.loading("hide");
+							alert("Failed to delete file");
+						}
+					});
+					$("#delete_face_popup").popup("close");
+		}
+
+		function uploadFace() {
+			//check to see if we have a file
+			var fileInfo = document.getElementById('face_file').files[0];
+			if (typeof(fileInfo) != 'undefined') {
+				var ofileInfo = '';
+				if (fileInfo.size > 0) {
+					$.mobile.loading("show", {
+						text : "Uploading face...",
+						textVisible : true
+					});
+
+					var formData = new FormData();
+					formData.append('file', fileInfo);
+
+					$.ajax({
+						url : '/upload_face',
+						type : 'POST',
+						data : formData,
+						processData: false,  // tell jQuery not to process the data
+						contentType: false,  // tell jQuery not to set contentType
+						async: true,
+						cache: false,
+						timeout: 60000,
+						success : function(data) {
+							$.mobile.loading("hide");
+							console.log(data);
+							alert(data);
+						},
+						error: function (error) {
+							$.mobile.loading("hide");
+							alert("Failed to upload file");
+						}
+					});
+				}
+			}
+			$("#upload_face_popup").popup("close")
+		}
+
+		function initializeMenu(values) {
+			var htmlString = '<ul id="menuList" data-role="listview" data-inset="true">';
+			pageMap = {};
+
+			for (var i = 0; i < values.length; i++) {
+				var obj = values[i];
+				var key = Object.keys(obj)[0];
+				if (!obj[key].noNav) {
+					htmlString += '<li><a data-rel="close" href="' + obj[key].url + '" pageId="' + obj[key].title + '">' + obj[key].title + '</a></li>';
+				}
+				pageMap[obj[key].title] = key;
+			}
+
+			htmlString += '</ul>';
+			$("#menuList").replaceWith(htmlString);
+			$("div[data-role='panel']").panel().enhanceWithin();
+			if (values.length > 0) {
+				var obj = values[0];
+				var key = Object.keys(obj)[0];
+				$.mobile.changePage(obj[key].url);
+			}
+		}
+
+		function pageRefresh(activePage) {
+			if (typeof activePage != 'undefined') {
+				safeSend(getPageId(activePage) + ':');
+			}
+		};
+
+		function getMenu() {
+			safeSend("0:");
+		}
+
+		var ws;
+
+		var timeout = 500;	//ms
+
+		function startWebsocket(initialMsg) {
+
+			console.log('start websocket');
+			$.mobile.loading( "show", {
+	            text: "Trying to connect",
+	            textVisible: true
+	        });
+
+			ws = null;
+			ws = new WebSocket(url("/ws"))
+
+			ws.onopen = function (evt) {
+				$.mobile.loading("hide");
+				console.log('web socket opened: ', evt)
+				timeout = 500;
+				try {
+					safeSend(initialMsg);
+				} catch (e) {
+					(console.error || console.log).call(console, e.stack || e);
+				}
+			}
+
+			ws.onmessage = function (event) {
+				var msg = JSON.parse(event.data);
+
+				switch (msg.type) {
+					case "sv.update":
+					case "sv.init.clock":	// Received initialization object
+					case "sv.init.leds":	// Received initialization object
+					case "sv.init.faces":	// Received initialization object
+					case "sv.init.info":	// Received initialization object
+						console.log(msg.type);
+						updateElements(msg.value);
+						break;
+
+					case "sv.status":
+						updateStatus(msg.value);
+						break;
+
+					case "sv.init.menu":
+						initializeMenu(msg.value);
+						break;
+				}
+			}
+
+			ws.onclose = function (evt) {
+			// connection closed, discard old websocket and create a new one in 5s
+				console.log('websocket closed, ', evt);
+
+				ws = null;
+				setTimeout(startWebsocket, timeout, getPageId($(".ui-page-active").attr("id")) + ":");
+				if (timeout < 4000) {
+					timeout = timeout * 2;
+				}
+			}
+
+			ws.onerror = function (err) {
+				console.log('websocket error: ', err);
+			};
+		}
+
+		function checkWebsocket() {
+			try {
+				if (!(ws.readyState == WebSocket.OPEN || ws.readyState == WebSocket.CONNECTING)) {
+					console.log('websocketstate=', ws.readyState);
+					ws = null;
+					startWebsocket(getPageId($(".ui-page-active").attr("id")) + ":");
+				}
+			} catch (e) {
+				console.log('Exception thrown while checking websocket state, ', e.stack || e);
+			}
+		}
+
+		startWebsocket("0:");
+
+		// subscribe to visibility change events
+		document.addEventListener('visibilitychange', function () {
+			console.log('visibilitychange');
+			// fires when app transitions from prerender, user returns to the app / tab.
+			if (document.visibilityState == 'visible') {
+				console.log('visible');
+				checkWebsocket();
+			}
+		});
+
+		function safeSend(msg) {
+			console.log(msg);
+			try {
+				ws.send(msg);
+			} catch (e) {
+				console.log(e.stack || e);
+			}
+		}
+
+		$(document).ready(function () {
+			$(document).on('pagecontainerchange', function (event, ui) {
+				var current = ui.toPage[0].id;
+				pageRefresh(current);
+				// Remove active class from nav buttons
+				$("#menuList a.ui-btn-active").removeClass("ui-btn-active");
+				// Add active class to current nav button
+				$("#menuList a").each(function () {
+					var href = $(this).attr("pageId");
+					if (href.indexOf(current, href.length - current.length) !== -1) {
+						$(this).addClass("ui-btn-active");
+					}
+				});
+
+			});
+		});
+
+		$(document).on("pagecontainerchange", function () {
+		});
+
+		$(document).on("pagecreate", function () {
+			console.log("pagecreate");
+			$.fn.roundSlider.prototype._invertRange = true;
+			$("#on_range").roundSlider({
+				sliderType: "range",
+				//showTooltip: false,
+				radius: 60,
+				width: 20,
+				min: 0,
+				max: 24,
+				step: 1,
+				value: "8,22",
+				startAngle: 0,
+				endAngle: "+360",
+				handleSize: "+8",
+
+				change: function (e) {
+					if (serverSetting) {
+						return;
+					}
+
+					var values = e.value.split(',');
+					var pageId = getPageId($(".ui-page-active").attr("id"));
+					var msg = '9:' + pageId + ':display_on:' + values[0];
+					safeSend(msg);
+					msg = '9:' + pageId + ':display_off:' + values[1];
+					safeSend(msg);
+				}
+			});
+
+			console.log("end_pagecreate");
+		});
+
+		$(function () {
+			$("div[data-role='panel']").panel().enhanceWithin();
+		});
+
+	</script>
+</head>
+
+<body>
+	<div data-role="panel" id="mainMenu" data-position="left" data-display="overlay" data-theme="b">
+		<div data-role="header">
+			<h1>Navigation</h1>
+		</div>
+		<ul id="menuList" data-role="listview" data-inset="true"></ul>
+	</div>
+	<div data-role="page" id="clock">
+		<div data-role="header" data-position="fixed">
+			<h1>EleksTube IPS</h1>
+		</div>
+		<div data-role="content" id="logo">
+		</div>
+	</div>
+</body>
+
+</html>

@@ -1,0 +1,30 @@
+        <div data-role="page" id="Faces">
+            <div data-role="header">
+                <h1>Faces</h1>
+				<a href="#mainMenu" data-rel="main-menu-panel" class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
+            </div>
+            <div data-role="content">
+                <ul id="face_files" data-role="listview" data-inset="true" data-split-icon="trash" HideSelection="false">
+                </ul>
+                <a href="#" onclick="$('#upload_face_popup').popup('open');return false;" data-role="button" data-rel="popup" data-position-to="window" data-transition="pop">Upload</a>
+                <div data-role="popup" id="delete_face_popup" class="ui-content" style="max-width:340px; padding-bottom:2em;">
+                    <h3>Delete face?</h3>
+                    <p id="delete_face_text">Some text</p>
+                    <form action="/delete_face" method="DELETE" id="delete_face_form">
+                        <input type="hidden" value="filename" id="delete_face_file">
+                        <input type="button" value="Delete" onclick="deleteFace(); return true;" data-rel="back" data-theme="b" data-icon="check" data-inline="true" data-mini="true">
+                        <a href="#" data-role="button" data-rel="back" data-inline="true" data-mini="true">Cancel</a>
+                    </form>
+                </div>
+                <div data-role="popup" id="upload_face_popup" class="ui-content" style="max-width:340px; padding-bottom:2em;">
+                    <form action="/upload_face" method="POST" id="faces_form">
+                        <div class="dispInlineLabel">
+                            <label for="face_file">Face file</label>
+                            <input type="file" accept="application/gzip" name="face_file" id="face_file" data-clear-btn="true"/>
+                            <input type="button" value="Upload" data-inline="true" data-mini="true" onclick="uploadFace();"/>
+                            <a href="#" data-role="button" data-rel="back" data-inline="true" data-mini="true">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>

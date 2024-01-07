@@ -1,0 +1,37 @@
+        <div data-role="page" id="LEDs">
+            <div data-role="header" data-position="fixed">
+                <h1>LEDs</h1>
+				<a href="#mainMenu" data-rel="main-menu-panel" class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
+            </div>
+            <div data-role="content">
+                <form action="/set_leds" method="POST" id="leds_form">
+					<div class="dispInlineLabel">
+						<label for="led_pattern">Backlight Pattern</label>
+					</div>
+					<div class="dispInline">
+						<select onchange="setVisibility('bpm_container', this, ['4','5']);setVisibility('hue_container', this, ['2','4','5']);elementChange(this)"  type="picklist"
+							id="led_pattern" data-mini="true">
+							<option value="0">Dark</option>
+							<option value="1">Test</option>
+							<option value="2">Constant</option>
+							<option value="3">Rainbow</option>
+							<option value="4">Pulse</option>
+							<option value="5">Breath</option>
+						</select>
+					</div>
+					<div class="clearFloats"></div>
+					<label for="led_intensity">Backlight Intensity</label>
+				    <input onchange="elementChange(this)" type="range" name="led_intensity" id="led_intensity" min="0" max="7" value="7">
+					<div id="bpm_container" style="display: block;">
+						<div class="clearFloats"></div>
+						<label for="breath_per_min">Cycles per Minute</label>
+						<input onchange="elementChange(this)" type="range" name="breath_per_min" id="breath_per_min" min="1" max="20" value="20">
+					</div>
+					<div id="hue_container" style="display: block;">
+						<div class="clearFloats"></div>
+						<label for="color_phase">Hue</label>
+				    	<input onchange="elementChange(this)" type="range" name="color_phase" id="color_phase" min="0" max="768" value="768" step="16">
+					</div>
+	   			</form>
+    		</div>
+        </div>
