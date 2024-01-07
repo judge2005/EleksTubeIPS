@@ -714,7 +714,7 @@ void initFromEEPROM() {
 }
 
 void connectedHandler() {
-	tfts.setStatus("WiFi connected...");
+	tfts.setStatus(WiFi.localIP().toString());
 	DEBUG("connectedHandler");
 	MDNS.end();
 	MDNS.begin(hostName.value.c_str());
