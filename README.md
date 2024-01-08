@@ -109,13 +109,13 @@ After clicking on the *Configure WiFi* button you should see a page like this th
 
 ![Connection](docs/conn.jpg)
 
-After you have connected successfully you should see this page (the clock will also display a *WiFi Connected* message for 5 seconds):
+After you have connected successfully you should see this page (the clock will also display the clock's IP address for 5 seconds):
 
 ![Connected](docs/info.jpg)
 
 # Configuring the Clock
 
-Remember that hostname in the config portal? Go to [elekstubeips.local](http://elekstubeips.local) (or *whateverhostnameyouentered*.local) and you will see this display. If the device you are on doesn't recognize *.local* hostnames, you will need the IP address that is displayed briefly when the clock connects to WiFi.
+Remember that hostname in the config portal? Go to [elekstubeips.local](http://elekstubeips.local) (or *whateverhostnameyouentered*.local) and you will see this display. If the device you are on doesn't recognize *.local* hostnames, you will need the IP address that is displayed briefly when the clock connects to WiFi (if you don't remember it, just unplug the clock and plug it back in).
 
 You can set the clock display format using the clock menu. All changes are immediately reflected in the clock display. A key field here is the *Timezone Definition*, this sets the timezone and the DST rules. Follow the link on the GUI to find the right string for your location:
 
