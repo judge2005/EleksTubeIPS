@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <esp_wifi.h>
 #include <ArduinoJson.h>
 #include <SPI.h>
 #include <LittleFS.h>
@@ -8,9 +9,9 @@
 #include <EspRTCTimeSync.h>
 #include <ConfigItem.h>
 #include <EEPROMConfig.h>
-#include <ESP32-targz.h>
 
 #include "TFTs.h"
+#include "IPSClock.h"
 #include "Backlights.h"
 #include "WSHandler.h"
 #include "WSMenuHandler.h"
@@ -29,6 +30,7 @@ String clockFacesCallback();
 
 TFTs tfts;
 Backlights backlights;
+IPSClock ipsClock;
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws"); // access at ws://[esp ip]/ws
@@ -56,26 +58,18 @@ String chipId = getChipId();
 StringConfigItem hostName("hostname", 63, "elekstubeips");
 
 // Clock config
-BooleanConfigItem time_or_date("time_or_date", true);	// time
-ByteConfigItem date_format("date_format", 1);			// mm-dd-yy, dd-mm-yy, yy-mm-dd
-BooleanConfigItem hour_format("hour_format", true);	// 12/24 hour
-BooleanConfigItem leading_zero("leading_zero", false);	//
-ByteConfigItem display_on("display_on", 6);
-ByteConfigItem display_off("display_off", 24);
-StringConfigItem clock_face("clock_face", 25, "divergence");	// <clock_face>.tar.gz, max length is 31
-StringConfigItem time_zone("time_zone", 63, "EST5EDT,M3.2.0,M11.1.0");	// POSIX timezone format
 StringConfigItem dummy("dummy", 2, "!");	
 
 BaseConfigItem *clockSet[] = {
 	// Clock
-	&time_or_date,
-	&date_format,
-	&hour_format,
-	&leading_zero,
-	&display_on,
-	&display_off,
-	&clock_face,
-	&time_zone,
+	&IPSClock::getTimeOrDate(),
+	&IPSClock::getDateFormat(),
+	&IPSClock::getHourFormat(),
+	&IPSClock::getLeadingZero(),
+	&IPSClock::getDisplayOn(),
+	&IPSClock::getDisplayOff(),
+	&IPSClock::getClockFace(),
+	&IPSClock::getTimeZone(),
 	&dummy,
 	0
 };
@@ -93,7 +87,7 @@ CompositeConfigItem ledConfig("leds", 0, ledSet);
 
 BaseConfigItem *faceSet[] = {
 	// Faces
-	&clock_face,
+	&IPSClock::getClockFace(),
 	0
 };
 CompositeConfigItem facesConfig("faces", 0, faceSet);
@@ -145,50 +139,6 @@ CompositeConfigItem rootConfig("root", 0, configSetRoot);
 // Store the configurations in EEPROM
 EEPROMConfig config(rootConfig);
 
-namespace ClockTimer {
-
-class Timer {
-public:
-	Timer(unsigned long duration) : enabled(false), lastTick(0), duration(duration) {}
-	Timer() : enabled(false), lastTick(0), duration(0) {}
-
-	bool expired(unsigned long now) const {
-		return now - lastTick >= duration;
-	}
-	void setDuration(unsigned long duration) {
-		this->duration = duration;
-	}
-	void init(unsigned long now, unsigned long duration) {
-		lastTick = now;
-		this->duration = duration;
-	}
-	void reset(unsigned long duration) {
-		lastTick += this->duration;
-		this->duration = duration;
-	}
-	unsigned long getLastTick() const {
-		return lastTick;
-	}
-	unsigned long getDuration() const {
-		return duration;
-	}
-
-	bool isEnabled() const {
-		return enabled;
-	}
-
-	void setEnabled(bool enabled) {
-		this->enabled = enabled;
-	}
-
-private:
-	bool enabled;
-	unsigned long lastTick;
-	unsigned long duration;
-};
-
-} /* namespace ClockTimer */
-
 void asyncTimeSetCallback(String time) {
 	DEBUG(time);
 	tfts.setStatus("NTP time received...");
@@ -202,176 +152,14 @@ void asyncTimeErrorCallback(String msg) {
 	rtcTimeSync->enabled(true);
 }
 
-bool clockOn() {
-	struct tm now;
-	suseconds_t uSec;
-	timeSync->getLocalTime(&now, &uSec);
-
-	if (display_on.value == display_off.value) {
-		return true;
-	}
-
-	if (display_on.value < display_off.value) {
-		return now.tm_hour >= display_on.value && now.tm_hour < display_off.value;
-	}
-
-	if (display_on.value > display_off.value) {
-		return !(now.tm_hour >= display_off.value && now.tm_hour < display_on.value);
-	}
-
-	return false;
-}
-
-bool newUnpack = true;
-const char* unpackName = "";
-int currentFaceNum = 0;
-int numberOfFaces = 10;
-
-void statusProgressCallback(const char* name, size_t size, size_t total_unpacked) {
-	unpackName = name;
-	currentFaceNum++;
-}
-
-void unpackProgressCallback(uint8_t progress) {
-	uint8_t totalProgress = currentFaceNum * numberOfFaces + progress / numberOfFaces;
-	if (totalProgress > 100) {
-		totalProgress = 100;
-	}
-	tfts.drawMeter(totalProgress, newUnpack, unpackName);
-	newUnpack = false;
-}
-
-void cacheClockFace(const String &faceName) {
-	// mount spiffs (or any other filesystem)
-    static TarGzUnpacker *TARGZUnpacker = new TarGzUnpacker();
-
-    TARGZUnpacker->setTarVerify( true ); // true = enables health checks but slows down the overall process
-    TARGZUnpacker->setupFSCallbacks( targzTotalBytesFn, targzFreeBytesFn ); // prevent the partition from exploding, recommended
-    TARGZUnpacker->setGzProgressCallback(BaseUnpacker::defaultProgressCallback); // targzNullProgressCallback or defaultProgressCallback
-    TARGZUnpacker->setLoggerCallback( BaseUnpacker::targzPrintLoggerCallback  );    // gz log verbosity
-    TARGZUnpacker->setTarProgressCallback( unpackProgressCallback ); // prints the untarring progress for each individual file
-    TARGZUnpacker->setTarStatusProgressCallback( statusProgressCallback ); // print the filenames as they're expanded
-    TARGZUnpacker->setTarMessageCallback( BaseUnpacker::targzPrintLoggerCallback ); // tar log verbosity
-
-	String fileName("/ips/faces/" + faceName + ".tar.gz");
-
-	currentFaceNum = -1;
-	newUnpack = true;
-
-    if( !TARGZUnpacker->tarGzExpander(tarGzFS, fileName.c_str(), tarGzFS, "/ips/cache", nullptr ) ) {
-    	Serial.printf("tarGzExpander+intermediate file failed with return code #%d\n", TARGZUnpacker->tarGzGetError() );
-    } else {
-		Serial.println("File unzipped");
-	}
-
-	fs::File dir = LittleFS.open("/ips/cache");
-    File file = dir.openNextFile();
-    while(file){
-		Serial.print("  FILE: ");
-		Serial.print(file.name());
-		Serial.print("  SIZE: ");
-
-#ifdef CONFIG_LITTLEFS_FOR_IDF_3_2
-		Serial.println(file.size());
-#else
-		Serial.print(file.size());
-		time_t t= file.getLastWrite();
-		struct tm * tmstruct = localtime(&t);
-		Serial.printf("  LAST WRITE: %d-%02d-%02d %02d:%02d:%02d\n",(tmstruct->tm_year)+1900,( tmstruct->tm_mon)+1, tmstruct->tm_mday,tmstruct->tm_hour , tmstruct->tm_min, tmstruct->tm_sec);
-#endif
-		file.close();
-        file = dir.openNextFile();
-    }
-}
-
 void clockTaskFn(void *pArg) {
-	static ClockTimer::Timer displayTimer;
-	static String oldClockFace;
-
-	displayTimer.setEnabled(true);
+	ipsClock.init();
+	ipsClock.setTimeSync(timeSync);
 
 	while (true) {
 		delay(1);
 
-		if (clock_face.value != oldClockFace) {
-			oldClockFace = clock_face.value;
-			cacheClockFace(clock_face.value);
-			tfts.claim();
-			tfts.invalidateAllDigits();
-			tfts.release();
-		}
-		
-		unsigned long nowMs = millis();
-
-		if (displayTimer.expired(nowMs)) {
-			struct tm now;
-			suseconds_t uSec;
-			timeSync->getLocalTime(&now, &uSec);
-			suseconds_t realms = uSec / 1000;
-			if (realms > 1000) {
-				realms = realms % 1000;	// Something went wrong so pick a safe number for 1000 - realms...
-			}
-			unsigned long tDelay = 1000 - realms;
-
-			if (clockOn()) {
-				tfts.claim();
-				tfts.checkStatus();
-				tfts.enableAllDisplays();
-				if (time_or_date.value) {
-					uint8_t hour = now.tm_hour;
-					if (hour_format.value) {
-						if (now.tm_hour > 12) {
-							hour = now.tm_hour - 12;
-						} else if (now.tm_hour == 0) {
-							hour = 12;
-						}
-					}
-
-					// refresh starting on seconds
-					tfts.setDigit(SECONDS_ONES, now.tm_sec % 10, TFTs::yes);
-					tfts.setDigit(SECONDS_TENS, now.tm_sec / 10, TFTs::yes);
-					tfts.setDigit(MINUTES_ONES, now.tm_min % 10, TFTs::yes);
-					tfts.setDigit(MINUTES_TENS, now.tm_min / 10, TFTs::yes);
-					tfts.setDigit(HOURS_ONES, hour % 10, TFTs::yes);
-					if (hour < 10 && !leading_zero.value) {
-						tfts.setDigit(HOURS_TENS, TFTs::blanked, TFTs::yes);
-					} else {
-						tfts.setDigit(HOURS_TENS, hour / 10, TFTs::yes);
-					}
-				} else {
-					uint8_t day = now.tm_mday;
-					uint8_t month = now.tm_mon;
-					uint8_t year = now.tm_year;
-
-					switch (date_format.value) {
-					case 0:	// DD-MM-YY
-						break;
-					case 1: // MM-DD-YY
-						day = now.tm_mon;
-						month = now.tm_mday;
-						break;
-					default: // YY-MM-DD
-						day = now.tm_year;
-						year = now.tm_mday;
-						break;
-					}
-
-					// refresh starting on 'seconds'
-					tfts.setDigit(SECONDS_ONES, year % 10, TFTs::yes);
-					tfts.setDigit(SECONDS_TENS, year / 10, TFTs::yes);
-					tfts.setDigit(MINUTES_ONES, month % 10, TFTs::yes);
-					tfts.setDigit(MINUTES_TENS, month / 10, TFTs::yes);
-					tfts.setDigit(HOURS_ONES, day % 10, TFTs::yes);
-					tfts.setDigit(HOURS_TENS, day / 10, TFTs::yes);
-				}
-			} else {
-				tfts.disableAllDisplays();
-			}
-
-			tfts.release();
-
-			displayTimer.init(nowMs, tDelay);
-		}
+		ipsClock.loop();
 	}
 }
 
@@ -490,7 +278,7 @@ void updateValue(int screen, String pair) {
 			item->put();
 			// Shouldn't special case this stuff. Should attach listeners to the config value!
 			// TODO: This won't work if we just switch change sets instead!
-			if (strcmp(key, time_zone.name) == 0) {
+			if (strcmp(key, IPSClock::getTimeZone().name) == 0) {
 				timeSync->setTz(value);
 				timeSync->sync();
 			}
@@ -690,7 +478,7 @@ void ledTaskFn(void *pArg) {
 	backlights.begin();
 
 	while (true) {
-		backlights.setOn(clockOn());
+		backlights.setOn(ipsClock.clockOn());
 		backlights.loop();
 		delay(16);
 	}
@@ -782,7 +570,7 @@ void setup() {
 	tfts.setCursor(0, 0, 2);
 	tfts.setStatus("setup...");
 
-	timeSync = new EspSNTPTimeSync(time_zone.value, asyncTimeSetCallback, asyncTimeErrorCallback);
+	timeSync = new EspSNTPTimeSync(IPSClock::getTimeZone().value, asyncTimeSetCallback, asyncTimeErrorCallback);
 
 	rtcTimeSync = new EspRTCTimeSync(SDApin, SCLpin);
 	rtcTimeSync->init();
@@ -836,6 +624,19 @@ void setup() {
 	wifiManager.start();
 
 	configureWebServer();
+
+	/*
+	 * Very occasionally the wifi stack will close with a beacon timeout error.
+	 *
+	 * This is apparently related to it not being able to allocate a buffer at
+	 * some point because of a transitory memory issue.
+	 *
+	 * In older versions this issue is not well handled so the wifi stack never
+	 * recovers. The work-around is to not allow the wifi radio to sleep.
+	 *
+	 * https://github.com/espressif/esp-idf/issues/11615
+	 */
+	esp_wifi_set_ps(WIFI_PS_NONE);
 
 	xTaskCreatePinnedToCore(
 		wifiManagerTaskFn,    /* Function to implement the task */
