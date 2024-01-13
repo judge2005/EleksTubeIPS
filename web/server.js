@@ -249,11 +249,12 @@ var broadcastUpdate = function(conn, field, value) {
 	try {
 		conn.send(json);
 	} catch (e) {
-
+		console.log(e);
 	}
 }
 
 var updateValue = function(conn, screen, pair) {
+	console.log(screen);
 	console.log(pair);
 	var index = pair.indexOf(':');
 

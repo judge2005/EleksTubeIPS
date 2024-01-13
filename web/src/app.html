@@ -182,8 +182,7 @@
 
 			var val = values["clock_face"];
 			if (typeof val != 'undefined') {
-				var anchor = $('#face_item_' + val +' a');
-				anchor.addClass("item-disabled").addClass('ui-btn-b').addClass('ui-btn-active').removeClass("ui-btn-c");
+				setFace(val);
 			}
 
 			Object.keys(values).forEach(function (key, index) {
