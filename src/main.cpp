@@ -58,7 +58,7 @@ String chipId = getChipId();
 StringConfigItem hostName("hostname", 63, "elekstubeips");
 
 // Clock config
-StringConfigItem dummy("dummy", 2, "!");	
+BooleanConfigItem dimming("dimming", false);
 
 BaseConfigItem *clockSet[] = {
 	// Clock
@@ -70,7 +70,7 @@ BaseConfigItem *clockSet[] = {
 	&IPSClock::getDisplayOff(),
 	&IPSClock::getClockFace(),
 	&IPSClock::getTimeZone(),
-	&dummy,
+	&dimming,
 	0
 };
 CompositeConfigItem clockConfig("clock", 0, clockSet);
@@ -159,6 +159,11 @@ void clockTaskFn(void *pArg) {
 	while (true) {
 		delay(1);
 
+		if (ipsClock.clockOn()) {
+			ipsClock.setDimming(false);
+		} else {
+			ipsClock.setDimming(dimming);
+		}
 		ipsClock.loop();
 	}
 }
@@ -478,7 +483,18 @@ void ledTaskFn(void *pArg) {
 	backlights.begin();
 
 	while (true) {
-		backlights.setOn(ipsClock.clockOn());
+		if (ipsClock.clockOn()) {
+			backlights.setOn(true);
+			backlights.setDimming(false);
+		} else {
+			if (dimming) {
+				backlights.setOn(true);
+				backlights.setDimming(true);
+			} else {
+				backlights.setOn(false);
+				backlights.setDimming(false);
+			}
+		}
 		backlights.loop();
 		delay(16);
 	}

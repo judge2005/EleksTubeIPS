@@ -55,6 +55,16 @@
 			<div class="dispInline">
 				<div id="on_range"></div>
 			</div>
+			<div class="clearFloats"></div>
+			<div class="dispInlineLabel">
+				<label for="dimming">Off State</label>
+			</div>
+			<div class="dispInline">
+					<input onchange="elementChange(this)" type="checkbox"
+					data-role="flipswitch" name="dimming" id="dimming"
+					data-on-text="Dim" data-off-text="Off"
+					data-wrapper-class="custom-label-flipswitch">
+			</div>
 			<div data-role="fieldcontain">
 				<label for="time_zone">Timezone Definition</label> <input maxlength="80"
 					onblur="elementBlur(this)" type="text" id="time_zone"

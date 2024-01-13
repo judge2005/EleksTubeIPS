@@ -37,6 +37,7 @@ public:
   void PowerOn()  { off = false; pattern_needs_init = true; }
   void PowerOff()  { off = true; pattern_needs_init = true; }
   void setOn(bool on) { off = !on; pattern_needs_init = true; }
+  void setDimming(bool dimming) { this->dimming = dimming; }
 
   void setColorPhase(uint16_t phase) { getColorPhase().value = phase % max_phase; pattern_needs_init = true; }
   void adjustColorPhase(int16_t adj);

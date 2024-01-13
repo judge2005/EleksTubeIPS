@@ -53,8 +53,9 @@ void IPSClock::loop() {
         }
         unsigned long tDelay = 1000 - realms;
 
-        if (clockOn()) {
+        if (clockOn() || dimming) {
             tfts.claim();
+            tfts.setDimming(dimming ? 40 : 255);
             tfts.checkStatus();
             tfts.enableAllDisplays();
             if (getTimeOrDate().value) {
@@ -145,32 +146,43 @@ void IPSClock::unpackProgressCallback(uint8_t progress) {
 void IPSClock::cacheClockFace(const String &faceName) {
 	String fileName("/ips/faces/" + faceName + ".tar.gz");
 
-	newUnpack = true;
+    if (LittleFS.exists(fileName)) {
+        newUnpack = true;
 
-    TarGzUnpacker &unpacker = getUnpacker();
+        fs::File dir = LittleFS.open("/ips/cache");
+        String name = dir.getNextFileName();
+        while(name.length() > 0){
+            LittleFS.remove(name);
+            name = dir.getNextFileName();
+        }
+        dir.close();
 
-    if( !unpacker.tarGzExpander(tarGzFS, fileName.c_str(), tarGzFS, "/ips/cache", nullptr ) ) {
-    	Serial.printf("tarGzExpander+intermediate file failed with return code #%d\n", unpacker.tarGzGetError() );
-    } else {
-		Serial.println("File unzipped");
-	}
+        TarGzUnpacker &unpacker = getUnpacker();
 
-	fs::File dir = LittleFS.open("/ips/cache");
-    File file = dir.openNextFile();
-    while(file){
-		Serial.print("  FILE: ");
-		Serial.print(file.name());
-		Serial.print("  SIZE: ");
+        if( !unpacker.tarGzExpander(tarGzFS, fileName.c_str(), tarGzFS, "/ips/cache", nullptr ) ) {
+            Serial.printf("tarGzExpander+intermediate file failed with return code #%d\n", unpacker.tarGzGetError() );
+        } else {
+            Serial.println("File unzipped");
+        }
 
-#ifdef CONFIG_LITTLEFS_FOR_IDF_3_2
-		Serial.println(file.size());
-#else
-		Serial.print(file.size());
-		time_t t= file.getLastWrite();
-		struct tm * tmstruct = localtime(&t);
-		Serial.printf("  LAST WRITE: %d-%02d-%02d %02d:%02d:%02d\n",(tmstruct->tm_year)+1900,( tmstruct->tm_mon)+1, tmstruct->tm_mday,tmstruct->tm_hour , tmstruct->tm_min, tmstruct->tm_sec);
-#endif
-		file.close();
-        file = dir.openNextFile();
+        dir = LittleFS.open("/ips/cache");
+        File file = dir.openNextFile();
+        while(file){
+            Serial.print("  FILE: ");
+            Serial.print(file.name());
+            Serial.print("  SIZE: ");
+
+    #ifdef CONFIG_LITTLEFS_FOR_IDF_3_2
+            Serial.println(file.size());
+    #else
+            Serial.print(file.size());
+            time_t t= file.getLastWrite();
+            struct tm * tmstruct = localtime(&t);
+            Serial.printf("  LAST WRITE: %d-%02d-%02d %02d:%02d:%02d\n",(tmstruct->tm_year)+1900,( tmstruct->tm_mon)+1, tmstruct->tm_mday,tmstruct->tm_hour , tmstruct->tm_min, tmstruct->tm_sec);
+    #endif
+            file.close();
+            file = dir.openNextFile();
+        }
+        dir.close();
     }
 }

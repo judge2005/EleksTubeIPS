@@ -4,12 +4,53 @@
 
 SemaphoreHandle_t TFTs::tftMutex = 0;
 
+uint8_t StaticSprite::output_buffer[(TFT_HEIGHT * TFT_WIDTH + 1) * sizeof(uint16_t)];
+
+void StaticSprite::init() {
+  _iwidth  = _dwidth  = _bitwidth = TFT_WIDTH;
+  _iheight = _dheight = TFT_HEIGHT;
+
+  cursor_x = 0;
+  cursor_y = 0;
+
+  // Default scroll rectangle and gap fill colour
+  _sx = 0;
+  _sy = 0;
+  _sw = TFT_WIDTH;
+  _sh = TFT_HEIGHT;
+  _scolor = TFT_BLACK;
+
+  _img8   = output_buffer;
+  _img8_1 = _img8;
+  _img8_2 = _img8;
+  _img    = (uint16_t*) _img8;
+  _img4   = _img8;
+
+  _created = true;
+
+  rotation = 0;
+  setViewport(0, 0, _dwidth, _dheight);
+  setPivot(_iwidth/2, _iheight/2);
+}
+
 void TFTs::claim() {
   xSemaphoreTake(tftMutex, portMAX_DELAY);
 }
 
 void TFTs::release(){
   xSemaphoreGive(tftMutex);
+}
+
+TFT_eSprite& TFTs::getSprite() {
+  static bool initialized = false;
+  static StaticSprite sprite(&tfts);
+
+  if (!initialized) {
+    initialized = true;
+    sprite.init();
+  }
+
+  return sprite;
 }
 
 TFT_eSprite& TFTs::getStatusSprite() {
@@ -158,6 +199,12 @@ size_t TFTs::printlnall(const char s[]){
   return ret;
 }
   
+void TFTs::setDimming(uint8_t dimming) {
+  if (dimming != this->dimming) {
+    invalidateAllDigits();
+    this->dimming = dimming;
+  }
+}
 
 void TFTs::begin(fs::FS& fs, const char *imageRoot) {
   if (tftMutex == 0) {
@@ -237,60 +284,45 @@ void TFTs::InvalidateImageInBuffer() { // force reload from Flash with new dimmi
 // These BMP functions are stolen directly from the TFT_SPIFFS_BMP example in the TFT_eSPI library.
 // Unfortunately, they aren't part of the library itself, so I had to copy them.
 // I've modified DrawImage to buffer the whole image at once instead of doing it line-by-line.
-
-
-// Too big to fit on the stack.
-uint16_t TFTs::output_buffer[TFT_HEIGHT][TFT_WIDTH];
-
-#ifndef USE_CLK_FILES
-
-bool TFTs::LoadImageIntoBuffer(uint8_t directory, uint8_t file_index) {
-  uint32_t StartTime = millis();
-
-  fs::File bmpFS;
-  // Filenames are no bigger than "255.bmp\0"
-  char filename[255];
-  sprintf(filename, "%s/%d/%d.clk", imageRoot, directory, file_index);
-  
-  // Open requested file on SD card
-  bmpFS = fs->open(filename, "r");
-  if (!bmpFS)
-  {
-    Serial.print("File not found: ");
-    Serial.println(filename);
-    return(false);
-  }
-
+bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
   uint32_t seekOffset, headerSize, paletteSize = 0;
   int16_t w, h, row, col;
   uint16_t  r, g, b, bitDepth;
-
-  // black background - clear whole buffer
-  memset(output_buffer, '\0', sizeof(output_buffer));
   
-  uint16_t magic = read16(bmpFS);
-  if (magic == 0xFFFF) {
-    Serial.print("Can't openfile. Make sure you upload the LittleFS image with BMPs. : ");
-    Serial.println(filename);
-    bmpFS.close();
-    return(false);
-  }
-  
+  uint16_t magic = read16(bmpFile);
   if (magic != 0x4D42) {
     Serial.print("File not a BMP. Magic: ");
     Serial.println(magic);
-    bmpFS.close();
-    return(false);
+    return false;
   }
 
-  read32(bmpFS); // filesize in bytes
-  read32(bmpFS); // reserved
-  seekOffset = read32(bmpFS); // start of bitmap
-  headerSize = read32(bmpFS); // header size
-  w = read32(bmpFS); // width
-  h = read32(bmpFS); // height
-  read16(bmpFS); // color planes (must be 1)
-  bitDepth = read16(bmpFS);
+  read32(bmpFile); // filesize in bytes
+  read32(bmpFile); // reserved
+  seekOffset = read32(bmpFile); // start of bitmap
+  headerSize = read32(bmpFile); // header size
+  w = read32(bmpFile); // width
+  h = read32(bmpFile); // height
+  uint16_t planes = read16(bmpFile); // color planes (must be 1)
+  if (planes != 1) {
+    Serial.print("Bad color planes: ");
+    Serial.println(planes);
+    return false;
+  }
+
+  bitDepth = read16(bmpFile);
+  if (bitDepth != 24 && bitDepth != 16 && bitDepth != 1 && bitDepth != 4 && bitDepth != 8) {
+    Serial.print("Bad bit depth: ");
+    Serial.println(bitDepth);
+    return false;
+  }
+
+  int32_t compression = read32(bmpFile);
+
+  if (compression != 0) {
+    Serial.print("Bad compression: ");
+    Serial.println(compression);
+    // return false;
+  }
 #ifdef DEBUG_OUTPUT
   Serial.print("image W, H, BPP: ");
   Serial.print(w); 
@@ -301,126 +333,42 @@ bool TFTs::LoadImageIntoBuffer(uint8_t directory, uint8_t file_index) {
   Serial.print("dimming: ");
   Serial.println(dimming);
 #endif
-  // center image on the display
-  int16_t x = (TFT_WIDTH - w) / 2;
-  int16_t y = (TFT_HEIGHT - h) / 2;
-  
-  if (read32(bmpFS) != 0 || (bitDepth != 24 && bitDepth != 1 && bitDepth != 4 && bitDepth != 8)) {
-    Serial.println("BMP format not recognized.");
-    bmpFS.close();
-    return(false);
-  }
-
   uint32_t palette[256];
   if (bitDepth <= 8) // 1,4,8 bit bitmap: read color palette
   {
-    read32(bmpFS); read32(bmpFS); read32(bmpFS); // size, w resolution, h resolution
-    paletteSize = read32(bmpFS);
-    if (paletteSize == 0) paletteSize = bitDepth * bitDepth; // if 0, size is 2^bitDepth
-    bmpFS.seek(14 + headerSize); // start of color palette
+    read32(bmpFile); read32(bmpFile); read32(bmpFile); // size, w resolution, h resolution
+    paletteSize = read32(bmpFile);
+    if (paletteSize == 0) paletteSize = 1 << bitDepth; // if 0, size is 2^bitDepth
+    if (compression == 3) {
+      bmpFile.seek(14 + 12 + headerSize); // start of color palette
+    } else if (compression == 6) {
+      bmpFile.seek(14 + 16 + headerSize); // start of color palette
+    } else {
+      bmpFile.seek(14 + headerSize); // start of color palette
+    }
     for (uint16_t i = 0; i < paletteSize; i++) {
-      palette[i] = read32(bmpFS);
+      palette[i] = read32(bmpFile);
     }
   }
 
-  bmpFS.seek(seekOffset);
+  bmpFile.seek(seekOffset);
 
-  uint32_t lineSize = ((bitDepth * w +31) >> 5) * 4;
-  uint8_t lineBuffer[lineSize];
-  
-  // row is decremented as the BMP image is drawn bottom up
-  for (row = h-1; row >= 0; row--) {
-
-    bmpFS.read(lineBuffer, sizeof(lineBuffer));
-    uint8_t*  bptr = lineBuffer;
-    
-    // Convert 24 to 16 bit colours while copying to output buffer.
-    for (col = 0; col < w; col++)
-    {
-      if (bitDepth == 24) {
-          b = *bptr++;
-          g = *bptr++;
-          r = *bptr++;
-        } else {
-          uint32_t c = 0;
-          if (bitDepth == 8) {
-            c = palette[*bptr++];
-          }
-          else if (bitDepth == 4) {
-            c = palette[(*bptr >> ((col & 0x01)?0:4)) & 0x0F];
-            if (col & 0x01) bptr++;
-          }
-          else { // bitDepth == 1
-            c = palette[(*bptr >> (7 - (col & 0x07))) & 0x01];
-            if ((col & 0x07) == 0x07) bptr++;
-          }
-          b = c; g = c >> 8; r = c >> 16;
-        }
-        if (dimming < 255) { // only dim when needed
-          b *= dimming;
-          g *= dimming;
-          r *= dimming;
-          b = b >> 8;
-          g = g >> 8;
-          r = r >> 8;
-        }
-        output_buffer[row][col] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | ((b & 0xFF) >> 3);
-      }
-    }
-  }
-  FileInBuffer = file_index;
-  
-  bmpFS.close();
-#ifdef DEBUG_OUTPUT
-  Serial.print("img load : ");
-  Serial.println(millis() - StartTime);  
-#endif
-  return (true);
+  return LoadImageBytesIntoSprite(w, abs(h), bitDepth, ((bitDepth * w +31) >> 5) * 4, h > 0, palette, bmpFile);
 }
-#endif
 
+bool TFTs::LoadCLKImageIntoBuffer(fs::File &clkFile) {
+  int16_t w, h;
 
-#ifdef USE_CLK_FILES
-
-bool TFTs::LoadImageIntoBuffer(uint8_t file_index) {
-  uint32_t StartTime = millis();
-
-  fs::File bmpFS;
-  char filename[255];
-  sprintf(filename, "%s/%d.clk", imageRoot, file_index);
-  
-  // Open requested file on SD card
-  bmpFS = fs->open(filename, "r");
-  if (!bmpFS)
-  {
-    Serial.print("File not found: ");
-    Serial.println(filename);
-    return(false);
-  }
-
-  int16_t w, h, row, col;
-  uint16_t  r, g, b;
-
-  // black background - clear whole buffer
-  memset(output_buffer, '\0', sizeof(output_buffer));
-  
-  uint16_t magic = read16(bmpFS);
-  if (magic == 0xFFFF) {
-    Serial.print("Can't openfile. Make sure you upload the LittleFS image with images. : ");
-    Serial.println(filename);
-    bmpFS.close();
-    return(false);
-  }
-  
+  uint16_t magic = read16(clkFile);
+ 
   if (magic != 0x4B43) { // look for "CK" header
     Serial.print("File not a CLK. Magic: ");
     Serial.println(magic);
-    bmpFS.close();
-    return(false);
+    return false;
   }
 
-  w = read16(bmpFS);
-  h = read16(bmpFS);
+  w = read16(clkFile);
+  h = read16(clkFile);
 #ifdef DEBUG_OUTPUT
   Serial.print("image W, H: ");
   Serial.print(w); 
@@ -428,52 +376,165 @@ bool TFTs::LoadImageIntoBuffer(uint8_t file_index) {
   Serial.println(h);
   Serial.print("dimming: ");
   Serial.println(dimming);
-#endif  
+#endif
+
+  return LoadImageBytesIntoSprite(w, h, 16, w * 2, false, 0, clkFile);
+}
+
+bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int16_t rowSize, bool reversed, uint32_t *palette, fs::File &file) {
   // center image on the display
   int16_t x = (TFT_WIDTH - w) / 2;
   int16_t y = (TFT_HEIGHT - h) / 2;
-  
-  uint8_t lineBuffer[w * 2];
-  
-  // 0,0 coordinates are top left
-  for (row = 0; row < h; row++) {
 
-    bmpFS.read(lineBuffer, sizeof(lineBuffer));
-    uint8_t PixM, PixL;
+  uint32_t outputBufferSize = w * 2;
+  if (outputBufferSize < rowSize) {
+    outputBufferSize = rowSize; // So that input and output buffer can be the same. Basically for bitDepth >= 16
+  }
+  uint8_t outputBuffer[outputBufferSize];
+
+  uint32_t inputBufferSize = rowSize;
+  uint8_t *inputBuffer = outputBuffer;
+
+  if (bitDepth < 16) {
+    inputBuffer = (uint8_t*)malloc(inputBufferSize);
+  }
+
+#ifdef notdef  
+  Serial.print("image W, H: ");
+  Serial.print(w); 
+  Serial.print(", "); 
+  Serial.println(h);
+  Serial.print("dimming: ");
+  Serial.println(dimming);
+  Serial.print("input size, output size: ");
+  Serial.print(inputBufferSize); 
+  Serial.print(", "); 
+  Serial.println(outputBufferSize);
+#endif
+
+  TFT_eSprite& sprite = getSprite();
+  sprite.fillSprite(0);
+  
+  bool oldSwapBytes = sprite.getSwapBytes();
+  sprite.setSwapBytes(true);
+
+  // 0,0 coordinates are top left
+  for (int row = 0; row < h; row++) {
+    size_t read = file.read(inputBuffer, inputBufferSize);
+    if (read != inputBufferSize) {
+      Serial.println("Bytes read, bytes asked for:");
+      Serial.print(read);
+      Serial.print(", ");
+      Serial.println(inputBufferSize);
+      break;
+    }
     
     // Colors are already in 16-bit R5, G6, B5 format
-    for (col = 0; col < w; col++)
-    {
-      if (dimming == 255) { // not needed, copy directly
-        output_buffer[row+y][col+x] = (lineBuffer[col*2+1] << 8) | (lineBuffer[col*2]);
-      } else {
-        // 16 BPP pixel format: R5, G6, B5 ; bin: RRRR RGGG GGGB BBBB
-        PixM = lineBuffer[col*2+1];
-        PixL = lineBuffer[col*2];
-        // align to 8-bit value (MSB left aligned)
-        r = (PixM) & 0xF8;
-        g = ((PixM << 5) | (PixL >> 3)) & 0xFC;
-        b = (PixL << 3) & 0xF8;
-        r *= dimming;
-        g *= dimming;
-        b *= dimming;
-        r = r >> 8;
-        g = g >> 8;
-        b = b >> 8;
-        output_buffer[row+y][col+x] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+    if (dimming != 255 || bitDepth != 16) {
+      uint8_t*  inputPtr = inputBuffer;
+
+      for (int col = 0; col < w; col++)
+      {
+        uint16_t r, g, b;
+        uint32_t c = 0;
+
+        switch (bitDepth) {
+          case 32:
+            inputPtr++;
+          case 24:
+            b = *inputPtr++;
+            g = *inputPtr++;
+            r = *inputPtr++;
+            break;
+          case 16:
+            {
+              // 16 BPP pixel format: R5, G6, B5 ; bin: RRRR RGGG GGGB BBBB
+              uint8_t PixM = inputBuffer[col*2+1];
+              uint8_t PixL = inputBuffer[col*2];
+              // align to 8-bit value (MSB left aligned)
+              r = (PixM) & 0xF8;
+              g = ((PixM << 5) | (PixL >> 3)) & 0xFC;
+              b = (PixL << 3) & 0xF8;
+            }
+            break;
+          case 8:
+            c = palette[*inputPtr++];
+            b = c & 0xff; g = (c >> 8) & 0xff; r = (c >> 16) & 0xff;
+            break;
+          case 4:
+            c = palette[(*inputPtr >> ((col & 0x01)?0:4)) & 0x0F];
+            if (col & 0x01) inputPtr++;
+            b = c; g = c >> 8; r = c >> 16;
+            break;
+          case 1:
+            c = palette[(*inputPtr >> (7 - (col & 0x07))) & 0x01];
+            if ((col & 0x07) == 0x07) inputPtr++;
+            b = c; g = c >> 8; r = c >> 16;
+            break;
+        }
+        
+        if (dimming != 255) {
+          r *= dimming;
+          g *= dimming;
+          b *= dimming;
+          r = r >> 8;
+          g = g >> 8;
+          b = b >> 8;
+        }
+
+        outputBuffer[col*2+1] = (r & 0xF8) | ((g & 0xFC) >> 5);
+        outputBuffer[col*2] = ((g & 0x1C) << 3) | ((b & 0xF8) >> 3);
       }
     }
+    sprite.pushImage(x, reversed ? (h-row-1) + y : row + y, w, 1, (uint16_t*)outputBuffer);
   }
-  FileInBuffer = file_index;
-  
-  bmpFS.close();
-#ifdef DEBUG_OUTPUT
-  Serial.print("img load : ");
-  Serial.println(millis() - StartTime);  
-#endif
-  return (true);
+
+  sprite.setSwapBytes(oldSwapBytes);
+
+  if (bitDepth < 16) {
+    free(inputBuffer);
+  }
+
+  return true;
 }
-#endif 
+
+bool TFTs::LoadImageIntoBuffer(uint8_t file_index) {
+  uint32_t StartTime = millis();
+
+  fs::File file;
+  char filename[255];
+  sprintf(filename, "%s/%d.clk", imageRoot, file_index);
+  
+  // Open requested file on SD card
+  if (fs->exists(filename)) {
+    file = fs->open(filename, "r");
+    if (file) {
+      bool loaded = LoadCLKImageIntoBuffer(file);
+      if (loaded) {
+        FileInBuffer = file_index;
+      }
+      file.close();
+      return loaded;
+    }
+  }
+
+  sprintf(filename, "%s/%d.bmp", imageRoot, file_index);
+  if (fs->exists(filename)) {
+    file = fs->open(filename, "r");
+    if (file) {
+      bool loaded = LoadBMPImageIntoBuffer(file);
+      if (loaded) {
+        FileInBuffer = file_index;
+      }
+      file.close();
+      return loaded;
+    }
+  }
+
+  Serial.print("File not found: ");
+  Serial.println(filename);
+  return false;
+}
 
 void TFTs::DrawImage(uint8_t file_index) {
 
@@ -484,16 +545,19 @@ void TFTs::DrawImage(uint8_t file_index) {
     LoadImageIntoBuffer(file_index);
   }
   
-  bool oldSwapBytes = getSwapBytes();
-  setSwapBytes(true);
+  // bool oldSwapBytes = getSwapBytes();
+  // setSwapBytes(true);
 #ifdef USE_DMA
   startWrite();
   pushImageDMA(0,0, TFT_WIDTH, TFT_HEIGHT, (uint16_t *)output_buffer);
   endWrite();
 #else
-  pushImage(0,0, TFT_WIDTH, TFT_HEIGHT, (uint16_t *)output_buffer);
+  TFT_eSprite& sprite = getSprite();
+  sprite.pushSprite(0, 0);
+
+  // pushImage(0,0, TFT_WIDTH, TFT_HEIGHT, (uint16_t *)output_buffer);
 #endif
-  setSwapBytes(oldSwapBytes);
+  // setSwapBytes(oldSwapBytes);
 
 #ifdef DEBUG_OUTPUT
   Serial.print("img transfer: ");  

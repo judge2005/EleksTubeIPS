@@ -7,6 +7,15 @@
 #include <TFT_eSPI.h>
 #include "ChipSelect.h"
 
+class StaticSprite : public TFT_eSprite {
+public:
+  StaticSprite(TFT_eSPI *tft) : TFT_eSprite(tft) {}
+  void init();
+
+private:
+  static uint8_t output_buffer[];
+};
+
 class TFTs : public TFT_eSPI {
 public:
   TFTs() : TFT_eSPI(), chip_select(), enabled(false)
@@ -18,8 +27,6 @@ public:
   const static uint8_t blanked = 255;
   const static uint8_t invalid = 254;
 
-  uint8_t dimming = 255; // amount of dimming graphics
-  
   void claim();
   void release();
 
@@ -39,6 +46,7 @@ public:
   void disableAllDisplays()          { digitalWrite(TFT_ENABLE_PIN, LOW); enabled = false; }
   void toggleAllDisplays()           { if (enabled) disableAllDisplays(); else enableAllDisplays(); }
   bool isEnabled()                   { return enabled; }
+  void setDimming(uint8_t dimming);
 
   // Making chip_select public so we don't have to proxy all methods, and the caller can just use it directly.
   ChipSelect chip_select;
@@ -59,8 +67,11 @@ private:
   static SemaphoreHandle_t tftMutex;
 
   TFT_eSprite& getStatusSprite();
+  TFT_eSprite& getSprite();
   void drawStatus();
 
+  uint8_t dimming = 255; // amount of dimming graphics
+  
   unsigned long statusTime = 0;
   bool statusSet = false;
 
@@ -73,11 +84,14 @@ private:
   const char *imageRoot;
 
   bool LoadImageIntoBuffer(uint8_t file_index);
+  bool LoadBMPImageIntoBuffer(fs::File &file);
+  bool LoadCLKImageIntoBuffer(fs::File &file);
+  bool LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bpp, int16_t rowSize, bool reversed, uint32_t *palette, fs::File &file);
+
   void DrawImage(uint8_t file_index);
   uint16_t read16(fs::File &f);
   uint32_t read32(fs::File &f);
 
-  static uint16_t output_buffer[TFT_HEIGHT][TFT_WIDTH];
   uint8_t FileInBuffer=255; // invalid, always load first image
   uint8_t NextFileRequired = 0; 
 };

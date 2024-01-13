@@ -1,7 +1,7 @@
 #include "Backlights.h"
 #include <math.h>
 
-#define BACKLIGHT_DIMMED_INTENSITY  1
+#define BACKLIGHT_DIMMED_INTENSITY  4
 
 void Backlights::begin()  {
 	pixels.Begin(); // This initializes the NeoPixel library.
@@ -35,7 +35,7 @@ void Backlights::loop() {
   uint8_t current_pattern = getLEDPattern().value;
   pattern_needs_init = old_pattern != current_pattern;
 
-  if (off || current_pattern == dark) {
+  if ((off && !dimming) || current_pattern == dark) {
     clear();
     show();
   }
@@ -45,7 +45,7 @@ void Backlights::loop() {
   else if (current_pattern == constant) {
     fill(phaseToColor(getColorPhase().value));
     if (dimming) {
-        setBrightness(0xFF >> max_intensity - (BACKLIGHT_DIMMED_INTENSITY) - 1);
+        setBrightness(0xFF >> max_intensity - getLEDIntensity().value / 2 - 1);
       } else {
         setBrightness(0xFF >> max_intensity - getLEDIntensity().value - 1);
       }
@@ -70,8 +70,9 @@ void Backlights::pulsePattern() {
 
   float pulse_length_millis = (60.0f * 1000) / getBreathPerMin().value;
   float val = 1 + abs(sin(2 * M_PI * millis() / pulse_length_millis)) * 254;
+  val = val * getLEDIntensity().value / 7;
   if (dimming) {
-    val = val * BACKLIGHT_DIMMED_INTENSITY / 7;
+    val = val / 2 ;
   }  
   setBrightness((uint8_t)val);
 
@@ -85,9 +86,10 @@ void Backlights::breathPattern() {
   // Avoid a 0 value as it shuts off the LEDs and we have to re-initialize.
   float pulse_length_millis = (60.0f * 1000) / getBreathPerMin().value;
   float val = (exp(sin(2 * M_PI * millis() / pulse_length_millis)) - 0.36787944f) * 108.0f;
+  val = val * getLEDIntensity().value / 7;
 
   if (dimming) {
-    val = val * BACKLIGHT_DIMMED_INTENSITY / 7;
+    val = val / 2;
   }  
 
   uint8_t brightness = (uint8_t)val;
@@ -153,7 +155,7 @@ void Backlights::rainbowPattern() {
  		setPixelColor(digit, phaseToColor(my_phase));
   }
   if (dimming) {
-    setBrightness((uint8_t) BACKLIGHT_DIMMED_INTENSITY);
+    setBrightness(0xFF >> max_intensity - getLEDIntensity().value/2 - 1);
   }  else {
     setBrightness(0xFF >> max_intensity - getLEDIntensity().value - 1);  
   }

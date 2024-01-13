@@ -23,6 +23,7 @@ public:
 
     void init();
     void loop();
+    void setDimming(bool dimming) { this->dimming = dimming; }
     void setTimeSync(TimeSync *pTimeSync) { this->pTimeSync = pTimeSync; }
 
     bool clockOn();
@@ -30,6 +31,7 @@ private:
     ClockTimer::Timer displayTimer;
     String oldClockFace;
 	TimeSync *pTimeSync = 0;
+    bool dimming = false;
 
     static bool newUnpack;
     static const char* unpackName;
