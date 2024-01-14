@@ -39,7 +39,8 @@ def write_bin(f, pixel_list, width, height):
 def trim(im):
     bg = Image.new(im.mode, im.size, im.getpixel((0,0)))
     diff = ImageChops.difference(im, bg)
-    bbox = diff.getbbox()
+    diff = ImageChops.add(diff, diff, 2.0, -100)
+    bbox = diff.getbbox(alpha_only=False)
     if bbox:
         return im.crop(bbox)
     else:
