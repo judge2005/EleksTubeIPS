@@ -503,13 +503,11 @@ bool TFTs::LoadImageIntoBuffer(uint8_t file_index) {
 
   fs::File file;
   char filename[255];
-  sprintf(filename, "%s/%d.clk", imageRoot, file_index);
-  
-  // Open requested file on SD card
+  sprintf(filename, "%s/%d.bmp", imageRoot, file_index);
   if (fs->exists(filename)) {
     file = fs->open(filename, "r");
     if (file) {
-      bool loaded = LoadCLKImageIntoBuffer(file);
+      bool loaded = LoadBMPImageIntoBuffer(file);
       if (loaded) {
         FileInBuffer = file_index;
       }
@@ -518,11 +516,11 @@ bool TFTs::LoadImageIntoBuffer(uint8_t file_index) {
     }
   }
 
-  sprintf(filename, "%s/%d.bmp", imageRoot, file_index);
+  sprintf(filename, "%s/%d.clk", imageRoot, file_index);
   if (fs->exists(filename)) {
     file = fs->open(filename, "r");
     if (file) {
-      bool loaded = LoadBMPImageIntoBuffer(file);
+      bool loaded = LoadCLKImageIntoBuffer(file);
       if (loaded) {
         FileInBuffer = file_index;
       }
