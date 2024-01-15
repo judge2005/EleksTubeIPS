@@ -47,6 +47,40 @@ def trim(im):
     else:
         return im
 
+def process(image, output_file):
+    if args.trim:
+        image = trim(image)
+    if image.has_transparency_data:
+        new_image = Image.new("RGBA", image.size, args.background_color)
+        new_image.paste(image, (0, 0), image)
+        image = new_image.convert('RGB')
+
+    if args.depth == 16:
+        pixels = list(image.getdata())        
+        with open(output_file, 'wb') as f:
+            f.write(create_header(image.width, image.height))
+            write_bin(f, pixels, image.width, image.height)
+    if args.depth < 16:
+        image = image.quantize(colors=1 << args.depth, kmeans=128, method=Image.MAXCOVERAGE)
+        image.save(output_file);
+    if args.depth > 16:
+        image.save(output_file);
+    
+    print(output_file + ", colors=" + str(len(set(image.getdata()))) + ", width=" + str(image.width) + ", height=" + str(image.height))
+
+def tile(file):
+    img = Image.open(file)
+    w, h = img.size
+    th = h / args.rows
+    tw = w / args.cols
+    for row in range(0, args.rows, 1):
+        for col in range(0, args.cols, 1) :
+            left = col * tw
+            top = row * th
+            out = pathlib.Path(file).stem + "_" + str(row) + "_" + str(col) + ".bmp"
+            box = (left, top, left+tw, top+th)
+            process(img.crop(box), out)
+
 parser = argparse.ArgumentParser(
     description="Bulk convert PNG to RGB565 BMP"
 )
@@ -67,6 +101,24 @@ parser.add_argument(
     default=16,
     choices=[1, 8, 16, 24, 32],
     help="bits per pixel"
+)
+
+parser.add_argument(
+    "-c",
+    "--cols",
+    dest="cols",
+    type=int,
+    default=1,
+    help="number of columns to split input into"
+)
+
+parser.add_argument(
+    "-r",
+    "--rows",
+    dest="rows",
+    type=int,
+    default=1,
+    help="number of rows to split input into"
 )
 
 parser.add_argument(
@@ -102,26 +154,10 @@ if len(args.file) > 0:
         image = Image.open(file)
         print(file + ", colors=" + str(len(set(image.getdata()))) + ", width=" + str(image.width) + ", height=" + str(image.height))
         if not args.info:
-            output_file = pathlib.Path(file).stem + ".bmp"
-            if args.trim:
-                image = trim(image)
-            if image.has_transparency_data:
-                new_image = Image.new("RGBA", image.size, args.background_color)
-                new_image.paste(image, (0, 0), image)
-                image = new_image.convert('RGB')
-            if args.depth == 16:
-                pixels = list(image.getdata())
-                # print pixels
-                
-                with open(output_file, 'wb') as f:
-                    f.write(create_header(image.width, image.height));
-                    write_bin(f, pixels, image.width, image.height)
-            if args.depth < 16:
-                image = image.quantize(colors=1 << args.depth, kmeans=128, method=Image.MAXCOVERAGE)
-                image.save(output_file);
-            if args.depth > 16:
-                image.save(output_file);
-            
-            print(output_file + ", colors=" + str(len(set(image.getdata()))) + ", width=" + str(image.width) + ", height=" + str(image.height))
+            if args.rows > 1 and args.cols > 1:
+                tile(file)
+            else:
+                output_file = pathlib.Path(file).stem + ".bmp"
+                process(image, output_file)
 else:
     print("You must specify one or more PNG files to convert")
