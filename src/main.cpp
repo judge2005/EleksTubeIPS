@@ -586,15 +586,15 @@ void setup() {
 	tfts.setCursor(0, 0, 2);
 	tfts.setStatus("setup...");
 
-	timeSync = new EspSNTPTimeSync(IPSClock::getTimeZone().value, asyncTimeSetCallback, asyncTimeErrorCallback);
-
-	rtcTimeSync = new EspRTCTimeSync(SDApin, SCLpin);
-	rtcTimeSync->init();
-
 	createSSID();
 
 	EEPROM.begin(2048);
 	initFromEEPROM();
+
+	timeSync = new EspSNTPTimeSync(IPSClock::getTimeZone().value, asyncTimeSetCallback, asyncTimeErrorCallback);
+
+	rtcTimeSync = new EspRTCTimeSync(SDApin, SCLpin);
+	rtcTimeSync->init();
 
     xTaskCreatePinnedToCore(
           commitEEPROMTaskFn, /* Function to implement the task */
