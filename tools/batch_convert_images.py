@@ -1,11 +1,11 @@
 from PIL import Image, ImageChops
 
+import random, math
 import argparse
 import struct, os, sys, glob, pathlib
 
 def create_header(width, height):
-    """ Function used to create headers when changing them is necessary, e.g. when image dimensions change.
-        This function creates both a BMP header and a V3 DIB header, with some values left as defaults (e.g. pixels/meter) """
+    # Create an RGB565 BMP file header
 
     total_header_size = 14 + 40 # V3 len = 40 bytes
     total_header_size = 14 + 40 + 12 # V3 len = 40 bytes
@@ -25,13 +25,21 @@ def create_header(width, height):
 
     return header
 
+def scale_pixel(p, factor):
+    if args.dither:
+        val = int(math.floor(float(p) * (256.0 - factor) / 255.0 / float(factor) + random.random()))
+    else:
+        val = math.floor(p/factor)
+
+    return val
+
 def write_bin(f, pixel_list, width, height):
     for row in range(height-1, -1, -1):
         for col in range(0, width, 1) :
-            r = (pixel_list[row*width + col][0] & 0xF8)
-            g = (pixel_list[row*width + col][1] & 0xFC)
-            b = (pixel_list[row*width + col][2] & 0xF8)
-            c = (r << 8) | (g << 3) | (b >> 3)
+            r = scale_pixel(pixel_list[row*width + col][0], 8)
+            g = scale_pixel(pixel_list[row*width + col][1], 4)
+            b = scale_pixel(pixel_list[row*width + col][2], 8)
+            c = (r << 11) | (g << 5) | b
             f.write(struct.pack('<H', c))
         if (width % 2) == 1:
             f.write(struct.pack('<H', 0))
@@ -55,15 +63,15 @@ def process(image, output_file):
         new_image.paste(image, (0, 0), image)
         image = new_image.convert('RGB')
 
-    if args.depth == 16:
+    if args.bpp == 16:
         pixels = list(image.getdata())        
         with open(output_file, 'wb') as f:
             f.write(create_header(image.width, image.height))
             write_bin(f, pixels, image.width, image.height)
-    if args.depth < 16:
-        image = image.quantize(colors=1 << args.depth, kmeans=128, method=Image.MAXCOVERAGE)
+    if args.bpp < 16:
+        image = image.quantize(colors=1 << args.bpp, kmeans=128, method=Image.MAXCOVERAGE)
         image.save(output_file);
-    if args.depth > 16:
+    if args.bpp > 16:
         image.save(output_file);
     
     print(output_file + ", colors=" + str(len(set(image.getdata()))) + ", width=" + str(image.width) + ", height=" + str(image.height))
@@ -77,12 +85,12 @@ def tile(file):
         for col in range(0, args.cols, 1) :
             left = col * tw
             top = row * th
-            out = pathlib.Path(file).stem + "_" + str(row) + "_" + str(col) + ".bmp"
+            out = pathlib.Path(file).stem + "_" + str(row) + "_" + str(col) + "." + args.output
             box = (left, top, left+tw, top+th)
             process(img.crop(box), out)
 
 parser = argparse.ArgumentParser(
-    description="Bulk convert PNG to RGB565 BMP"
+    description="Batch convert image files, including output to 16 bit RGB565 format (default!)"
 )
 
 parser.add_argument(
@@ -90,17 +98,34 @@ parser.add_argument(
     "--background",
     dest="background_color",
     default="BLACK",
-    help="e.g WHITE or BLACK - defaults to BLACK"
+    help="background color used when downsampling images with an alpha channel, e.g WHITE or BLACK - defaults to BLACK"
+)
+
+parser.add_argument(
+    "-o",
+    "--output",
+    dest="output",
+    default="bmp",
+    type=str.lower,
+    help="output file type - defaults to bmp"
+)
+
+parser.add_argument(
+    "-p",
+    "--bpp",
+    dest="bpp",
+    type=int,
+    default=16,
+    choices=[1, 8, 16, 24, 32],
+    help="bits per pixel - defaults to 16"
 )
 
 parser.add_argument(
     "-d",
-    "--depth",
-    dest="depth",
-    type=int,
-    default=16,
-    choices=[1, 8, 16, 24, 32],
-    help="bits per pixel"
+    "--dither",
+    dest="dither",
+    action="store_true",
+    help="use dithering when downsampling"
 )
 
 parser.add_argument(
@@ -109,7 +134,7 @@ parser.add_argument(
     dest="cols",
     type=int,
     default=1,
-    help="number of columns to split input into"
+    help="number of columns to split input into - defaults to 1"
 )
 
 parser.add_argument(
@@ -118,7 +143,7 @@ parser.add_argument(
     dest="rows",
     type=int,
     default=1,
-    help="number of rows to split input into"
+    help="number of rows to split input into - defaults to 1"
 )
 
 parser.add_argument(
@@ -126,7 +151,7 @@ parser.add_argument(
     "--trim",
     dest="trim",
     action="store_true",
-    help="Trim input image to content"
+    help="trim input image to content"
 )
 
 parser.add_argument(
@@ -134,7 +159,7 @@ parser.add_argument(
     "--fuzzy",
     dest="fuzzy",
     action="store_true",
-    help="Use a fuzzy trim when trimming, used in conjuction with -t"
+    help="use a fuzzy trim when trimming, used in conjuction with -t"
 )
 
 parser.add_argument(
@@ -150,6 +175,10 @@ parser.add_argument('file',nargs='+')
 args = parser.parse_args()
 
 if len(args.file) > 0:
+    if args.bpp == 16 and args.output != 'bmp':
+        print("16 bit output is only supported if the out file type is BMP")
+        exit(1)
+
     for file in args.file:
         image = Image.open(file)
         print(file + ", colors=" + str(len(set(image.getdata()))) + ", width=" + str(image.width) + ", height=" + str(image.height))
@@ -157,7 +186,8 @@ if len(args.file) > 0:
             if args.rows > 1 and args.cols > 1:
                 tile(file)
             else:
-                output_file = pathlib.Path(file).stem + ".bmp"
+                output_file = pathlib.Path(file).stem + "." + args.output
                 process(image, output_file)
 else:
-    print("You must specify one or more PNG files to convert")
+    print("You must specify one or more files to convert")
+    exit(1)
