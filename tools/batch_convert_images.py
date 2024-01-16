@@ -55,7 +55,20 @@ def trim(im):
     else:
         return im
 
+def scale(img):
+    if image.size[0] == 135 and image.size[1] == 240:   # unchanged
+        return img
+    img_width = img.size[0]
+    img_height = img.size[1]
+    wratio = 135.0 / float(img_width)
+    hratio = 240.0 / float(img_height)
+    ratio = min(wratio, hratio)  
+    img = img.resize((int(img_width * ratio), int(img_height * ratio)), Image.Resampling.LANCZOS)
+    return img
+
 def process(image, output_file):
+    if (args.scale):
+        image = scale(image)
     if args.trim:
         image = trim(image)
     if image.has_transparency_data:
@@ -151,7 +164,7 @@ parser.add_argument(
     "--trim",
     dest="trim",
     action="store_true",
-    help="trim input image to content"
+    help="trim input image to content - applied after scaling if used"
 )
 
 parser.add_argument(
@@ -167,7 +180,15 @@ parser.add_argument(
     "--info",
     dest="info",
     action="store_true",
-    help="Only show image info"
+    help="only show image info"
+)
+
+parser.add_argument(
+    "-s",
+    "--scale",
+    dest="scale",
+    action="store_true",
+    help="scale the input/tile to 135x240 maintaining aspect ratio"
 )
 
 parser.add_argument('file',nargs='+')
