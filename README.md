@@ -137,6 +137,6 @@ Clock faces have to be in *.tar.gz* format - if you're on a Mac or Linux you can
 
 All of the ones in the image above are in the data/ips/faces directory of this project, so if you delete them from the clock you can just upload them again from there.
 
-Each file contains 10 images *0.clk* through *9.clk*. These are 16 bit BMP files. There is a windows tool [here](https://github.com/SmittyHalibut/EleksTubeHAX/tree/main/Prepare_images) that can make these from 32 bit BMP files. I'll native support for 32 bit BMP files in a future release, but obviously they take up twice the space!
+Each file contains 10 images *0.bmp* through *9.bmp*. These can be 1, 4, 8, 16 or 24 bit BMP files. I have included a python script in the tools directory that can convert most graphic files to one of the formats the clock can use. It takes a list of files as input and has multiple options to control how the conversion is done. Run it with the -h option to see them all.
 
 The name that appears in the GUI is just the filename with the *.tar.gz* extension removed.
