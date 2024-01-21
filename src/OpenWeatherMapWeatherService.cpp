@@ -95,11 +95,7 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
     }
 
     char url[255];
-    char *units = "imperial";
-    if (getUnits()) {
-        units = "metric";
-    }
-    sprintf(url, "GET /data/2.5/%s?lat=%s&lon=%s&appid=%s&units=%s HTTP/1.1", request, getLatitude().value, getLongitude().value, token, units);
+    sprintf(url, "GET /data/2.5/%s?lat=%s&lon=%s&appid=%s&units=%s HTTP/1.1", request, getLatitude().value, getLongitude().value, token, getUnits().value);
 
     Serial.print("requesting URL: ");
     Serial.println(url);

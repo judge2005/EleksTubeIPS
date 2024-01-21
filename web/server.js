@@ -158,7 +158,7 @@ var sendSync = function(conn) {
 
 var state = {
 	"1": {
-		'time_or_date':  true,
+		'time_or_date':  1,
 		'date_format':  1,
 		'time_format':  true,
 		'leading_zero': false,
@@ -205,7 +205,9 @@ var state = {
 	},
 	"7": {
 		"weather_token":"462cf98d57c30f4cc3698a70a63bd3bb",
-		"units":false
+		"weather_latitude":"21.2",
+		"weather_longitude":"-37.1",
+		"units":"imperial"
 	},
 	"8": {
 		'sync_port' : '12345',
@@ -247,9 +249,12 @@ var updateValue = function(conn, screen, pair) {
 }
 
 var updateHue = function(conn) {
-	var hue = state['2']['hue'];
-	hue = (hue + 1) % 256;
+	// var hue = state['2']['hue'];
+	// hue = (hue + 1) % 256;
 	// updateValue(conn, 2, "hue:" + hue);
+	var val = state['1']['time_or_date'];
+	val = (val + 1) % 3;
+	updateValue(conn, 1, "time_or_date:" + val)
 }
 
 wss.on('connection', function(conn) {

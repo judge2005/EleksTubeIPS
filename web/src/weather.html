@@ -12,29 +12,42 @@
 				<input maxlength="63"
 					onblur="elementBlur(this)" type="text" id="weather_token"
 					data-mini="true" />
+				<div class="clearFloats"></div>
+				Go <a target="_blank" rel="noopener noreferrer" href="https://openweathermap.org/">here</a>
+				to get an API key
 			</div>
-			<div class="clearFloats"></div>
-			Go <a target="_blank" rel="noopener noreferrer" href="https://openweathermap.org/">here</a>
-			to get an API key
-			<div class="clearFloats"></div>
 			<div data-role="fieldcontain">
-				<label for="weather_latitude">Latitude</label>
-				<input maxlength="10"
-					onblur="elementBlur(this)" type="number" id="weather_latitude" step="0.01"
-					data-mini="true" />
-			</div>
+				<div class="clearFloats"></div>
+				<div class="dispInlineLabel">
+					<label for="weather_latitude">Latitude</label>
+				</div>
+				<div class="dispInline">
+					<input maxlength="10"
+						onblur="elementBlur(this)" type="number" id="weather_latitude" step="0.01"
+						data-mini="true" />
+				</div>
+				<div class="clearFloats"></div>
+				<div class="dispInlineLabel">
+					<label for="weather_longitude">Longitude</label>
+				</div>
+				<div class="dispInline">
+					<input maxlength="10"
+						onblur="elementBlur(this)" type="number" id="weather_longitude" step="0.01"
+						data-mini="true" />
+				</div>
+				<div class="clearFloats"></div>
+				<div class="dispInlineLabel">
+					<label for="units">Units</label>
+				</div>
+				<div class="dispInline">
+					<select onchange="elementChange(this)" type="picklist" id="units" data-mini="true">
+						<option value="imperial">Imperial</option>
+						<option value="metric">Metric</option>
+					</select>
+				</div>
+				</div>
 			<div class="clearFloats"></div>
-			<div data-role="fieldcontain">
-				<label for="weather_longitude">Longitude</label>
-				<input maxlength="10"
-					onblur="elementBlur(this)" type="number" id="weather_longitude" step="0.01"
-					data-mini="true" />
-			</div>
-			<div class="clearFloats"></div>
-			<div data-role="fieldcontain">
-				<label for="get_weather">&nbsp;</label>
-				<input onclick="elementChange(this, true)" data-mini="true" id="get_weather" type="button" value="Get Weather"/>
-			</div>
+			<input onclick="elementChange(this, true)" data-mini="true" id="get_weather" type="button" value="Get Weather"/>
 </form>
 	</div>
 </div>

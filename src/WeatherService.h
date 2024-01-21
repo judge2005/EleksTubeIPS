@@ -8,7 +8,7 @@ public:
     virtual ~WeatherService() {}
 
     static StringConfigItem& getWeatherToken() { static StringConfigItem weather_token("weather_token", 63, ""); return weather_token; }	// openweathermap.org API token
-    static BooleanConfigItem& getUnits() { static BooleanConfigItem units("units", false); return units; }	// false = farenheit, true = celsius
+    static StringConfigItem& getUnits() { static StringConfigItem units("units", 10, "imperial"); return units; }
     static StringConfigItem& getLongitude() { static StringConfigItem longitude("weather_longitude", 10, "23.7275"); return longitude; }
     static StringConfigItem& getLatitude() { static StringConfigItem latitude("weather_latitude", 10, "37.9838"); return latitude; }
 

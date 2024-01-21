@@ -11,7 +11,7 @@ class IPSClock {
 public:
     IPSClock();
 
-    static BooleanConfigItem& getTimeOrDate() { static BooleanConfigItem time_or_date("time_or_date", true); return time_or_date; }	// time
+    static IntConfigItem& getTimeOrDate() { static IntConfigItem time_or_date("time_or_date", 0); return time_or_date; }	// time
     static ByteConfigItem& getDateFormat() { static ByteConfigItem date_format("date_format", 1); return date_format; }			// mm-dd-yy, dd-mm-yy, yy-mm-dd
     static BooleanConfigItem& getHourFormat() { static BooleanConfigItem hour_format("hour_format", true); return hour_format; }	// 12/24 hour
     static BooleanConfigItem& getLeadingZero() { static BooleanConfigItem leading_zero("leading_zero", false); return leading_zero; }	//
@@ -25,7 +25,7 @@ public:
     void loop();
     void setTimeSync(TimeSync *pTimeSync) { this->pTimeSync = pTimeSync; }
     void setImageUnpacker(ImageUnpacker *imageUnpacker) { this->imageUnpacker = imageUnpacker; }
-    
+
     bool clockOn();
     uint8_t dimming() { return clockOn() ? 255 : 40; }
 private:

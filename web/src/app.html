@@ -182,10 +182,11 @@
 
 			var val = values["file_set"];
 			if (typeof val != undefined) {
+				var fieldSet = $("input:radio[name='file_set']");
 				var radioEl = $("input:radio[name='file_set'][value='" + val + "']");
 				if (typeof radioEl != undefined && radioEl.prop('type') == 'radio') {
 					radioEl.prop('checked', true);
-					radioEl.checkboxradio("refresh");
+					fieldSet.checkboxradio("refresh");
 					delete values["file_set"];
 				}
 			}
@@ -229,10 +230,12 @@
 					element.val(this[key]);
 					element.button("refresh");
 				} else if (typeof elType == 'undefined') {
+					var val = this[key];
+					var fieldSet = $("input:radio[name='" + key + "']");
 					var radioEl = $("input:radio[name='" + key + "'][value='" + this[key] + "']");
 					if (typeof radioEl != undefined && radioEl.prop('type') == 'radio') {
 						radioEl.prop('checked', true);
-						radioEl.checkboxradio("refresh");
+						fieldSet.checkboxradio("refresh");
 					} else {
 						element.html(this[key]);
 					}

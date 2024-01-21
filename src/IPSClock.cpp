@@ -73,7 +73,7 @@ void IPSClock::loop() {
             tfts->setBox(tfts->width(), tfts->height());
             tfts->checkStatus();
             tfts->enableAllDisplays();
-            if (getTimeOrDate().value) {
+            if (getTimeOrDate().value == 0) {
                 uint8_t hour = now.tm_hour;
                 if (getHourFormat().value) {
                     if (now.tm_hour > 12) {
@@ -94,7 +94,7 @@ void IPSClock::loop() {
                 } else {
                     tfts->setDigit(HOURS_TENS, digitToName[hour / 10], TFTs::yes);
                 }
-            } else {
+            } else if (getTimeOrDate().value == 1) {
                 uint8_t day = now.tm_mday;
                 uint8_t month = now.tm_mon;
                 uint8_t year = now.tm_year;
@@ -119,6 +119,8 @@ void IPSClock::loop() {
                 tfts->setDigit(MINUTES_TENS, digitToName[month / 10], TFTs::yes);
                 tfts->setDigit(HOURS_ONES, digitToName[day % 10], TFTs::yes);
                 tfts->setDigit(HOURS_TENS, digitToName[day / 10], TFTs::yes);
+            } else {
+                Serial.println("Bad display state for clock");
             }
         } else {
             tfts->disableAllDisplays();

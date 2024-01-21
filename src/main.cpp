@@ -31,6 +31,7 @@ void setWiFiAP(bool on);
 void infoCallback();
 String clockFacesCallback();
 void broadcastUpdate(String msg);
+void broadcastUpdate(const BaseConfigItem& item);
 
 TFTs *tfts = NULL;
 Backlights *backlights = NULL;
@@ -73,8 +74,8 @@ StringConfigItem hostName("hostname", 63, "elekstubeips");
 
 BaseConfigItem *clockSet[] = {
 	// Clock
-	&IPSClock::getTimeOrDate(),
 	&IPSClock::getDateFormat(),
+	&IPSClock::getTimeOrDate(),
 	&IPSClock::getHourFormat(),
 	&IPSClock::getLeadingZero(),
 	&IPSClock::getDisplayOn(),
@@ -111,6 +112,7 @@ BaseConfigItem *weatherSet[] = {
     &WeatherService::getWeatherToken(),
     &WeatherService::getLatitude(),
     &WeatherService::getLongitude(),
+    &WeatherService::getUnits(),
     0
 };
 CompositeConfigItem weatherConfig("weather", 0, weatherSet);
@@ -156,9 +158,6 @@ void onTimezoneChanged(ConfigItem<String> &tzItem) {
 	timeSync->sync();
 }
 
-uint8_t displayMode = 0;	// Default to display time
-uint8_t lvl = 255;
-
 void onWeatherConfigChanged(ConfigItem<String> &item) {
 	uint32_t value = 2;
 	xQueueSend(weatherQueue, &value, 0);
@@ -184,6 +183,7 @@ void clockTaskFn(void *pArg) {
 	WeatherService::getLatitude().setCallback(onWeatherConfigChanged);
 	WeatherService::getLongitude().setCallback(onWeatherConfigChanged);
 	WeatherService::getWeatherToken().setCallback(onWeatherConfigChanged);
+	WeatherService::getUnits().setCallback(onWeatherConfigChanged);
 
 	weather = new Weather(weatherService);
 	weather->setImageUnpacker(imageUnpacker);
@@ -198,41 +198,27 @@ void clockTaskFn(void *pArg) {
 	while (true) {
 		delay(1);
 
+		IntConfigItem &dateOrTime = IPSClock::getTimeOrDate();
     	if (modeButton.clicked()) {
-			displayMode = (displayMode + 1) % 3;
+			dateOrTime.value = (dateOrTime.value + 1) % 3;
+			broadcastUpdate(dateOrTime);
+			dateOrTime.notify();
 			tfts->invalidateAllDigits();
-			Serial.printf("Mode changed to %d\n", displayMode);
+			Serial.printf("Mode changed to %d\n", dateOrTime.value);
     	}
 
-    	if (rightButton.clicked()) {
-			tfts->setBrightness(lvl);
-			Serial.printf("Changed backlight to %d\n", lvl);
-			lvl -= 10;
-			if (lvl < 40) {
-				lvl = 255;
-			}
-    	}
-
-		switch (displayMode) {
+		switch (dateOrTime.value) {
 			case 0:
-				tfts->setShowDigits(true);
-				ipsClock->getTimeOrDate() = true;
-				break;
 			case 1:
 				tfts->setShowDigits(true);
-				ipsClock->getTimeOrDate() = false;
+				if (timeSync->initialized() || rtcTimeSync->initialized()) {
+					ipsClock->loop();
+				}
 				break;
 			case 2:
 				tfts->setShowDigits(false);
+				weather->loop(ipsClock->dimming());
 				break;
-		}
-
-		if (displayMode == 2) {
-			weather->loop(ipsClock->dimming());
-		} else {
-			if (timeSync->initialized() || rtcTimeSync->initialized()) {
-				ipsClock->loop();
-			}
 		}
 	}
 }
