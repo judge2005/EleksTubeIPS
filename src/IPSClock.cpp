@@ -86,7 +86,7 @@ void IPSClock::loop() {
                     if (getHourFormat()) {  // true == show am/pm indicator
                         tfts->setDigit(SECONDS_ONES, hour < 12 ? "am" : "pm", TFTs::yes);
                     } else {
-                        tfts->setDigit(SECONDS_ONES, "", TFTs::yes);
+                        tfts->setDigit(SECONDS_ONES, "space", TFTs::yes);
                     }
                     tfts->setDigit(SECONDS_TENS, digitToName[now.tm_min % 10], TFTs::yes);
                     tfts->setDigit(MINUTES_ONES, digitToName[now.tm_min / 10], TFTs::yes);
@@ -108,7 +108,7 @@ void IPSClock::loop() {
                 tfts->setDigit(HOURS_ONES, digitToName[hour % 10], TFTs::yes);
                 tfts->setDigit(HOURS_ONES, digitToName[hour % 10], TFTs::yes);
                 if (hour < 10 && !getLeadingZero().value) {
-                    tfts->setDigit(HOURS_TENS, "", TFTs::yes);
+                    tfts->setDigit(HOURS_TENS, "space", TFTs::yes);
                 } else {
                     tfts->setDigit(HOURS_TENS, digitToName[hour / 10], TFTs::yes);
                 }
