@@ -81,8 +81,8 @@ BaseConfigItem *clockSet[] = {
 	&IPSClock::getDisplayOn(),
 	&IPSClock::getDisplayOff(),
 	&IPSClock::getClockFace(),
-	&IPSClock::getTimeZone(),
 	&IPSClock::getDimming(),
+	&IPSClock::getTimeZone(),
 	&IPSClock::getShowSeconds(),
 	0
 };
@@ -575,7 +575,7 @@ void ledTaskFn(void *pArg) {
 				backlights->setOn(true);
 				backlights->setDimming(false);
 			} else {
-				if (ipsClock->getDimming()) {
+				if (IPSClock::getDimming() == 1) {
 					backlights->setOn(true);
 					backlights->setDimming(true);
 				} else {

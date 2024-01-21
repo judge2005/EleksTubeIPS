@@ -66,7 +66,7 @@ void IPSClock::loop() {
         }
         unsigned long tDelay = 1000 - realms;
 
-        if (clockOn() || getDimming()) {
+        if (clockOn() || (getDimming() == 1)) {
             tfts->claim();
             tfts->setDimming(dimming());
             tfts->setImageJustification(TFTs::MIDDLE_CENTER);

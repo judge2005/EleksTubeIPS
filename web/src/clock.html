@@ -71,13 +71,15 @@
 			</div>
 			<div class="clearFloats"></div>
 			<div class="dispInlineLabel">
-				<label for="dimming">Off State</label>
+				<label for="off_display_state">Off State</label>
 			</div>
 			<div class="dispInline">
-					<input onchange="elementChange(this)" type="checkbox"
-					data-role="flipswitch" name="dimming" id="dimming"
-					data-on-text="Dim" data-off-text="Off"
-					data-wrapper-class="custom-label-flipswitch">
+				<fieldset data-role="controlgroup" data-type="horizontal" data-mini="true" id="off_display_state">
+					<input onchange="elementChange(this)" type="radio" name="dimming" id="off_state_off" value="0">
+					<label for="off_state_off">Off</label>
+					<input onchange="elementChange(this)" type="radio" name="dimming" id="off_state_dim" value="1">
+					<label for="off_state_dim">Dim</label>
+				</fieldset>
 			</div>
 			<div data-role="fieldcontain">
 				<label for="time_zone">Timezone Definition</label> <input maxlength="80"

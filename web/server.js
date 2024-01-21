@@ -164,6 +164,7 @@ var state = {
 		'leading_zero': false,
 		'display_on':  10,
 		'display_off':  20,
+		'dimming': 1,
 		'time_server':  'http://niobo.us/blah'
 	},
 	"2": {

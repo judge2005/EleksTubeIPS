@@ -20,7 +20,7 @@ public:
     static ByteConfigItem& getDisplayOff() { static ByteConfigItem display_off("display_off", 24); return display_off; }
     static StringConfigItem& getClockFace() { static StringConfigItem clock_face("clock_face", 25, "divergence"); return clock_face; }	// <clock_face>.tar.gz, max length is 31
     static StringConfigItem& getTimeZone() { static StringConfigItem time_zone("time_zone", 63, "EST5EDT,M3.2.0,M11.1.0"); return time_zone; }	// POSIX timezone format
-    static BooleanConfigItem& getDimming() { static BooleanConfigItem dimming("dimming", false); return dimming; }
+    static IntConfigItem& getDimming() { static IntConfigItem dimming("dimming", 0); return dimming; }
 
     void init();
     void loop();
