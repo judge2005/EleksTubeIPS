@@ -75,7 +75,29 @@ void IPSClock::loop() {
             tfts->enableAllDisplays();
             if (getTimeOrDate().value == 0) {
                 uint8_t hour = now.tm_hour;
-                if (getHourFormat().value) {
+
+                // refresh starting on seconds
+                if (getShowSeconds()) {
+                    tfts->setDigit(SECONDS_ONES, digitToName[now.tm_sec % 10], TFTs::yes);
+                    tfts->setDigit(SECONDS_TENS, digitToName[now.tm_sec / 10], TFTs::yes);
+                    tfts->setDigit(MINUTES_ONES, digitToName[now.tm_min % 10], TFTs::yes);
+                    tfts->setDigit(MINUTES_TENS, digitToName[now.tm_min / 10], TFTs::yes);
+                } else {
+                    if (getHourFormat()) {  // true == show am/pm indicator
+                        tfts->setDigit(SECONDS_ONES, hour < 12 ? "am" : "pm", TFTs::yes);
+                    } else {
+                        tfts->setDigit(SECONDS_ONES, "", TFTs::yes);
+                    }
+                    tfts->setDigit(SECONDS_TENS, digitToName[now.tm_min % 10], TFTs::yes);
+                    tfts->setDigit(MINUTES_ONES, digitToName[now.tm_min / 10], TFTs::yes);
+                    if (now.tm_sec % 2 == 0) {
+                        tfts->setDigit(MINUTES_TENS, "space", TFTs::yes);
+                    } else {
+                        tfts->setDigit(MINUTES_TENS, "colon", TFTs::yes);
+                    }
+                }
+
+                if (getHourFormat()) {  // true = 12 hour display
                     if (now.tm_hour > 12) {
                         hour = now.tm_hour - 12;
                     } else if (now.tm_hour == 0) {
@@ -83,11 +105,7 @@ void IPSClock::loop() {
                     }
                 }
 
-                // refresh starting on seconds
-                tfts->setDigit(SECONDS_ONES, digitToName[now.tm_sec % 10], TFTs::yes);
-                tfts->setDigit(SECONDS_TENS, digitToName[now.tm_sec / 10], TFTs::yes);
-                tfts->setDigit(MINUTES_ONES, digitToName[now.tm_min % 10], TFTs::yes);
-                tfts->setDigit(MINUTES_TENS, digitToName[now.tm_min / 10], TFTs::yes);
+                tfts->setDigit(HOURS_ONES, digitToName[hour % 10], TFTs::yes);
                 tfts->setDigit(HOURS_ONES, digitToName[hour % 10], TFTs::yes);
                 if (hour < 10 && !getLeadingZero().value) {
                     tfts->setDigit(HOURS_TENS, "", TFTs::yes);

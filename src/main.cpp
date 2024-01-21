@@ -83,6 +83,7 @@ BaseConfigItem *clockSet[] = {
 	&IPSClock::getClockFace(),
 	&IPSClock::getTimeZone(),
 	&IPSClock::getDimming(),
+	&IPSClock::getShowSeconds(),
 	0
 };
 CompositeConfigItem clockConfig("clock", 0, clockSet);

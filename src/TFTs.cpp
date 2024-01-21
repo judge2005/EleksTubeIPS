@@ -498,11 +498,12 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
 }
 
 bool TFTs::LoadImageIntoBuffer(const char* filename) {
+  bool loaded = false;
+
   if (fs->exists(filename)) {
     fs::File file;
     file = fs->open(filename, "r");
     if (file) {
-      bool loaded = false;
       uint16_t magic = read16(file);
  
       if (magic == 0x4B43) { // look for "CK" header
@@ -515,14 +516,13 @@ bool TFTs::LoadImageIntoBuffer(const char* filename) {
 
       file.close();
 
-      if (loaded) {
-        strcpy(loadedFilename, filename);
-      }
-
-      return loaded;
+      strcpy(loadedFilename, filename);
     }
   }
 
+  if (!loaded) {
+    getSprite().fillSprite(0);
+  }
   return false;
 }
 

@@ -14,6 +14,7 @@ public:
     static IntConfigItem& getTimeOrDate() { static IntConfigItem time_or_date("time_or_date", 0); return time_or_date; }	// time
     static ByteConfigItem& getDateFormat() { static ByteConfigItem date_format("date_format", 1); return date_format; }			// mm-dd-yy, dd-mm-yy, yy-mm-dd
     static BooleanConfigItem& getHourFormat() { static BooleanConfigItem hour_format("hour_format", true); return hour_format; }	// 12/24 hour
+    static BooleanConfigItem& getShowSeconds() { static BooleanConfigItem show_seconds("show_seconds", true); return show_seconds; }	// 6 or 4 digit clock
     static BooleanConfigItem& getLeadingZero() { static BooleanConfigItem leading_zero("leading_zero", false); return leading_zero; }	//
     static ByteConfigItem& getDisplayOn() { static ByteConfigItem display_on("display_on", 6); return display_on; }
     static ByteConfigItem& getDisplayOff() { static ByteConfigItem display_off("display_off", 24); return display_off; }
