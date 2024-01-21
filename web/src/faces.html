@@ -1,14 +1,20 @@
-        <div data-role="page" id="Faces">
+        <div data-role="page" id="Files">
             <div data-role="header" data-position="fixed">
-                <h1>Faces</h1>
+                <h1>Files</h1>
 				<a href="#mainMenu" data-rel="main-menu-panel" class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
             </div>
             <div data-role="content">
+                <fieldset data-role="controlgroup" data-type="horizontal" data-mini="true">
+                    <input onchange="elementChange(this)" type="radio" name="file_set" id="clock_faces" value="faces">
+                    <label for="clock_faces">Clock Faces</label>
+                    <input onchange="elementChange(this)" type="radio" name="file_set" id="weather_icon_sets" value="weather">
+                    <label for="weather_icon_sets">Weather Icons</label>
+                </fieldset>
                 <ul id="face_files" data-role="listview" data-inset="true" data-split-icon="trash" HideSelection="false">
                 </ul>
                 <a href="#" onclick="$('#upload_face_popup').popup('open');return false;" data-role="button" data-rel="popup" data-position-to="window" data-transition="pop">Upload</a>
                 <div data-role="popup" id="delete_face_popup" class="ui-content" style="max-width:340px; padding-bottom:2em;">
-                    <h3>Delete face?</h3>
+                    <h3>Delete file?</h3>
                     <p id="delete_face_text">Some text</p>
                     <form action="/delete_face" method="DELETE" id="delete_face_form">
                         <input type="hidden" value="filename" id="delete_face_file">

@@ -3,10 +3,9 @@
 
 #include <ConfigItem.h>
 #include <TimeSync.h>
-#include <ESP32-targz.h>
 
-#include "TFTs.h"
 #include "ClockTimer.h"
+#include "ImageUnpacker.h"
 
 class IPSClock {
 public:
@@ -20,27 +19,22 @@ public:
     static ByteConfigItem& getDisplayOff() { static ByteConfigItem display_off("display_off", 24); return display_off; }
     static StringConfigItem& getClockFace() { static StringConfigItem clock_face("clock_face", 25, "divergence"); return clock_face; }	// <clock_face>.tar.gz, max length is 31
     static StringConfigItem& getTimeZone() { static StringConfigItem time_zone("time_zone", 63, "EST5EDT,M3.2.0,M11.1.0"); return time_zone; }	// POSIX timezone format
+    static BooleanConfigItem& getDimming() { static BooleanConfigItem dimming("dimming", false); return dimming; }
 
     void init();
     void loop();
-    void setDimming(bool dimming) { this->dimming = dimming; }
     void setTimeSync(TimeSync *pTimeSync) { this->pTimeSync = pTimeSync; }
-
+    void setImageUnpacker(ImageUnpacker *imageUnpacker) { this->imageUnpacker = imageUnpacker; }
+    
     bool clockOn();
+    uint8_t dimming() { return clockOn() ? 255 : 40; }
 private:
+    static char* digitToName[10];
+
     ClockTimer::Timer displayTimer;
     String oldClockFace;
 	TimeSync *pTimeSync = 0;
-    bool dimming = false;
-
-    static bool newUnpack;
-    static const char* unpackName;
-
-    static TarGzUnpacker& getUnpacker();
-
-    static void statusProgressCallback(const char* name, size_t size, size_t total_unpacked);
-    static void unpackProgressCallback(uint8_t progress);
-    void cacheClockFace(const String &faceName);
+    ImageUnpacker *imageUnpacker;
 };
 
 #endif

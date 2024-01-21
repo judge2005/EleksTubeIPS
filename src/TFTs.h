@@ -19,50 +19,47 @@ private:
 class TFTs : public TFT_eSPI {
 public:
   TFTs() : TFT_eSPI(), chip_select(), enabled(false)
-    { for (uint8_t digit=0; digit < NUM_DIGITS; digit++) digits[digit] = 0; }
+    {}
 
   // no == Do not send to TFT. yes == Send to TFT if changed. force == Send to TFT.
   enum show_t { no, yes, force };
-  // A digit of 0xFF means blank the screen.
-  const static uint8_t blanked = 255;
-  const static uint8_t invalid = 254;
+  enum image_justification_t { TOP_LEFT, TOP_CENTER, TOP_RIGHT, MIDDLE_LEFT, MIDDLE_CENTER, MIDDLE_RIGHT, BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT };
 
   void claim();
   void release();
 
-  void begin(fs::FS& fs, const char *imageRoot);
-  void setClockFace(uint8_t index);
+  void begin(fs::FS& fs);
   void clear();
-  void setDigit(uint8_t digit, uint8_t value, show_t show=yes);
-  uint8_t getDigit(uint8_t digit)                 { return digits[digit]; }
+  void setShowDigits(bool);
 
-  void invalidateAllDigits() { for (uint8_t digit=0; digit < NUM_DIGITS; digit++) digits[digit] = invalid; }
+  void setDigit(uint8_t digit, const char* name, show_t show=yes);
+
+  void invalidateAllDigits();
 
   void showAllDigits()               { for (uint8_t digit=0; digit < NUM_DIGITS; digit++) showDigit(digit); }
   void showDigit(uint8_t digit);
-
+  TFT_eSprite& drawImage(uint8_t digit);
+  
+  void setImageJustification(image_justification_t value) { imageJustification = value; }
+  void setBox(uint16_t w, uint16_t h) { boxWidth = w; boxHeight = h; }
   // Controls the power to all displays
   void enableAllDisplays()           { digitalWrite(TFT_ENABLE_PIN, HIGH); enabled = true; }
   void disableAllDisplays()          { digitalWrite(TFT_ENABLE_PIN, LOW); enabled = false; }
   void toggleAllDisplays()           { if (enabled) disableAllDisplays(); else enableAllDisplays(); }
   bool isEnabled()                   { return enabled; }
   void setDimming(uint8_t dimming);
+  void setBrightness(uint8_t lvl);
 
   // Making chip_select public so we don't have to proxy all methods, and the caller can just use it directly.
   ChipSelect chip_select;
 
-  void LoadNextImage();
-  void InvalidateImageInBuffer(); // force reload from Flash with new dimming settings
-
-  size_t printlnon(uint8_t display, const char[]);
-  size_t printlnall(const char[]);
-  size_t printlnall(const String&);
   void setStatus(const char*);
   void setStatus(const String& s) { setStatus(s.c_str()); }
   void checkStatus();
 
   void drawMeter(int val, bool first, const char *legend);
 
+  uint16_t dimColor(uint16_t pixel);
 private:
   static SemaphoreHandle_t tftMutex;
 
@@ -70,6 +67,10 @@ private:
   TFT_eSprite& getSprite();
   void drawStatus();
 
+  bool showDigits = true;
+  image_justification_t imageJustification = MIDDLE_CENTER;
+  uint16_t boxWidth = TFT_WIDTH;
+  uint16_t boxHeight = TFT_HEIGHT;
   uint8_t dimming = 255; // amount of dimming graphics
   
   unsigned long statusTime = 0;
@@ -78,17 +79,17 @@ private:
   uint16_t defaultTextColor = TFT_WHITE;
   uint16_t defaultTextBackground = TFT_BLACK;
   uint8_t current_graphic = 1;
-  uint8_t digits[NUM_DIGITS];
+  char icons[NUM_DIGITS][16];
+  char loadedFilename[255];
+
   bool enabled;
   fs::FS* fs;
-  const char *imageRoot;
 
-  bool LoadImageIntoBuffer(uint8_t file_index);
+  bool LoadImageIntoBuffer(const char* filename);
   bool LoadBMPImageIntoBuffer(fs::File &file);
   bool LoadCLKImageIntoBuffer(fs::File &file);
   bool LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bpp, int16_t rowSize, bool reversed, uint32_t *palette, fs::File &file);
 
-  void DrawImage(uint8_t file_index);
   uint16_t read16(fs::File &f);
   uint32_t read32(fs::File &f);
 
@@ -96,7 +97,7 @@ private:
   uint8_t NextFileRequired = 0; 
 };
 
-extern TFTs tfts;
+extern TFTs *tfts;
 
 
 #endif // TFTS_H

@@ -14,10 +14,8 @@ public:
 	static String clockMenu;
 	static String ledsMenu;
 	static String facesMenu;
-	static String presetsMenu;
-	static String syncMenu;
+	static String weatherMenu;
 	static String infoMenu;
-	static String presetNamesMenu;
 
 private:
 	String **items;

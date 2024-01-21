@@ -74,7 +74,9 @@ var pages = {
 		"value": [
 			{"1": { "url" : "clock.html", "title" : "Clock" }},
 			{"2": { "url" : "leds.html", "title" : "LEDs" }},
-			{"3": { "url" : "faces.html", "title" : "Faces" }}
+			{"3": { "url" : "faces.html", "title" : "Files" }},
+			{"7": { "url" : "weather.html", "title" : "Weather" }},
+			{"5": { "url" : "info.html", "title" : "Info" }}
 		]
 	}
 
@@ -114,6 +116,14 @@ var sendFacesValues = function(conn) {
 	conn.send(json);
 }
 
+var sendWeatherValues = function(conn) {
+	var json = '{"type":"sv.init.weather","value":';
+	json += JSON.stringify(state[7]);
+	json += '}';
+	console.log(json);
+	conn.send(json);
+}
+
 var sendPresetValues = function(conn) {
 	var json = '{"type":"sv.init.presets","value":';
 	json += JSON.stringify(state[4]);
@@ -133,14 +143,6 @@ var sendInfoValues = function(conn) {
 var sendPresetNames = function(conn) {
 	var json = '{"type":"sv.init.preset_names","value":';
 	json += JSON.stringify(state[6]);
-	json += '}';
-	console.log(json);
-	conn.send(json);
-}
-
-var sendEvents = function(conn) {
-	var json = '{"type":"sv.init.events","value":';
-	json += JSON.stringify(state[7]);
 	json += '}';
 	console.log(json);
 	conn.send(json);
@@ -172,11 +174,13 @@ var state = {
 	"3": {
 		'set_icon_faces': 'Bletch',
 		'clock_face': 'divergence',
+		'weather_icons': 'yahoo',
 		'face_files' : {
 			'blue_ribbon': 'blue_ribbon.tar.gz',
 			'divergence': 'divergence.tar.gz',
 			'dots': 'dots.tar.gz'
-		}
+		},
+		'file_set':'faces'	// Deliberately out of order
 	},
 	"4": {
 		'preset' : 'set3'
@@ -200,40 +204,8 @@ var state = {
 		'set5_name' : 'Manual'
 	},
 	"7": {
-		'event_menus' : {
-			'tick_name' : [
-				'Ticky',
-				'Tocky',
-				'Wocky'
-			],
-			'chime_name' : [
-				'Chimo',
-				'Chime'
-			],
-			'strike_name' : [
-				'One A B C',
-				'Two',
-				'Three',
-				'Four'
-			],
-			'alarm_name' : [
-				'over',
-				'unger'
-			]
-		},
-		'tick_name' : 'Tocky',
-		'tick_on' : true,
-		'tick_volume' : 40,
-		'chime_name' : 'Chimy',
-		'chime_on' : false,
-		'chime_volume' : 30,
-		'strike_name' : 'Three',
-		'strike_on' : true,
-		'strike_volume' : 20,
-		'alarm_name' : 'Funky',
-		'alarm_on' : false,
-		'alarm_time' : '22:30',
-		'alarm_volume' : 10
+		"weather_token":"462cf98d57c30f4cc3698a70a63bd3bb",
+		"units":false
 	},
 	"8": {
 		'sync_port' : '12345',
@@ -317,7 +289,7 @@ wss.on('connection', function(conn) {
     		sendPresetNames(conn);
     		break;
     	case 7:
-    		sendEvents(conn);
+    		sendWeatherValues(conn);
     		break;
     	case 8:
     		sendSync(conn);

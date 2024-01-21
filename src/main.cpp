@@ -13,10 +13,13 @@
 #include "TFTs.h"
 #include "IPSClock.h"
 #include "Backlights.h"
+#include "GPIOButton.h"
 #include "WSHandler.h"
 #include "WSMenuHandler.h"
 #include "WSConfigHandler.h"
 #include "WSInfoHandler.h"
+#include "OpenWeatherMapWeatherService.h"
+#include "weather.h"
 
 #define DEBUG(...) { Serial.println(__VA_ARGS__); }
 #ifndef DEBUG
@@ -27,15 +30,22 @@ String getChipId(void);
 void setWiFiAP(bool on);
 void infoCallback();
 String clockFacesCallback();
+void broadcastUpdate(String msg);
 
-TFTs tfts;
-Backlights backlights;
-IPSClock ipsClock;
+TFTs *tfts = NULL;
+Backlights *backlights = NULL;
+IPSClock *ipsClock = NULL;
+Weather *weather = NULL;
+WeatherService *weatherService = NULL;
+ImageUnpacker *imageUnpacker = NULL;
 
-AsyncWebServer server(80);
-AsyncWebSocket ws("/ws"); // access at ws://[esp ip]/ws
+GPIOButton modeButton(BUTTON_MODE_PIN, false);	// open == high, closed == low
+GPIOButton rightButton(BUTTON_RIGHT_PIN, false);	// open == high, closed == low
+
+AsyncWebServer *server = new AsyncWebServer(80);
+AsyncWebSocket *ws = new AsyncWebSocket("/ws"); // access at ws://[esp ip]/ws
 DNSServer dns;
-AsyncWiFiManager wifiManager(&server,&dns);
+AsyncWiFiManager wifiManager(server,&dns);
 TimeSync *timeSync;
 RTCTimeSync *rtcTimeSync;
 
@@ -44,8 +54,10 @@ TaskHandle_t clockTask;
 TaskHandle_t ledTask;
 TaskHandle_t testTask;
 TaskHandle_t commitEEPROMTask;
+TaskHandle_t weatherTask;
 
 SemaphoreHandle_t wsMutex;
+QueueHandle_t weatherQueue;
 
 AsyncWiFiManagerParameter *hostnameParam;
 String ssid("EleksTubeIPS");
@@ -58,7 +70,6 @@ String chipId = getChipId();
 StringConfigItem hostName("hostname", 63, "elekstubeips");
 
 // Clock config
-BooleanConfigItem dimming("dimming", false);
 
 BaseConfigItem *clockSet[] = {
 	// Clock
@@ -70,7 +81,7 @@ BaseConfigItem *clockSet[] = {
 	&IPSClock::getDisplayOff(),
 	&IPSClock::getClockFace(),
 	&IPSClock::getTimeZone(),
-	&dimming,
+	&IPSClock::getDimming(),
 	0
 };
 CompositeConfigItem clockConfig("clock", 0, clockSet);
@@ -85,35 +96,24 @@ BaseConfigItem *ledSet[] = {
 };
 CompositeConfigItem ledConfig("leds", 0, ledSet);
 
+StringConfigItem fileSet("file_set", 10, "faces");
 BaseConfigItem *faceSet[] = {
 	// Faces
 	&IPSClock::getClockFace(),
+	&Weather::getIconPack(),
+	&fileSet,
 	0
 };
 CompositeConfigItem facesConfig("faces", 0, faceSet);
 
-// Extra config items
-ByteConfigItem mov_delay("mov_delay", 20);
-ByteConfigItem mov_src("mov_src", 1);
-
-BaseConfigItem *extraSet[] = {
-	// Extra
-	&mov_delay,
-	&mov_src,
-	0
+BaseConfigItem *weatherSet[] = {
+    // Weather service
+    &WeatherService::getWeatherToken(),
+    &WeatherService::getLatitude(),
+    &WeatherService::getLongitude(),
+    0
 };
-CompositeConfigItem extraConfig("extra", 0, extraSet);
-
-// Sync config values
-IntConfigItem sync_port("sync_port", 4920);
-ByteConfigItem sync_role("sync_role", 0);	// 0 = none, 1 = master, 2 = slave
-BaseConfigItem *syncSet[] = {
-	// Sync
-	&sync_port,
-	&sync_role,
-	0
-};
-CompositeConfigItem syncConfig("sync", 0, syncSet);
+CompositeConfigItem weatherConfig("weather", 0, weatherSet);
 
 // Global configuration
 BaseConfigItem *configSetGlobal[] = {
@@ -129,8 +129,7 @@ BaseConfigItem *configSetRoot[] = {
 	&clockConfig,
 	&ledConfig,
 	&facesConfig,
-	&extraConfig,
-	&syncConfig,
+	&weatherConfig,
 	0
 };
 
@@ -141,7 +140,7 @@ EEPROMConfig config(rootConfig);
 
 void asyncTimeSetCallback(String time) {
 	DEBUG(time);
-	tfts.setStatus("NTP time received...");
+	tfts->setStatus("NTP time received...");
 
 	rtcTimeSync->enabled(false);
 	rtcTimeSync->setDS3231();
@@ -152,19 +151,111 @@ void asyncTimeErrorCallback(String msg) {
 	rtcTimeSync->enabled(true);
 }
 
+void onTimezoneChanged(ConfigItem<String> &tzItem) {
+	timeSync->setTz(tzItem);
+	timeSync->sync();
+}
+
+uint8_t displayMode = 0;	// Default to display time
+uint8_t lvl = 255;
+
+void onWeatherConfigChanged(ConfigItem<String> &item) {
+	uint32_t value = 2;
+	xQueueSend(weatherQueue, &value, 0);
+}
+
+void onFileSetChanged(ConfigItem<String> &item) {
+	String msg = "{\"type\":\"sv.update\",\"value\":{\"clock_face\":\""
+		 + IPSClock::getClockFace().value
+		 + "\""
+		 + ",\"weather_icons\":\""
+		 + Weather::getIconPack()
+		 + "\""
+		 + clockFacesCallback()
+		 + "}}";
+
+	broadcastUpdate(msg);
+}
+
 void clockTaskFn(void *pArg) {
-	ipsClock.init();
-	ipsClock.setTimeSync(timeSync);
+	imageUnpacker = new ImageUnpacker();
+
+	weatherService = new OpenWeatherMapWeatherService();
+	WeatherService::getLatitude().setCallback(onWeatherConfigChanged);
+	WeatherService::getLongitude().setCallback(onWeatherConfigChanged);
+	WeatherService::getWeatherToken().setCallback(onWeatherConfigChanged);
+
+	weather = new Weather(weatherService);
+	weather->setImageUnpacker(imageUnpacker);
+
+	fileSet.setCallback(onFileSetChanged);
+
+	ipsClock = new IPSClock();
+	ipsClock->init();
+	ipsClock->setImageUnpacker(imageUnpacker);
+	ipsClock->setTimeSync(timeSync);
 
 	while (true) {
 		delay(1);
 
-		if (ipsClock.clockOn()) {
-			ipsClock.setDimming(false);
-		} else {
-			ipsClock.setDimming(dimming);
+    	if (modeButton.clicked()) {
+			displayMode = (displayMode + 1) % 3;
+			tfts->invalidateAllDigits();
+			Serial.printf("Mode changed to %d\n", displayMode);
+    	}
+
+    	if (rightButton.clicked()) {
+			tfts->setBrightness(lvl);
+			Serial.printf("Changed backlight to %d\n", lvl);
+			lvl -= 10;
+			if (lvl < 40) {
+				lvl = 255;
+			}
+    	}
+
+		switch (displayMode) {
+			case 0:
+				tfts->setShowDigits(true);
+				ipsClock->getTimeOrDate() = true;
+				break;
+			case 1:
+				tfts->setShowDigits(true);
+				ipsClock->getTimeOrDate() = false;
+				break;
+			case 2:
+				tfts->setShowDigits(false);
+				break;
 		}
-		ipsClock.loop();
+
+		if (displayMode == 2) {
+			weather->loop(ipsClock->dimming());
+		} else {
+			if (timeSync->initialized() || rtcTimeSync->initialized()) {
+				ipsClock->loop();
+			}
+		}
+	}
+}
+
+void weatherTaskFn(void *pArg) {
+	TickType_t toSleep = pdMS_TO_TICKS(1800000);
+	while (true) {
+		// Read from weatherQueue. Wait at most 'toSleep' ticks.
+		uint32_t value;
+		xQueueReceive(weatherQueue, &value, toSleep);
+		if (value == 2) {	// Location coordinates changed
+			value = 0;
+			delay(30000);	// In case user is changing latitude and longitude, i.e. wait for both to possibly change
+		}
+
+		// Drain the queue of any pending messages
+		while (xQueueReceive(weatherQueue, &value, 0) == pdTRUE);
+
+		toSleep = pdMS_TO_TICKS(1800000);
+		if (!weatherService->getWeatherInfo()) {
+			Serial.println("Failed to get weather");
+			toSleep = pdMS_TO_TICKS(180000);	// Try again in 3 minutes
+		}
 	}
 }
 
@@ -186,7 +277,7 @@ String *items[] = {
 	&WSMenuHandler::clockMenu,
 	&WSMenuHandler::ledsMenu,
 	&WSMenuHandler::facesMenu,
-	// &WSMenuHandler::syncMenu,
+	&WSMenuHandler::weatherMenu,
 	// &WSMenuHandler::presetsMenu,
 	&WSMenuHandler::infoMenu,
 	// &WSMenuHandler::presetNamesMenu,
@@ -197,6 +288,7 @@ WSMenuHandler wsMenuHandler(items);
 WSConfigHandler wsClockHandler(rootConfig, "clock");
 WSConfigHandler wsLEDHandler(rootConfig, "leds");
 WSConfigHandler wsFacesHandler(rootConfig, "faces", clockFacesCallback);
+WSConfigHandler wsWeatherHandler(rootConfig, "weather");
 WSInfoHandler wsInfoHandler(infoCallback);
 
 // Order of this needs to match the numbers in WSMenuHandler.cpp
@@ -210,9 +302,11 @@ WSHandler *wsHandlers[] = {
 	&wsInfoHandler,
 	// &wsPresetNamesHandler,
 	NULL,
-	// &wsSyncHandler,
+	&wsWeatherHandler,
+	NULL,	// Currently unused
 	NULL
 };
+
 
 void infoCallback() {
 	wsInfoHandler.setSsid(ssid);
@@ -239,6 +333,14 @@ void infoCallback() {
 	// }
 }
 
+void broadcastUpdate(String msg) {
+	xSemaphoreTake(wsMutex, portMAX_DELAY);
+
+    ws->textAll(msg);
+
+	xSemaphoreGive(wsMutex);
+}
+
 void broadcastUpdate(const BaseConfigItem& item) {
 	xSemaphoreTake(wsMutex, portMAX_DELAY);
 
@@ -253,10 +355,10 @@ void broadcastUpdate(const BaseConfigItem& item) {
 	value[item.name] = serialized(rawJSON.c_str());
 
     size_t len = measureJson(root);
-    AsyncWebSocketMessageBuffer * buffer = ws.makeBuffer(len); //  creates a buffer (len + 1) for you.
+    AsyncWebSocketMessageBuffer * buffer = ws->makeBuffer(len); //  creates a buffer (len + 1) for you.
     if (buffer) {
     	serializeJson(root, (char *)buffer->get(), len + 1);
-    	ws.textAll(buffer);
+    	ws->textAll(buffer);
     }
 
 	xSemaphoreGive(wsMutex);
@@ -281,16 +383,12 @@ void updateValue(int screen, String pair) {
 		if (item != 0) {
 			item->fromString(value);
 			item->put();
-			// Shouldn't special case this stuff. Should attach listeners to the config value!
-			// TODO: This won't work if we just switch change sets instead!
-			if (strcmp(key, IPSClock::getTimeZone().name) == 0) {
-				timeSync->setTz(value);
-				timeSync->sync();
-			}
+			// Order of below is important to maintain external consistency
 			broadcastUpdate(*item);
-		} else if (_key == "sync_do") {
-			// sendSyncMsg();
-			// announceSlave();
+			item->notify();
+		} else if (_key == "get_weather") {
+			uint32_t value = 1;
+			xQueueSend(weatherQueue, &value, 0);
 		} else if (_key == "wifi_ap") {
 			setWiFiAP(value == "true" ? true : false);
 		} else if (_key == "hostname") {
@@ -394,10 +492,10 @@ void handleDelete(AsyncWebServerRequest *request) {
 	DEBUG(filename);
 
 	if (filename.length() > 0) {
-		if (LittleFS.remove("/ips/faces/" + filename)) {
+		if (LittleFS.remove("/ips/" + fileSet.value + "/" + filename)) {
 			request->send(200, "text/plain", "File deleted");
 
-			wsFacesHandler.broadcast(ws, 0);
+			wsFacesHandler.broadcast(*ws, 0);
 			return;
 		}
 	}
@@ -410,7 +508,7 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 	{
 		DEBUG((String) "UploadStart: " + filename);
 		// open the file on first call and store the file handle in the request object
-		request->_tempFile = LittleFS.open("/ips/faces/" + filename, "wb", true);
+		request->_tempFile = LittleFS.open("/ips/" + fileSet.value + "/" + filename, "wb", true);
 	}
 	if (len)
 	{
@@ -425,30 +523,30 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 		request->_tempFile.close();
 		request->send(200, "text/plain", "File uploaded");
 
-		wsFacesHandler.broadcast(ws, 0);
+		wsFacesHandler.broadcast(*ws, 0);
 	}
 }
 
 void configureWebServer() {
-	server.serveStatic("/", LittleFS, "/");
-	server.on("/", HTTP_GET, mainHandler).setFilter(ON_STA_FILTER);
-	server.on("/t", HTTP_POST, timeHandler).setFilter(ON_AP_FILTER);
-	server.on("/assets/favicon-32x32.png", HTTP_GET, sendFavicon);
-	server.on("/upload_face", HTTP_POST, [](AsyncWebServerRequest *request) {
+	server->serveStatic("/", LittleFS, "/");
+	server->on("/", HTTP_GET, mainHandler).setFilter(ON_STA_FILTER);
+	server->on("/t", HTTP_POST, timeHandler).setFilter(ON_AP_FILTER);
+	server->on("/assets/favicon-32x32.png", HTTP_GET, sendFavicon);
+	server->on("/upload_face", HTTP_POST, [](AsyncWebServerRequest *request) {
     	request->send(200);
     }, handleUpload);
-	server.on("^\\/delete_face\\/(.*\\.tar\\.gz)$", HTTP_DELETE, handleDelete);
-	server.serveStatic("/assets", LittleFS, "/assets");
+	server->on("^\\/delete_face\\/(.*\\.tar\\.gz)$", HTTP_DELETE, handleDelete);
+	server->serveStatic("/assets", LittleFS, "/assets");
 	
 #ifdef OTA
 	otaUpdater.init(server, "/update", sendUpdateForm, sendUpdatingInfo);
 #endif
 
 	// attach AsyncWebSocket
-	ws.onEvent(wsHandler);
-	server.addHandler(&ws);
-	server.begin();
-	ws.enable(true);
+	ws->onEvent(wsHandler);
+	server->addHandler(ws);
+	server->begin();
+	ws->enable(true);
 }
 
 String clockFacesCallback() {
@@ -459,10 +557,11 @@ String clockFacesCallback() {
 
 	String options = ",\"face_files\":{";
 	String sep = quote;
-	fs::File dir = LittleFS.open("/ips/faces");
+	String dirName = "/ips/" + fileSet.value;
+	fs::File dir = LittleFS.open(dirName);
     String name = dir.getNextFileName();
     while(name.length() > 0){
-		String fileName = name.substring(11, name.length());
+		String fileName = name.substring(dirName.length() + 1, name.length());
 		String option = fileName.substring(0, fileName.lastIndexOf(postfix));
 		options += sep;
 		options += option;
@@ -480,22 +579,25 @@ String clockFacesCallback() {
 }
 
 void ledTaskFn(void *pArg) {
-	backlights.begin();
+	backlights = new Backlights();
+	backlights->begin();
 
 	while (true) {
-		if (ipsClock.clockOn()) {
-			backlights.setOn(true);
-			backlights.setDimming(false);
-		} else {
-			if (dimming) {
-				backlights.setOn(true);
-				backlights.setDimming(true);
+		if (ipsClock != NULL) {
+			if (ipsClock->clockOn()) {
+				backlights->setOn(true);
+				backlights->setDimming(false);
 			} else {
-				backlights.setOn(false);
-				backlights.setDimming(false);
+				if (ipsClock->getDimming()) {
+					backlights->setOn(true);
+					backlights->setDimming(true);
+				} else {
+					backlights->setOn(false);
+					backlights->setDimming(false);
+				}
 			}
+			backlights->loop();
 		}
-		backlights.loop();
 		delay(16);
 	}
 }
@@ -518,8 +620,12 @@ void initFromEEPROM() {
 }
 
 void connectedHandler() {
-	tfts.setStatus(WiFi.localIP().toString());
+	tfts->setStatus(WiFi.localIP().toString());
 	DEBUG("connectedHandler");
+	if (!wifiManager.isAP()) {
+		uint32_t value = 1;
+		xQueueSend(weatherQueue, &value, 0);	// May not work if AP is active
+	}
 	MDNS.end();
 	MDNS.begin(hostName.value.c_str());
 	MDNS.addService("http", "tcp", 80);
@@ -529,9 +635,11 @@ void apChange(AsyncWiFiManager *wifiManager) {
 	DEBUG("apChange()");
 	DEBUG(wifiManager->isAP());
 	if (wifiManager->isAP()) {
-		tfts.setStatus(ssid);
+		tfts->setStatus(ssid);
 	} else {
-		tfts.setStatus("AP Destroyed...");
+		tfts->setStatus("AP Destroyed...");
+		uint32_t value = 1;
+		xQueueSend(weatherQueue, &value, 0);	// Not enough memory to make an HTTPS request while AP is active
 	}
 }
 
@@ -576,15 +684,17 @@ void setup() {
 	DEBUG("Setup...");
 
 	wsMutex = xSemaphoreCreateMutex();
+    weatherQueue = xQueueCreate(5, sizeof(uint32_t));
+	tfts = new TFTs();
 
 	LittleFS.begin();
 
 	// Setup TFTs
-	tfts.begin(LittleFS, "/ips/cache");
-	tfts.fillScreen(TFT_BLACK);
-	tfts.setTextColor(TFT_WHITE, TFT_BLACK);
-	tfts.setCursor(0, 0, 2);
-	tfts.setStatus("setup...");
+	tfts->begin(LittleFS);
+	tfts->fillScreen(TFT_BLACK);
+	tfts->setTextColor(TFT_WHITE, TFT_BLACK);
+	tfts->setCursor(0, 0, 2);
+	tfts->setStatus("setup...");
 
 	createSSID();
 
@@ -592,14 +702,18 @@ void setup() {
 	initFromEEPROM();
 
 	timeSync = new EspSNTPTimeSync(IPSClock::getTimeZone().value, asyncTimeSetCallback, asyncTimeErrorCallback);
+	timeSync->init();
 
 	rtcTimeSync = new EspRTCTimeSync(SDApin, SCLpin);
 	rtcTimeSync->init();
+	rtcTimeSync->enabled(true);
+
+	IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 
     xTaskCreatePinnedToCore(
           commitEEPROMTaskFn, /* Function to implement the task */
           "Commit EEPROM task", /* Name of the task */
-		  4096,  /* Stack size in words */
+		  2048,  /* Stack size in words */
           NULL,  /* Task input parameter */
 		  tskIDLE_PRIORITY,  /* More than background tasks */
           &commitEEPROMTask,  /* Task handle. */
@@ -609,7 +723,7 @@ void setup() {
     xTaskCreatePinnedToCore(
 		ledTaskFn, /* Function to implement the task */
 		"led task", /* Name of the task */
-		4096,  /* Stack size in words */
+		2048,  /* Stack size in words */
 		NULL,  /* Task input parameter */
 		tskIDLE_PRIORITY + 2,  /* Priority of the task (idle) */
 		&ledTask,  /* Task handle. */
@@ -619,14 +733,14 @@ void setup() {
 	xTaskCreatePinnedToCore(
 		clockTaskFn, /* Function to implement the task */
 		"Clock task", /* Name of the task */
-		4096,  /* Stack size in words */
+		5000,  /* Stack size in words */
 		NULL,  /* Task input parameter */
 		tskIDLE_PRIORITY + 1,  /* More than background tasks */
 		&clockTask,  /* Task handle. */
 		0
 	);
 
-	tfts.setStatus("Connecting...");
+	tfts->setStatus("Connecting...");
 
 	wifiManager.setDebugOutput(true);
 	wifiManager.setHostname(hostName.value.c_str());	// name router associates DNS entry with
@@ -664,7 +778,16 @@ void setup() {
 		0
 	);
 
-	timeSync->init();
+    xTaskCreatePinnedToCore(
+		weatherTaskFn, /* Function to implement the task */
+		"Weather client task", /* Name of the task */
+		6144,  /* Stack size in words */
+		NULL,  /* Task input parameter */
+		tskIDLE_PRIORITY,  /* More than background tasks */
+		&weatherTask,  /* Task handle. */
+		xPortGetCoreID()
+	);
+
 
     Serial.print("setup() running on core ");
     Serial.println(xPortGetCoreID());

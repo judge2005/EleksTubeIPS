@@ -43,31 +43,33 @@ void TFTs::release(){
 
 TFT_eSprite& TFTs::getSprite() {
   static bool initialized = false;
-  static StaticSprite sprite(&tfts);
+  static StaticSprite *sprite;
 
   if (!initialized) {
     initialized = true;
-    sprite.init();
+    sprite = new StaticSprite(tfts);
+    sprite->init();
   }
 
-  return sprite;
+  return *sprite;
 }
 
 TFT_eSprite& TFTs::getStatusSprite() {
   static bool initialized = false;
-  static TFT_eSprite sprite(&tfts);
+  static TFT_eSprite *sprite;
 
   if (!initialized) {
     initialized = true;
 
-    sprite.createSprite(width(), 16);
+    sprite = new StaticSprite(tfts);
+    sprite->createSprite(width(), 16);
 
-    sprite.setTextDatum(BC_DATUM);
-    sprite.setTextColor(TFT_GOLD, TFT_BLACK, true);
-    sprite.setTextFont(2);
+    sprite->setTextDatum(BC_DATUM);
+    sprite->setTextColor(TFT_GOLD, TFT_BLACK, true);
+    sprite->setTextFont(2);
   }
 
-  return sprite;
+  return *sprite;
 }
 
 void TFTs::checkStatus() {
@@ -77,6 +79,20 @@ void TFTs::checkStatus() {
       invalidateAllDigits();
     }
   }
+}
+
+void TFTs::setBrightness(uint8_t lvl) {
+  claim();
+  uint8_t saved = chip_select.getDigitMap();
+  chip_select.setAll();
+
+  // Doesn't work
+  tfts->writecommand(0x51);
+  tfts->writedata(lvl);
+
+
+  chip_select.setDigitMap(saved, true);
+  release();
 }
 
 void TFTs::setStatus(const char* s) {
@@ -100,7 +116,7 @@ void TFTs::setStatus(const char* s) {
 }
 
 void TFTs::drawStatus() {
-  if (millis() - statusTime < 5000) {
+  if (statusSet) {
     TFT_eSprite& sprite = getStatusSprite();
     sprite.pushSprite(0, height() - sprite.height());
   }
@@ -167,38 +183,10 @@ void TFTs::drawMeter(int val, bool first, const char *legend) {
   release();
 }
 
-size_t TFTs::printlnon(uint8_t display, const char s[]){
-  claim();
-  uint8_t saved = chip_select.getDigitMap();
-
-  chip_select.setDigit(display, true);
-  size_t ret = println(s);
-
-  chip_select.setDigitMap(saved, true);
-
-  release();
-
-  return ret;
+void TFTs::setShowDigits(bool show) {
+  showDigits = show;
 }
 
-size_t TFTs::printlnall(const String &s){
-  return printlnall(s.c_str());
-}
-
-size_t TFTs::printlnall(const char s[]){
-  claim();
-  uint8_t saved = chip_select.getDigitMap();
-
-  chip_select.setAll();
-  size_t ret = println(s);
-
-  chip_select.setDigitMap(saved, true);
-
-  release();
-
-  return ret;
-}
-  
 void TFTs::setDimming(uint8_t dimming) {
   if (dimming != this->dimming) {
     invalidateAllDigits();
@@ -206,22 +194,28 @@ void TFTs::setDimming(uint8_t dimming) {
   }
 }
 
-void TFTs::begin(fs::FS& fs, const char *imageRoot) {
+void TFTs::invalidateAllDigits() {
+  loadedFilename[0] = 0;
+  for (uint8_t digit=0; digit < NUM_DIGITS; digit++) {
+    setDigit(digit, "nosuchfile", TFTs::no);
+  }
+}
+
+void TFTs::begin(fs::FS& fs) {
   if (tftMutex == 0) {
     tftMutex = xSemaphoreCreateMutex();
   }
 
   this->fs = &fs;
-  this->imageRoot = imageRoot;
   
   // Start with all displays selected.
   chip_select.begin();
   chip_select.setAll();
-
+  writecommand(1);
   // Turn power on to displays.
   pinMode(TFT_ENABLE_PIN, OUTPUT);
   enableAllDisplays();
-  InvalidateImageInBuffer();
+  invalidateAllDigits();
 
   // Initialize the super class.
   init();
@@ -237,11 +231,11 @@ void TFTs::clear() {
   enableAllDisplays();
 }
 
-void TFTs::setDigit(uint8_t digit, uint8_t value, show_t show) {
-  uint8_t old_value = digits[digit];
-  digits[digit] = value;
+void TFTs::setDigit(uint8_t digit, const char *name, show_t show) {
+  bool changed = strcmp(icons[digit], name) != 0;
+  strcpy(icons[digit], name);
   
-  if (show != no && (old_value != value || show == force)) {
+  if (show != no && (changed || show == force)) {
     showDigit(digit);
   }
 }
@@ -249,36 +243,16 @@ void TFTs::setDigit(uint8_t digit, uint8_t value, show_t show) {
 /* 
  * Displays the bitmap for the value to the given digit. 
  */
- 
 void TFTs::showDigit(uint8_t digit) {
-  chip_select.setDigit(digit);
 
-  if (digits[digit] == blanked) {
+  if (*icons[digit] == 0) {
+    chip_select.setDigit(digit);
     fillScreen(TFT_BLACK);
+    drawStatus();
+  } else {
+    drawImage(digit).pushSprite(0,0);
+    drawStatus();
   }
-  else {
-    uint8_t file_index = digits[digit];
-    DrawImage(file_index);
-    
-    uint8_t NextNumber = digits[SECONDS_ONES] + 1;
-    if (NextNumber > 9) NextNumber = 0; // pre-load only seconds, because they are drawn first
-    NextFileRequired = NextNumber;
-  }
-
-  drawStatus();
-}
-
-void TFTs::LoadNextImage() {
-  if (NextFileRequired != FileInBuffer) {
-#ifdef DEBUG_OUTPUT
-    Serial.println("Preload img");
-#endif
-    LoadImageIntoBuffer(NextFileRequired);
-  }
-}
-
-void TFTs::InvalidateImageInBuffer() { // force reload from Flash with new dimming settings
-  FileInBuffer=255; // invalid, always load first image
 }
 
 // These BMP functions are stolen directly from the TFT_SPIFFS_BMP example in the TFT_eSPI library.
@@ -289,13 +263,7 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
   int16_t w, h, row, col;
   uint16_t  r, g, b, bitDepth;
   
-  uint16_t magic = read16(bmpFile);
-  if (magic != 0x4D42) {
-    Serial.print("File not a BMP. Magic: ");
-    Serial.println(magic);
-    return false;
-  }
-
+  // First two bytes should already have been read
   read32(bmpFile); // filesize in bytes
   read32(bmpFile); // reserved
   seekOffset = read32(bmpFile); // start of bitmap
@@ -318,11 +286,6 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
 
   int32_t compression = read32(bmpFile);
 
-  if (compression != 0) {
-    Serial.print("Bad compression: ");
-    Serial.println(compression);
-    // return false;
-  }
 #ifdef DEBUG_OUTPUT
   Serial.print("image W, H, BPP: ");
   Serial.print(w); 
@@ -359,14 +322,7 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
 bool TFTs::LoadCLKImageIntoBuffer(fs::File &clkFile) {
   int16_t w, h;
 
-  uint16_t magic = read16(clkFile);
- 
-  if (magic != 0x4B43) { // look for "CK" header
-    Serial.print("File not a CLK. Magic: ");
-    Serial.println(magic);
-    return false;
-  }
-
+  // First two bytes should already have been read
   w = read16(clkFile);
   h = read16(clkFile);
 #ifdef DEBUG_OUTPUT
@@ -381,10 +337,53 @@ bool TFTs::LoadCLKImageIntoBuffer(fs::File &clkFile) {
   return LoadImageBytesIntoSprite(w, h, 16, w * 2, false, 0, clkFile);
 }
 
+uint16_t TFTs::dimColor(uint16_t color) {
+  if (dimming == 255) {
+    return color;
+  }
+
+#define TFT_RED         0xF800      /* 255,   0,   0 */
+
+  // 16 BPP pixel format: R5, G6, B5 ; bin: RRRR RGGG GGGB BBBB
+  // align to 8-bit value (MSB left aligned)
+  uint16_t r, g, b;
+
+  r = color >> 11;
+  g = (color >> 5) & 0x3f;
+  b = color & 0x1f;
+
+  r *= dimming;
+  g *= dimming;
+  b *= dimming;
+  r = r >> 8;
+  g = g >> 8;
+  b = b >> 8;
+
+  return (r << 11) | (g << 5) | b;
+}
+
 bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int16_t rowSize, bool reversed, uint32_t *palette, fs::File &file) {
-  // center image on the display
-  int16_t x = (TFT_WIDTH - w) / 2;
-  int16_t y = (TFT_HEIGHT - h) / 2;
+  // Calculate top left coords of box - default to MIDDLE_CENTER
+  int16_t x = (TFT_WIDTH - boxWidth) / 2;
+  int16_t y = (TFT_HEIGHT - boxHeight) / 2;
+
+  switch (imageJustification) {
+    case TOP_LEFT: x = y = 0; break;
+    case TOP_CENTER: y = 0; break;
+    case TOP_RIGHT: x = (TFT_WIDTH - boxWidth); y = 0; break;
+    case MIDDLE_LEFT: x = 0; break;
+    case MIDDLE_RIGHT: x = (TFT_WIDTH - boxWidth); break;
+    case BOTTOM_LEFT: x = 0; y = (TFT_HEIGHT - boxHeight); break;
+    case BOTTOM_CENTER: y = (TFT_HEIGHT - boxHeight); break;
+    case BOTTOM_RIGHT: x = (TFT_WIDTH - boxWidth); y = (TFT_HEIGHT - boxHeight); break;
+  }
+
+  // Center image in box
+  int16_t imgXOffset = (boxWidth - w) / 2;
+  int16_t imgYOffset = (boxHeight - h) / 2;
+
+  x += imgXOffset;
+  y += imgYOffset;
 
   uint32_t outputBufferSize = w * 2;
   if (outputBufferSize < rowSize) {
@@ -498,65 +497,54 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
   return true;
 }
 
-bool TFTs::LoadImageIntoBuffer(uint8_t file_index) {
-  uint32_t StartTime = millis();
-
-  fs::File file;
-  char filename[255];
-  sprintf(filename, "%s/%d.bmp", imageRoot, file_index);
+bool TFTs::LoadImageIntoBuffer(const char* filename) {
   if (fs->exists(filename)) {
+    fs::File file;
     file = fs->open(filename, "r");
     if (file) {
-      bool loaded = LoadBMPImageIntoBuffer(file);
-      if (loaded) {
-        FileInBuffer = file_index;
+      bool loaded = false;
+      uint16_t magic = read16(file);
+ 
+      if (magic == 0x4B43) { // look for "CK" header
+        loaded = LoadCLKImageIntoBuffer(file);
       }
+
+      if (magic == 0x4D42) {
+        loaded = LoadBMPImageIntoBuffer(file);
+      }
+
       file.close();
+
+      if (loaded) {
+        strcpy(loadedFilename, filename);
+      }
+
       return loaded;
     }
   }
 
-  sprintf(filename, "%s/%d.clk", imageRoot, file_index);
-  if (fs->exists(filename)) {
-    file = fs->open(filename, "r");
-    if (file) {
-      bool loaded = LoadCLKImageIntoBuffer(file);
-      if (loaded) {
-        FileInBuffer = file_index;
-      }
-      file.close();
-      return loaded;
-    }
-  }
-
-  Serial.print("File not found: ");
-  Serial.println(filename);
   return false;
 }
 
-void TFTs::DrawImage(uint8_t file_index) {
-
+TFT_eSprite& TFTs::drawImage(uint8_t digit) {
   uint32_t StartTime = millis();
-  
-  // check if file is already loaded into buffer; skip loading if it is. Saves 50 to 150 msec of time.
-  if (file_index != FileInBuffer) {
-    LoadImageIntoBuffer(file_index);
+
+  char filename[255];
+
+  chip_select.setDigit(digit);
+
+  if (showDigits) {
+    sprintf(filename, "/ips/cache/%s.bmp", icons[digit]);
+  } else {
+    sprintf(filename, "/ips/weather_cache/%s.bmp", icons[digit]);
   }
   
-  // bool oldSwapBytes = getSwapBytes();
-  // setSwapBytes(true);
-#ifdef USE_DMA
-  startWrite();
-  pushImageDMA(0,0, TFT_WIDTH, TFT_HEIGHT, (uint16_t *)output_buffer);
-  endWrite();
-#else
-  TFT_eSprite& sprite = getSprite();
-  sprite.pushSprite(0, 0);
+  // check if file is already loaded into buffer; skip loading if it is. Saves 50 to 150 msec of time.
+  if (strcmp(loadedFilename, filename) != 0) {
+    LoadImageIntoBuffer(filename);
+  }
 
-  // pushImage(0,0, TFT_WIDTH, TFT_HEIGHT, (uint16_t *)output_buffer);
-#endif
-  // setSwapBytes(oldSwapBytes);
-
+  return getSprite();
 #ifdef DEBUG_OUTPUT
   Serial.print("img transfer: ");  
   Serial.println(millis() - StartTime);  

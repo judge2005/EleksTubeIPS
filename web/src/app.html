@@ -180,9 +180,32 @@
 				delete values["face_files"];
 			}
 
+			var val = values["file_set"];
+			if (typeof val != undefined) {
+				var radioEl = $("input:radio[name='file_set'][value='" + val + "']");
+				if (typeof radioEl != undefined && radioEl.prop('type') == 'radio') {
+					radioEl.prop('checked', true);
+					radioEl.checkboxradio("refresh");
+					delete values["file_set"];
+				}
+			}
+
+			var fileSet = $('input[name=file_set]:checked').val();
+
 			var val = values["clock_face"];
 			if (typeof val != 'undefined') {
-				setFace(val);
+				if (fileSet == 'faces') {
+					setFace(val);
+				}
+				delete values["clock_face"];
+			}
+
+			var val = values["weather_icons"];
+			if (typeof val != 'undefined') {
+				if (fileSet == 'weather') {
+					setFace(val);
+				}
+				delete values["weather_icons"];
 			}
 
 			Object.keys(values).forEach(function (key, index) {
@@ -202,6 +225,9 @@
 				} else if (elType == "radio") {
 					element.prop("checked", true);
 					element.checkboxradio("refresh");
+				} else if (elType == "button") {
+					element.val(this[key]);
+					element.button("refresh");
 				} else if (typeof elType == 'undefined') {
 					var radioEl = $("input:radio[name='" + key + "'][value='" + this[key] + "']");
 					if (typeof radioEl != undefined && radioEl.prop('type') == 'radio') {
@@ -317,7 +343,12 @@
 
 			var pageId = getPageId($(".ui-page-active").attr("id"));
 
-			var msg = '9:' + pageId + ':clock_face:' + key;
+			var fileSet = $('input[name=file_set]:checked').val();
+			var configName = ':clock_face:';
+			if (fileSet != 'faces') {
+				configName = ':weather_icons:';
+			}
+			var msg = '9:' + pageId + configName + key;
 			safeSend(msg);
 		}
 
@@ -444,6 +475,7 @@
 					case "sv.init.clock":	// Received initialization object
 					case "sv.init.leds":	// Received initialization object
 					case "sv.init.faces":	// Received initialization object
+					case "sv.init.weather":	// Received initialization object
 					case "sv.init.info":	// Received initialization object
 						console.log(msg.type);
 						updateElements(msg.value);

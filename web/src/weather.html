@@ -1,0 +1,40 @@
+
+<div data-role="page" id="Weather">
+	<div data-role="header" data-position="fixed">
+		<h1>Weather</h1>
+		<a href="#mainMenu" data-rel="main-menu-panel"
+			class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
+	</div>
+	<div data-role="content">
+		<form action="/set_weather" method="POST" id="weather_form">
+			<div data-role="fieldcontain">
+				<label for="weather_token">OpenWeatherMap API Key</label>
+				<input maxlength="63"
+					onblur="elementBlur(this)" type="text" id="weather_token"
+					data-mini="true" />
+			</div>
+			<div class="clearFloats"></div>
+			Go <a target="_blank" rel="noopener noreferrer" href="https://openweathermap.org/">here</a>
+			to get an API key
+			<div class="clearFloats"></div>
+			<div data-role="fieldcontain">
+				<label for="weather_latitude">Latitude</label>
+				<input maxlength="10"
+					onblur="elementBlur(this)" type="number" id="weather_latitude" step="0.01"
+					data-mini="true" />
+			</div>
+			<div class="clearFloats"></div>
+			<div data-role="fieldcontain">
+				<label for="weather_longitude">Longitude</label>
+				<input maxlength="10"
+					onblur="elementBlur(this)" type="number" id="weather_longitude" step="0.01"
+					data-mini="true" />
+			</div>
+			<div class="clearFloats"></div>
+			<div data-role="fieldcontain">
+				<label for="get_weather">&nbsp;</label>
+				<input onclick="elementChange(this, true)" data-mini="true" id="get_weather" type="button" value="Get Weather"/>
+			</div>
+</form>
+	</div>
+</div>
