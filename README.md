@@ -1,4 +1,4 @@
-# A Custom Firmware for the EleksTube IPS clock
+# A Custom Firmware for the EleksTube IPS V1 clock
 
 # Features of This Firmware
 
