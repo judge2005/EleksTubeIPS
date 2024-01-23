@@ -1,4 +1,4 @@
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageEnhance
 
 import random, math
 import argparse
@@ -65,7 +65,7 @@ def trim(im):
     else:
         return im
 
-def scale(img):
+def resize(img):
     if image.size[0] == 135 and image.size[1] == 240:   # unchanged
         return img
     img_width = img.size[0]
@@ -77,14 +77,20 @@ def scale(img):
     return img
 
 def process(image, output_file):
-    if (args.scale):
-        image = scale(image)
+    if args.scale:
+        image = resize(image)
     if args.trim:
         image = trim(image)
     if image.has_transparency_data:
         new_image = Image.new("RGBA", image.size, args.background_color)
         new_image.paste(image, (0, 0), image)
         image = new_image.convert('RGB')
+
+    if args.brightness != 1:
+        image = ImageEnhance.Brightness(image).enhance(args.brightness)
+
+    if args.contrast != 1:
+        image = ImageEnhance.Contrast(image).enhance(args.contrast)
 
     if args.bpp == 16:
         pixels = list(image.getdata())        
@@ -156,6 +162,22 @@ parser.add_argument(
     dest="dither",
     action="store_true",
     help="use dithering when downsampling"
+)
+
+parser.add_argument(
+     "--brightness",
+    dest="brightness",
+    type=float,
+    default=1,
+    help="Modify the brightness(!) >1.0 increases brightness, 1.0 = original brightness, 0.0 = black"
+)
+
+parser.add_argument(
+     "--contrast",
+    dest="contrast",
+    type=float,
+    default=1,
+    help="Modify the contrast >1.0 increases contrast, 1.0 = original contrasy, 0.0 = grey"
 )
 
 parser.add_argument(
