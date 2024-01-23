@@ -12,6 +12,8 @@ def create_header(width, height):
     bitmap_size = ((16 * width + 31) >> 5) * 4 * height
     file_size = total_header_size + bitmap_size
     
+    print("input file size=" + str(bitmap_size) + ", output file size=" + str(file_size));
+
     # BMP header: Magic (2 bytes), file size, 2 ignored values, bitmap offset
     header = struct.pack('<H 3I', 0x4D42, file_size, 0, total_header_size)
 
@@ -40,6 +42,14 @@ def write_bin(f, pixel_list, width, height):
             g = scale_pixel(pixel_list[row*width + col][1], 4)
             b = scale_pixel(pixel_list[row*width + col][2], 8)
             c = (r << 11) | (g << 5) | b
+            f.write(struct.pack('<H', c))
+        if (width % 2) == 1:
+            f.write(struct.pack('<H', 0))
+
+def write_rgb565(f, byte_list, width, height):
+    for row in range(height-1, -1, -1):
+        for col in range(0, width * 2, 2) :
+            c =(byte_list[row*width*2 + col]) | (byte_list[row*width*2 + col + 1]  << 8)
             f.write(struct.pack('<H', c))
         if (width % 2) == 1:
             f.write(struct.pack('<H', 0))
@@ -103,7 +113,14 @@ def tile(file):
             process(img.crop(box), out)
 
 parser = argparse.ArgumentParser(
-    description="Batch convert image files, including output to 16 bit RGB565 format (default!)"
+    description="Batch convert image files, including output to 16 bit RGB565 format (default!)",
+    add_help=False
+)
+
+parser.add_argument(
+    "-?",
+    "--help",
+    action="help"
 )
 
 parser.add_argument(
@@ -160,6 +177,24 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "-w",
+    "--width",
+    dest="width",
+    type=int,
+    default=1,
+    help="width of input binary file in pixels (RGB565 without header)"
+)
+
+parser.add_argument(
+    "-h",
+    "--height",
+    dest="height",
+    type=int,
+    default=1,
+    help="height of input binary file (RGB565 without header)"
+)
+
+parser.add_argument(
     "-t",
     "--trim",
     dest="trim",
@@ -201,14 +236,22 @@ if len(args.file) > 0:
         exit(1)
 
     for file in args.file:
-        image = Image.open(file)
-        print(file + ", colors=" + str(len(set(image.getdata()))) + ", width=" + str(image.width) + ", height=" + str(image.height))
-        if not args.info:
-            if args.rows > 1 and args.cols > 1:
-                tile(file)
-            else:
+        if pathlib.Path(file).suffix != '.bin':
+            image = Image.open(file)
+            print(file + ", colors=" + str(len(set(image.getdata()))) + ", width=" + str(image.width) + ", height=" + str(image.height))
+            if not args.info:
+                if args.rows > 1 or args.cols > 1:
+                    tile(file)
+                else:
+                    output_file = pathlib.Path(file).stem + "." + args.output
+                    process(image, output_file)
+        else:
+            with open(file, 'rb') as inf:
+                pixels = list(inf.read())
                 output_file = pathlib.Path(file).stem + "." + args.output
-                process(image, output_file)
+                with open(output_file, 'wb') as outf:
+                    outf.write(create_header(args.width, args.height))
+                    write_rgb565(outf, pixels, args.width, args.height)
 else:
     print("You must specify one or more files to convert")
     exit(1)
