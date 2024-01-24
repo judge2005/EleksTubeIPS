@@ -4,6 +4,7 @@
     "builds": [
       {
         "chipFamily": "ESP32",
+        "improv": false,
         "parts": [
           { "path": "https://github.com/judge2005/EleksTubeIPS/releases/download/v0.1.0/bootloader.bin", "offset": 4096 },
           { "path": "https://github.com/judge2005/EleksTubeIPS/releases/download/v0.1.0/partitions.bin", "offset": 32768 },
