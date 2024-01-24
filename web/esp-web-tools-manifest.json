@@ -1,0 +1,16 @@
+{
+    "name": "EleksTubeIPS V1 Replacement Firmware",
+    "version": "0.1.0",
+    "builds": [
+      {
+        "chipFamily": "ESP32",
+        "parts": [
+          { "path": "https://github.com/judge2005/EleksTubeIPS/releases/download/v0.1.0/bootloader.bin", "offset": 4096 },
+          { "path": "https://github.com/judge2005/EleksTubeIPS/releases/download/v0.1.0/partitions.bin", "offset": 32768 },
+          { "path": "https://github.com/judge2005/EleksTubeIPS/releases/download/v0.1.0/boot_app0.bin", "offset": 57344 },
+          { "path": "https://github.com/judge2005/EleksTubeIPS/releases/download/v0.1.0/firmware.bin", "offset": 65536 },
+          { "path": "https://github.com/judge2005/EleksTubeIPS/releases/download/v0.1.0/littlefs.bin", "offset": 1572864 }
+        ]
+      }
+    ]
+  }
