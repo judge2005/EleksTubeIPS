@@ -1,13 +1,13 @@
 {
     "name": "EleksTubeIPS V1 Replacement Firmware",
-    "version": "0.1.0",
+    "version": "0.1.4",
     "new_install_prompt_erase": true,
     "builds": [
       {
         "chipFamily": "ESP32",
         "improv": false,
         "parts": [
-          { "path": "firmware.bin", "offset": 65536 }
+          { "path": "firmware.0.1.4.bin", "offset": 65536 }
         ]
       }
     ]

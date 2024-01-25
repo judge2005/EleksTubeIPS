@@ -28,9 +28,6 @@ OpenWeatherMapWeatherService::OpenWeatherMapWeatherService() : WeatherService() 
     todayFilter["weather"][0]["icon"] = true;
 
     todayFilter["main"]["temp"] = true;
-    todayFilter["main"]["temp_min"] = true;
-    todayFilter["main"]["temp_max"] = true;
-    todayFilter["main"]["humidity"] = true;
 
 /*
  * And these for 5 day forecast:
@@ -83,8 +80,6 @@ float OpenWeatherMapWeatherService::getNowTemp() {
     return temp;
 }
 
-#if  defined(USE_SYNC_CLIENT) || defined(USE_HTTPCLIENT)
-#ifndef USE_HTTPCLIENT
 bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const char *request) {
     const char *token = getWeatherToken().value.c_str();
 
@@ -177,8 +172,7 @@ bool OpenWeatherMapWeatherService::getCurrentWeatherInfo(WiFiClientSecure &clien
         Serial.printf("Temp: %f\n", temp);
 	} else {
         parsingError = true;
-		Serial.print(F("Deserialize error while parsing weather: "));
-		Serial.println(deserializeError.c_str());
+		Serial.printf("Deserialize error while parsing weather: %s. Capacity=%d. Usage=%d\n", deserializeError.c_str(), doc.capacity(), doc.memoryUsage());
 	}
 
     Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
@@ -315,7 +309,7 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
 		}
 	} else {
         parsingError = true;
-		Serial.printf("Deserialize error while parsing weather: %s. Capacity=%d. Usage=%d\n", deserializeError.c_str(), doc.capacity(), doc.memoryUsage());
+		Serial.printf("Deserialize error while parsing forecast: %s. Capacity=%d. Usage=%d\n", deserializeError.c_str(), doc.capacity(), doc.memoryUsage());
 	}
 
     Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
@@ -347,89 +341,3 @@ bool OpenWeatherMapWeatherService::getWeatherInfo() {
 
     return getCurrentWeatherInfo(client) && getForecastWeatherInfo(client);
 }
-
-#else
-bool OpenWeatherMapWeatherService::getCurrentWeatherInfo()
-{
-    bool success = false;
-
-    String token = getWeatherToken();
-
-    if (token.isEmpty())
-    {
-        return false;
-    }
-
-    WiFiClientSecure *client = new WiFiClientSecure;
-    if (client)
-    {
-        client->setInsecure();
-        {
-            // Add a scoping block for HTTPClient https to make sure it is destroyed before WiFiClientSecure *client is
-            HTTPClient https;
-
-            const char *host = "api.openweathermap.org";
-
-            String url = String("https://") + host + "/data/2.5/weather?lat=42.608089&lon=-71.571152&appid=" + token;
-            Serial.print("[HTTPS] begin...\n");
-            if (https.begin(*client, url))
-            { // HTTPS
-                Serial.print("[HTTPS] GET...\n");
-                // start connection and send HTTP header
-                int httpCode = https.GET();
-
-                // httpCode will be negative on error
-                if (httpCode > 0)
-                {
-                    // HTTP header has been send and Server response header has been handled
-                    Serial.printf("[HTTPS] GET... code: %d\n", httpCode);
-
-                    // file found at server
-                    if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
-                    {
-                        success = true;
-                        String payload = https.getString();
-                        Serial.println(payload);
-                    }
-                }
-                else
-                {
-                    Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
-                }
-
-                https.end();
-            }
-            else
-            {
-                Serial.printf("[HTTPS] Unable to connect\n");
-            }
-
-            // End extra scoping block
-        }
-
-        delete client;
-    }
-    else
-    {
-        Serial.println("Unable to create client");
-    }
-
-    return success;
-}
-#endif
-#else
-bool OpenWeatherMapWeatherService::getCurrentWeatherInfo() {
-    bool success = false;
-
-    String token = getWeatherToken();
-
-    if (!token.isEmpty()) {
-        String url = "https://api.openweathermap.org/data/2.5/weather?lat=42.608089&lon=-71.571152&appid=";
-        url += token;
-
-        httpClient.initialize(url);
-    }
-
-    return success;
-}
-#endif

@@ -12,7 +12,6 @@ public:
   StaticSprite(TFT_eSPI *tft) : TFT_eSprite(tft) {}
   void init();
 
-private:
   static uint8_t output_buffer[];
 };
 
@@ -56,7 +55,8 @@ public:
   void setStatus(const char*);
   void setStatus(const String& s) { setStatus(s.c_str()); }
   void checkStatus();
-
+  void printlnAll(const char* s);
+  void printAll(const char* s);
   void drawMeter(int val, bool first, const char *legend);
 
   uint16_t dimColor(uint16_t pixel);

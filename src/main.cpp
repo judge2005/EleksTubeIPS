@@ -14,6 +14,7 @@
 #include "IPSClock.h"
 #include "Backlights.h"
 #include "GPIOButton.h"
+#include "ImprovWiFi.h"
 #include "WSHandler.h"
 #include "WSMenuHandler.h"
 #include "WSConfigHandler.h"
@@ -21,10 +22,22 @@
 #include "OpenWeatherMapWeatherService.h"
 #include "weather.h"
 
-#define DEBUG(...) { Serial.println(__VA_ARGS__); }
+//#define DEBUG(...) { Serial.println(__VA_ARGS__); }
 #ifndef DEBUG
 #define DEBUG(...) {  }
 #endif
+
+// Should match what is in the manifest files. Bump version for a release.
+const char *manifest[] = {
+	// Firmware name
+	"EleksTubeIPS V1 Replacement Firmware",
+	// Firmware version
+	"0.1.4",
+	// Hardware chip/variant
+	"ESP32",
+	// Device name
+	"Clock"
+};
 
 String getChipId(void);
 void setWiFiAP(bool on);
@@ -45,15 +58,15 @@ GPIOButton rightButton(BUTTON_RIGHT_PIN, false);	// open == high, closed == low
 
 AsyncWebServer *server = new AsyncWebServer(80);
 AsyncWebSocket *ws = new AsyncWebSocket("/ws"); // access at ws://[esp ip]/ws
-DNSServer dns;
-AsyncWiFiManager wifiManager(server,&dns);
+DNSServer *dns = new DNSServer();
+AsyncWiFiManager *wifiManager = new AsyncWiFiManager(server, dns);
 TimeSync *timeSync;
 RTCTimeSync *rtcTimeSync;
 
 TaskHandle_t wifiManagerTask;
 TaskHandle_t clockTask;
+TaskHandle_t improvTask;
 TaskHandle_t ledTask;
-TaskHandle_t testTask;
 TaskHandle_t commitEEPROMTask;
 TaskHandle_t weatherTask;
 
@@ -224,25 +237,35 @@ void clockTaskFn(void *pArg) {
 	}
 }
 
+#define DEFAULT_WEATHER_SLEEP (pdMS_TO_TICKS(4 * 60 * 1000))
 void weatherTaskFn(void *pArg) {
-	TickType_t toSleep = pdMS_TO_TICKS(1800000);
+	TickType_t toSleep = DEFAULT_WEATHER_SLEEP;
 	while (true) {
 		// Read from weatherQueue. Wait at most 'toSleep' ticks.
 		uint32_t value;
-		xQueueReceive(weatherQueue, &value, toSleep);
-		if (value == 2) {	// Location coordinates changed
-			value = 0;
-			delay(30000);	// In case user is changing latitude and longitude, i.e. wait for both to possibly change
+		BaseType_t result = xQueueReceive(weatherQueue, &value, toSleep);
+
+		if (result == pdTRUE) {
+			if (value == 2) {	// Location coordinates changed
+				Serial.println("Weather task sleeping 30 seconds");
+				value = 0;
+				delay(30000);	// In case user is changing latitude and longitude, i.e. wait for both to possibly change
+			}
+			Serial.println("Weather task getting right to it");
 		}
 
 		// Drain the queue of any pending messages
 		while (xQueueReceive(weatherQueue, &value, 0) == pdTRUE);
 
-		toSleep = pdMS_TO_TICKS(1800000);
+		Serial.println("Trying to get weather info");
+
+		toSleep = DEFAULT_WEATHER_SLEEP;
 		if (!weatherService->getWeatherInfo()) {
 			Serial.println("Failed to get weather");
 			toSleep = pdMS_TO_TICKS(180000);	// Try again in 3 minutes
 		}
+
+		Serial.printf("Weather task going back to sleep for %d ticks\n", toSleep);
 	}
 }
 
@@ -298,7 +321,7 @@ WSHandler *wsHandlers[] = {
 void infoCallback() {
 	wsInfoHandler.setSsid(ssid);
 	// wsInfoHandler.setBlankingMonitor(&blankingMonitor);
-	// wsInfoHandler.setRevision(revision);
+	wsInfoHandler.setRevision(manifest[1]);
 
 	wsInfoHandler.setFSSize(String(LittleFS.totalBytes()));
 	wsInfoHandler.setFSFree(String(LittleFS.totalBytes() - LittleFS.usedBytes()));
@@ -307,6 +330,7 @@ void infoCallback() {
 	wsInfoHandler.setFailedCount(syncStats.failedCount);
 	wsInfoHandler.setLastFailedMessage(syncStats.lastFailedMessage);
 	wsInfoHandler.setLastUpdateTime(syncStats.lastUpdateTime);
+	wsInfoHandler.setHostname(hostName);
 
 	// wsInfoHandler.setClockOn(nixieDriver.getDisplayOn() ? "on" : "off");
 	// wsInfoHandler.setBrightness(String(ldr.getNormalizedBrightness(true)));
@@ -589,6 +613,30 @@ void ledTaskFn(void *pArg) {
 	}
 }
 
+void improvTaskFn(void *pArg) {
+	ImprovWiFi improvWiFi(
+        manifest[0],
+        manifest[1],
+        manifest[2],
+        manifest[3]
+	);
+
+	DEBUG("Running improv");
+
+	while (true) {
+		xSemaphoreTake(wsMutex, portMAX_DELAY);
+		improvWiFi.loop();
+		if (strlen(improvWiFi.getSSID()) > 0) {
+			wifiManager->setRouterCredentials(improvWiFi.getSSID(), improvWiFi.getPassword());
+			wifiManager->connect();
+			improvWiFi.clearCredentials();
+		}
+		xSemaphoreGive(wsMutex);
+		
+		delay(10);
+	}
+}
+
 void commitEEPROMTaskFn(void *pArg) {
 	while(true) {
 		delay(60000);
@@ -609,13 +657,14 @@ void initFromEEPROM() {
 void connectedHandler() {
 	tfts->setStatus(WiFi.localIP().toString());
 	DEBUG("connectedHandler");
-	if (!wifiManager.isAP()) {
-		uint32_t value = 1;
-		xQueueSend(weatherQueue, &value, 0);	// May not work if AP is active
-	}
 	MDNS.end();
 	MDNS.begin(hostName.value.c_str());
 	MDNS.addService("http", "tcp", 80);
+
+	if (!wifiManager->isAP()) {
+		uint32_t value = 1;
+		xQueueSend(weatherQueue, &value, 0);	// May not work if AP is active
+	}
 }
 
 void apChange(AsyncWiFiManager *wifiManager) {
@@ -632,9 +681,9 @@ void apChange(AsyncWiFiManager *wifiManager) {
 
 void setWiFiAP(bool on) {
 	if (on) {
-		wifiManager.startConfigPortal(ssid.c_str(), "secretsauce");
+		wifiManager->startConfigPortal(ssid.c_str(), "secretsauce");
 	} else {
-		wifiManager.stopConfigPortal();
+		wifiManager->stopConfigPortal();
 	}
 }
 
@@ -644,7 +693,7 @@ void SetupServer() {
 	hostName.put();
 	config.commit();
 	createSSID();
-	wifiManager.setAPCredentials(ssid.c_str(), "secretsauce");
+	wifiManager->setAPCredentials(ssid.c_str(), "secretsauce");
 	DEBUG(hostName.value.c_str());
 	MDNS.begin(hostName.value.c_str());
 	MDNS.addService("http", "tcp", 80);
@@ -654,7 +703,7 @@ void SetupServer() {
 void wifiManagerTaskFn(void *pArg) {
 	while(true) {
 		xSemaphoreTake(wsMutex, portMAX_DELAY);
-		wifiManager.loop();
+		wifiManager->loop();
 		xSemaphoreGive(wsMutex);
 
 		delay(50);
@@ -727,18 +776,28 @@ void setup() {
 		0
 	);
 
+	xTaskCreatePinnedToCore(
+		improvTaskFn, /* Function to implement the task */
+		"Improv task", /* Name of the task */
+		2048,  /* Stack size in words */
+		NULL,  /* Task input parameter */
+		tskIDLE_PRIORITY + 1,  /* More than background tasks */
+		&improvTask,  /* Task handle. */
+		0
+	);
+
 	tfts->setStatus("Connecting...");
 
-	wifiManager.setDebugOutput(true);
-	wifiManager.setHostname(hostName.value.c_str());	// name router associates DNS entry with
-	wifiManager.setCustomOptionsHTML("<br><form action='/t' name='time_form' method='post'><button name='time' onClick=\"{var now=new Date();this.value=now.getFullYear()+','+(now.getMonth()+1)+','+now.getDate()+','+now.getHours()+','+now.getMinutes()+','+now.getSeconds();} return true;\">Set Clock Time</button></form><br><form action=\"/app.html\" method=\"get\"><button>Configure Clock</button></form>");
-	wifiManager.addParameter(hostnameParam);
-	wifiManager.setSaveConfigCallback(SetupServer);
-	wifiManager.setConnectedCallback(connectedHandler);
-	wifiManager.setConnectTimeout(2000);	// milliseconds
-	wifiManager.setAPCallback(apChange);
-	wifiManager.setAPCredentials(ssid.c_str(), "secretsauce");
-	wifiManager.start();
+	wifiManager->setDebugOutput(false);
+	wifiManager->setHostname(hostName.value.c_str());	// name router associates DNS entry with
+	wifiManager->setCustomOptionsHTML("<br><form action='/t' name='time_form' method='post'><button name='time' onClick=\"{var now=new Date();this.value=now.getFullYear()+','+(now.getMonth()+1)+','+now.getDate()+','+now.getHours()+','+now.getMinutes()+','+now.getSeconds();} return true;\">Set Clock Time</button></form><br><form action=\"/app.html\" method=\"get\"><button>Configure Clock</button></form>");
+	wifiManager->addParameter(hostnameParam);
+	wifiManager->setSaveConfigCallback(SetupServer);
+	wifiManager->setConnectedCallback(connectedHandler);
+	wifiManager->setConnectTimeout(2000);	// milliseconds
+	wifiManager->setAPCallback(apChange);
+	wifiManager->setAPCredentials(ssid.c_str(), "secretsauce");
+	wifiManager->start();
 
 	configureWebServer();
 

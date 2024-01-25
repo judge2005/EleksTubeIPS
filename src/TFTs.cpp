@@ -12,6 +12,7 @@ void StaticSprite::init() {
 
   cursor_x = 0;
   cursor_y = 0;
+  setTextWrap(true, true);
 
   // Default scroll rectangle and gap fill colour
   _sx = 0;
@@ -115,8 +116,47 @@ void TFTs::setStatus(const char* s) {
   release();
 }
 
+void TFTs::printlnAll(const char* s) {
+  claim();
+
+  uint8_t saved = chip_select.getDigitMap();
+  chip_select.setAll();
+
+  if (getCursorY() >= height() - 10) {
+    setCursor(0,0);
+    fillRect(0, 0, width(), height(), TFT_BLACK);
+  }
+  println(s);
+
+  chip_select.setDigitMap(saved, true);
+
+  release();
+}
+
+void TFTs::printAll(const char* s) {
+  claim();
+
+  uint8_t saved = chip_select.getDigitMap();
+  chip_select.setAll();
+
+  if (getCursorY() >= height() - 10) {
+    setCursor(0,0);
+    fillRect(0, 0, width(), height(), TFT_BLACK);
+  }
+  print(s);
+
+  chip_select.setDigitMap(saved, true);
+
+  release();
+}
+
 void TFTs::drawStatus() {
   if (statusSet) {
+#ifdef USE_DMA
+  while(dmaBusy()) {
+    delay(1);
+  }
+#endif
     TFT_eSprite& sprite = getStatusSprite();
     sprite.pushSprite(0, height() - sprite.height());
   }
@@ -244,13 +284,22 @@ void TFTs::setDigit(uint8_t digit, const char *name, show_t show) {
  * Displays the bitmap for the value to the given digit. 
  */
 void TFTs::showDigit(uint8_t digit) {
-
   if (*icons[digit] == 0) {
+#ifdef USE_DMA
+    while(dmaBusy()) {
+      delay(1);
+    }
+#endif
     chip_select.setDigit(digit);
     fillScreen(TFT_BLACK);
     drawStatus();
   } else {
-    drawImage(digit).pushSprite(0,0);
+    unsigned long start = millis();
+    TFT_eSprite& sprite = drawImage(digit);
+    // Serial.printf("Draw image took %d ms\n", millis() - start);
+#ifndef USE_DMA
+    sprite.pushSprite(0,0);
+#endif
     drawStatus();
   }
 }
@@ -418,6 +467,17 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
   sprite.setSwapBytes(true);
 
   // 0,0 coordinates are top left
+  int spriteRow = 0;
+#ifdef USE_DMA
+  int dmaBufRows = 0;
+  spriteRow = h + imgYOffset;
+  if (h != sprite.height()) {
+      while (dmaBusy()) {
+        delay(1);
+      }
+      pushImageDMA(0, spriteRow, sprite.width(), sprite.height() - spriteRow, (uint16_t const*)(&StaticSprite::output_buffer[sprite.width() * spriteRow * 2]));
+  }
+#endif
   for (int row = 0; row < h; row++) {
     size_t read = file.read(inputBuffer, inputBufferSize);
     if (read != inputBufferSize) {
@@ -485,8 +545,29 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
         outputBuffer[col*2] = ((g & 0x1C) << 3) | ((b & 0xF8) >> 3);
       }
     }
-    sprite.pushImage(x, reversed ? (h-row-1) + y : row + y, w, 1, (uint16_t*)outputBuffer);
+
+    int spriteRow = reversed ? (h-row-1) + y : row + y;
+    sprite.pushImage(x, spriteRow, w, 1, (uint16_t*)outputBuffer);
+#ifdef USE_DMA
+    dmaBufRows++;
+    if (dmaBufRows == 10) {
+      while (dmaBusy()) {
+        delay(1);
+      }
+      pushImageDMA(0, spriteRow, sprite.width(), dmaBufRows, (uint16_t const*)(&StaticSprite::output_buffer[sprite.width() * spriteRow * 2]));
+      dmaBufRows = 0;
+    }
+#endif
   }
+
+#ifdef USE_DMA
+  if (dmaBufRows != 0 || spriteRow != 0) {
+      while (dmaBusy()) {
+        delay(1);
+      }
+      pushImageDMA(0, 0, sprite.width(), spriteRow + dmaBufRows, (uint16_t const*)(&StaticSprite::output_buffer[0]));
+  }
+#endif
 
   sprite.setSwapBytes(oldSwapBytes);
 
@@ -531,6 +612,11 @@ TFT_eSprite& TFTs::drawImage(uint8_t digit) {
 
   char filename[255];
 
+#ifdef USE_DMA
+  while(dmaBusy()) {
+    delay(1);
+  }
+#endif
   chip_select.setDigit(digit);
 
   if (showDigits) {
@@ -543,6 +629,12 @@ TFT_eSprite& TFTs::drawImage(uint8_t digit) {
   if (strcmp(loadedFilename, filename) != 0) {
     LoadImageIntoBuffer(filename);
   }
+#ifdef USE_DMA
+  else {
+    TFT_eSprite& sprite = getSprite();
+    pushImageDMA(0, 0, sprite.width(), sprite.height(), (uint16_t const*)(&StaticSprite::output_buffer[0]));
+  }
+#endif
 
   return getSprite();
 #ifdef DEBUG_OUTPUT

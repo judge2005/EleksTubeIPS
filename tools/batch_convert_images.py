@@ -76,6 +76,17 @@ def resize(img):
     img = img.resize((int(img_width * ratio), int(img_height * ratio)), Image.Resampling.LANCZOS)
     return img
 
+def add_to_pixels(img):
+    pixels = img.load() 
+    
+    # Extracting the width and height 
+    # of the image: 
+    width, height = img.size 
+    for i in range(width): 
+        for j in range(height):
+            c = pixels[i,j];
+            pixels[i,j] = (c[0] + args.add, c[1] + args.add, c[2] + args.add)
+
 def process(image, output_file):
     if args.scale:
         image = resize(image)
@@ -85,6 +96,9 @@ def process(image, output_file):
         new_image = Image.new("RGBA", image.size, args.background_color)
         new_image.paste(image, (0, 0), image)
         image = new_image.convert('RGB')
+
+    if args.add != 0:
+        add_to_pixels(image)
 
     if args.brightness != 1:
         image = ImageEnhance.Brightness(image).enhance(args.brightness)
@@ -170,6 +184,14 @@ parser.add_argument(
     type=float,
     default=1,
     help="Modify the brightness(!) >1.0 increases brightness, 1.0 = original brightness, 0.0 = black"
+)
+
+parser.add_argument(
+     "--add",
+    dest="add",
+    type=int,
+    default=0,
+    help="Add a value to each pixel, use a negative value to subtract from each pixel"
 )
 
 parser.add_argument(
