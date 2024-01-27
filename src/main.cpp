@@ -32,7 +32,7 @@ const char *manifest[] = {
 	// Firmware name
 	"EleksTubeIPS V1 Replacement Firmware",
 	// Firmware version
-	"0.1.4",
+	"0.1.5",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
