@@ -9,12 +9,12 @@
 #include <EspRTCTimeSync.h>
 #include <ConfigItem.h>
 #include <EEPROMConfig.h>
+#include <ImprovWiFi.h>
 
 #include "TFTs.h"
 #include "IPSClock.h"
 #include "Backlights.h"
 #include "GPIOButton.h"
-#include "ImprovWiFi.h"
 #include "WSHandler.h"
 #include "WSMenuHandler.h"
 #include "WSConfigHandler.h"
@@ -613,6 +613,12 @@ void ledTaskFn(void *pArg) {
 	}
 }
 
+void setWiFiCredentials(const char *ssid, const char *password) {
+	WiFi.disconnect();
+	wifiManager->setRouterCredentials(ssid, password);
+	wifiManager->connect();
+}
+
 void improvTaskFn(void *pArg) {
 	ImprovWiFi improvWiFi(
         manifest[0],
@@ -621,16 +627,14 @@ void improvTaskFn(void *pArg) {
         manifest[3]
 	);
 
+	improvWiFi.setInfoCallback([](const char *msg) {tfts->setStatus(msg);});
+	improvWiFi.setWiFiCallback(setWiFiCredentials);
+
 	DEBUG("Running improv");
 
 	while (true) {
 		xSemaphoreTake(wsMutex, portMAX_DELAY);
 		improvWiFi.loop();
-		if (strlen(improvWiFi.getSSID()) > 0) {
-			wifiManager->setRouterCredentials(improvWiFi.getSSID(), improvWiFi.getPassword());
-			wifiManager->connect();
-			improvWiFi.clearCredentials();
-		}
 		xSemaphoreGive(wsMutex);
 		
 		delay(10);
