@@ -16,7 +16,7 @@ public:
     void clearCredentials() { ssid = ""; password = ""; }
 private:
     void getAvailableWifiNetworks();
-    void sendProvisioned();
+    void sendProvisioned(improv::Command responseTo);
 
     void set_state(improv::State state);
     void send_response(std::vector<uint8_t> &response);

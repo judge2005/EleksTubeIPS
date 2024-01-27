@@ -4,40 +4,42 @@
     "description": "EleksTubeIPS web assets",
     "main": "gulpfile.js",
     "scripts": {
-      "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "echo \"Error: no test specified\" && exit 1"
     },
     "keywords": [],
     "author": "Paul Andrews",
     "license": "ISC",
-	"devDependencies": {
-		"del": "^2.2.1",
-		"grunt": "*",
-		"grunt-contrib-concat": "*",
-		"grunt-contrib-jshint": "*",
-		"grunt-contrib-nodeunit": "*",
-		"grunt-contrib-uglify": "*",
-		"grunt-contrib-watch": "*",
-		"gulp": "*",
-		"gulp-base64-favicon": "*",
-		"gulp-beautify": "*",
-		"gulp-clean-css": "*",
-		"gulp-css-inline-images": "*",
-		"gulp-gzip": "*",
-		"gulp-htmlmin": "*",
-		"gulp-if": "*",
-		"gulp-inline": "*",
-		"gulp-plumber": "*",
-		"gulp-uglify": "*",
-		"gulp-useref": "*",
-		"properties-reader": "*",
-		"yargs": "*"
-	},
-	"dependencies": {
-		"epxress": "^0.0.1-security",
-		"express": "^4.18.2",
-		"express-static-gzip": "^2.1.7",
-		"http": "^0.0.1-security",
-		"ws": "^8.14.2",
-		"multiparty": "*"
-	}
-  }
+    "devDependencies": {
+        "del": "^2.2.1",
+        "grunt": "*",
+        "grunt-contrib-concat": "*",
+        "grunt-contrib-jshint": "*",
+        "grunt-contrib-nodeunit": "*",
+        "grunt-contrib-uglify": "*",
+        "grunt-contrib-watch": "*",
+        "gulp": "*",
+        "gulp-base64-favicon": "*",
+        "gulp-beautify": "*",
+        "gulp-clean-css": "*",
+        "gulp-css-inline-images": "*",
+        "gulp-gzip": "*",
+        "gulp-htmlmin": "*",
+        "gulp-if": "*",
+        "gulp-inline": "*",
+        "gulp-plumber": "*",
+        "gulp-uglify": "*",
+        "gulp-useref": "*",
+        "properties-reader": "*",
+        "yargs": "*"
+    },
+    "dependencies": {
+        "epxress": "^0.0.1-security",
+        "express": "^4.18.2",
+        "express-static-gzip": "^2.1.7",
+        "http": "^0.0.1-security",
+        "improv-wifi-sdk": "^1.4.0",
+        "improv-wifi-serial-sdk": "^2.5.0",
+        "multiparty": "*",
+        "ws": "^8.14.2"
+    }
+}

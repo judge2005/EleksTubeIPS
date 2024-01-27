@@ -10,8 +10,8 @@
 void ImprovWiFi::loop() {
   if (pendingResponse == improv::Command::WIFI_SETTINGS) {
     if (WiFi.status() == WL_CONNECTED) {
+        sendProvisioned(pendingResponse);
         pendingResponse = improv::Command::UNKNOWN;
-        sendProvisioned();
     }
 
     if (millis() - pendingCmdReceived > 10000) {
@@ -24,7 +24,7 @@ void ImprovWiFi::loop() {
     return;
   }
 
-  if (Serial.available() > 0) {
+  while (Serial.available() > 0) {
     uint8_t b = Serial.read();
     if (x_position < sizeof(x_buffer)) {
       if (parse_improv_serial_byte(
@@ -47,17 +47,6 @@ void ImprovWiFi::loop() {
   }
 }
 
-void ImprovWiFi::sendProvisioned() {
-    set_state(improv::STATE_PROVISIONED);
-    String localURL = "http://" + WiFi.localIP().toString();
-    std::vector<std::string> urls = {
-        localURL.c_str()
-    };
-
-    std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls, false);
-    send_response(data);
-}
-
 bool ImprovWiFi::onCommandCallback(improv::ImprovCommand cmd) {
   // char statusBuf[20];
   // sprintf(statusBuf, "Got command %d", cmd.command);
@@ -67,7 +56,8 @@ bool ImprovWiFi::onCommandCallback(improv::ImprovCommand cmd) {
     case improv::Command::GET_CURRENT_STATE:
     {
       if ((WiFi.status() == WL_CONNECTED)) {
-        sendProvisioned();
+        tfts->setStatus("Improv Connected");
+        sendProvisioned(improv::Command::GET_CURRENT_STATE);
       } else {
         tfts->setStatus("Provisioning");
         set_state(improv::State::STATE_AUTHORIZED);
@@ -136,6 +126,24 @@ bool ImprovWiFi::onCommandCallback(improv::ImprovCommand cmd) {
   return true;
 }
 
+void ImprovWiFi::sendProvisioned(improv::Command responseTo) {
+  set_state(improv::STATE_PROVISIONED);
+
+  uint32_t ip = WiFi.localIP();
+  char szRet[30];
+  sprintf(szRet,"http://%u.%u.%u.%u/", ip & 0xff, (ip >> 8) & 0xff, (ip >> 16) & 0xff, ip >> 24);
+
+  std::vector<std::string> urls = {
+      szRet
+  };
+
+  std::vector<uint8_t> data = improv::build_rpc_response(responseTo, urls, false);
+
+  send_response(data);
+
+  tfts->setStatus("Provisioned");
+}
+
 void ImprovWiFi::getAvailableWifiNetworks() {
   int networkNum = WiFi.scanNetworks();
 
@@ -156,53 +164,45 @@ void ImprovWiFi::onErrorCallback(improv::Error err) {
     tfts->setStatus(msgBuf);
 }
 
-void ImprovWiFi::set_state(improv::State state) {  
-  std::vector<uint8_t> data = {'I', 'M', 'P', 'R', 'O', 'V'};
-  data.resize(11);
-  data[6] = improv::IMPROV_SERIAL_VERSION;
-  data[7] = improv::TYPE_CURRENT_STATE;
-  data[8] = 1;
-  data[9] = state;
+void ImprovWiFi::set_state(improv::State state) {
+  // Need to send line-feed as first byte so that client can flush input buffers up until this packet
+  uint8_t data[] = {10, 'I', 'M', 'P', 'R', 'O', 'V', improv::IMPROV_SERIAL_VERSION, improv::TYPE_CURRENT_STATE, 1, state, 0};
 
   uint8_t checksum = 0x00;
-  for (uint8_t d : data)
-    checksum += d;
-  data[10] = checksum;
+  for (int i=1; i<sizeof(data)-1; i++)  // skip first and last bytes
+    checksum += data[i];
+  data[sizeof(data)-1] = checksum;
 
-  Serial.write(data.data(), data.size());
+  Serial.write(data, sizeof(data));
+
   IMPROV_DEBUG("Sent state");  
 }
 
 void ImprovWiFi::send_response(std::vector<uint8_t> &response) {
-  std::vector<uint8_t> data = {'I', 'M', 'P', 'R', 'O', 'V'};
-  data.resize(9);
-  data[6] = improv::IMPROV_SERIAL_VERSION;
-  data[7] = improv::TYPE_RPC_RESPONSE;
-  data[8] = response.size();
+  // Need to send line-feed as first byte so that client can flush input buffers up until this packet
+  std::vector<uint8_t> data = {10, 'I', 'M', 'P', 'R', 'O', 'V', improv::IMPROV_SERIAL_VERSION, improv::TYPE_RPC_RESPONSE, (uint8_t)response.size()};
   data.insert(data.end(), response.begin(), response.end());
 
   uint8_t checksum = 0x00;
-  for (uint8_t d : data)
-    checksum += d;
+  for (int i=1; i<data.size(); i++)
+    checksum += data[i];
   data.push_back(checksum);
 
   Serial.write(data.data(), data.size());
+
   IMPROV_DEBUG("Response sent");
 }
 
 void ImprovWiFi::set_error(improv::Error error) {
-  std::vector<uint8_t> data = {'I', 'M', 'P', 'R', 'O', 'V'};
-  data.resize(11);
-  data[6] = improv::IMPROV_SERIAL_VERSION;
-  data[7] = improv::TYPE_ERROR_STATE;
-  data[8] = 1;
-  data[9] = error;
+  // Need to send line-feed as first byte so that client can flush input buffers up until this packet
+  uint8_t data[] = {10, 'I', 'M', 'P', 'R', 'O', 'V', improv::IMPROV_SERIAL_VERSION, improv::TYPE_ERROR_STATE, 1, error, 0};
 
   uint8_t checksum = 0x00;
-  for (uint8_t d : data)
-    checksum += d;
-  data[10] = checksum;
+  for (int i=1; i<sizeof(data)-1; i++)  // skip first and last bytes
+    checksum += data[i];
+  data[sizeof(data)-1] = checksum;
 
-  Serial.write(data.data(), data.size());
+  Serial.write(data, sizeof(data));
+
   IMPROV_DEBUG("Error sent");
 }
