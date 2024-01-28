@@ -1,5 +1,6 @@
 from PIL import Image, ImageChops, ImageEnhance
-
+from io import BytesIO
+import cairosvg
 import random, math
 import argparse
 import struct, os, sys, glob, pathlib
@@ -65,13 +66,13 @@ def trim(im):
     else:
         return im
 
-def resize(img):
-    if image.size[0] == 135 and image.size[1] == 240:   # unchanged
+def resize(img, width, height):
+    if image.size[0] == width and image.size[1] == height:   # unchanged
         return img
     img_width = img.size[0]
     img_height = img.size[1]
-    wratio = 135.0 / float(img_width)
-    hratio = 240.0 / float(img_height)
+    wratio = width / float(img_width)
+    hratio = height / float(img_height)
     ratio = min(wratio, hratio)  
     img = img.resize((int(img_width * ratio), int(img_height * ratio)), Image.Resampling.LANCZOS)
     return img
@@ -89,7 +90,9 @@ def add_to_pixels(img):
 
 def process(image, output_file):
     if args.scale:
-        image = resize(image)
+        image = resize(image, 135, 240)
+    if args.scale_icon:
+        image = resize(image, 128, 128)
     if args.trim:
         image = trim(image)
     if image.has_transparency_data:
@@ -131,6 +134,11 @@ def tile(file):
             out = pathlib.Path(file).stem + "_" + str(row) + "_" + str(col) + "." + args.output
             box = (left, top, left+tw, top+th)
             process(img.crop(box), out)
+
+def svg2image(file):
+    out = BytesIO()
+    cairosvg.svg2png(url=file, write_to=out)
+    return Image.open(out)
 
 parser = argparse.ArgumentParser(
     description="Batch convert image files, including output to 16 bit RGB565 format (default!)",
@@ -270,6 +278,13 @@ parser.add_argument(
     help="scale the input/tile to 135x240 maintaining aspect ratio"
 )
 
+parser.add_argument(
+    "--scale_icon",
+    dest="scale_icon",
+    action="store_true",
+    help="scale the input/tile to 128x128 maintaining aspect ratio"
+)
+
 parser.add_argument('file',nargs='+')
 
 args = parser.parse_args()
@@ -280,8 +295,20 @@ if len(args.file) > 0:
         exit(1)
 
     for file in args.file:
-        if pathlib.Path(file).suffix != '.bin':
-            image = Image.open(file)
+        fileType = pathlib.Path(file).suffix;
+        if fileType == '.bin':
+            with open(file, 'rb') as inf:
+                pixels = list(inf.read())
+                output_file = pathlib.Path(file).stem + "." + args.output
+                with open(output_file, 'wb') as outf:
+                    outf.write(create_header(args.width, args.height))
+                    write_rgb565(outf, pixels, args.width, args.height)
+        else:
+            if fileType == '.svg':
+                image = svg2image(file)
+            else:
+                image = Image.open(file)
+                
             print(file + ", colors=" + str(len(set(image.getdata()))) + ", width=" + str(image.width) + ", height=" + str(image.height))
             if not args.info:
                 if args.rows > 1 or args.cols > 1:
@@ -289,13 +316,7 @@ if len(args.file) > 0:
                 else:
                     output_file = pathlib.Path(file).stem + "." + args.output
                     process(image, output_file)
-        else:
-            with open(file, 'rb') as inf:
-                pixels = list(inf.read())
-                output_file = pathlib.Path(file).stem + "." + args.output
-                with open(output_file, 'wb') as outf:
-                    outf.write(create_header(args.width, args.height))
-                    write_rgb565(outf, pixels, args.width, args.height)
+
 else:
     print("You must specify one or more files to convert")
     exit(1)
