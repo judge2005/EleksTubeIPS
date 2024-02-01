@@ -26,50 +26,36 @@ public:
   const static String patterns_str[num_patterns];
 
   static ByteConfigItem& getLEDPattern() { static ByteConfigItem led_pattern("led_pattern", 3); return led_pattern; }
-  static IntConfigItem& getColorPhase() { static IntConfigItem color_phase("color_phase", 0); return color_phase; }
-  static ByteConfigItem& getLEDIntensity() { static ByteConfigItem led_intensity("led_intensity", 7); return led_intensity; }
+  static IntConfigItem& getLEDHue() { static IntConfigItem led_hue("led_hue", 85); return led_hue; }
+  static ByteConfigItem& getLEDValue() { static ByteConfigItem led_value("led_value", 255); return led_value; }
+  static ByteConfigItem& getLEDSaturation() { static ByteConfigItem led_saturation("led_saturation", 255); return led_saturation; }
   static ByteConfigItem& getBreathPerMin() { static ByteConfigItem breath_per_min("breath_per_min", 10); return breath_per_min; }
-  BaseConfigItem **getConfigSet();
+
   void begin();
   void loop();
 
-  void togglePower() { off = !off; pattern_needs_init = true; }
-  void PowerOn()  { off = false; pattern_needs_init = true; }
-  void PowerOff()  { off = true; pattern_needs_init = true; }
-  void setOn(bool on) { off = !on; pattern_needs_init = true; }
+  void togglePower() { off = !off; }
+  void PowerOn()  { off = false; }
+  void PowerOff()  { off = true; }
+  void setOn(bool on) { off = !on; }
   void setDimming(bool dimming) { this->dimming = dimming; }
 
-  void setColorPhase(uint16_t phase) { getColorPhase().value = phase % max_phase; pattern_needs_init = true; }
-  void adjustColorPhase(int16_t adj);
-  
-  void setIntensity(uint8_t intensity);
-  void adjustIntensity(int16_t adj);
-
 private:
-  uint8_t old_pattern = 255;
   bool off;
-  bool pattern_needs_init = true;
   bool dimming = false;
   
   NeoPixelBus <NeoGrbFeature, Neo800KbpsMethod> pixels;
 
   // Pattern methods
-  void testPattern();
   void rainbowPattern();
   void pulsePattern();
   void breathPattern();
 
-  // Helper methods
-  uint8_t phaseToIntensity(uint16_t phase);
-  uint32_t phaseToColor(uint16_t phase);
-  void fill(uint32_t color);
+  void fill(uint8_t hue, uint8_t val, uint8_t sat);
   void show();
   void clear();
-  void setBrightness(uint8_t level);
-  void setPixelColor(uint8_t digit, uint32_t color);
+  void setPixelColor(uint8_t digit, uint8_t hue, uint8_t val, uint8_t sat);
 
-  const uint16_t max_phase = 768;   // 256 up, 256 down, 256 off
-  const uint8_t max_intensity = 8;  // 0 to 7
   const uint32_t test_ms_delay = 250; 
 
 };

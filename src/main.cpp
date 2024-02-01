@@ -104,8 +104,9 @@ CompositeConfigItem clockConfig("clock", 0, clockSet);
 BaseConfigItem *ledSet[] = {
     // LEDs
     &Backlights::getLEDPattern(),
-    &Backlights::getColorPhase(),
-    &Backlights::getLEDIntensity(),
+    &Backlights::getLEDHue(),
+    &Backlights::getLEDSaturation(),
+    &Backlights::getLEDValue(),
     &Backlights::getBreathPerMin(),
     0
 };
@@ -131,6 +132,18 @@ BaseConfigItem *weatherSet[] = {
 };
 CompositeConfigItem weatherConfig("weather", 0, weatherSet);
 
+BaseConfigItem *matrixSet[] = {
+    // Weather service
+	&DigitalRainAnimation::getMatrixSpeed(),
+	&DigitalRainAnimation::getMatrixHue(),
+	&DigitalRainAnimation::getMatrixSaturation(),
+	&DigitalRainAnimation::getMatrixValue(),
+	&DigitalRainAnimation::getMatrixHueCycling(),
+	&DigitalRainAnimation::getMatrixHueCycleTime(),
+	0
+};
+CompositeConfigItem matrixConfig("matrix", 0, matrixSet);
+
 // Global configuration
 BaseConfigItem *configSetGlobal[] = {
 	&hostName,
@@ -146,6 +159,7 @@ BaseConfigItem *configSetRoot[] = {
 	&ledConfig,
 	&facesConfig,
 	&weatherConfig,
+	&matrixConfig,
 	0
 };
 
@@ -190,6 +204,10 @@ void onFileSetChanged(ConfigItem<String> &item) {
 	broadcastUpdate(msg);
 }
 
+void onMatrixHueChanged(ConfigItem<int> &item) {
+	broadcastUpdate(item);
+}
+
 void clockTaskFn(void *pArg) {
 	imageUnpacker = new ImageUnpacker();
 
@@ -204,10 +222,13 @@ void clockTaskFn(void *pArg) {
 
 	fileSet.setCallback(onFileSetChanged);
 
+	DigitalRainAnimation::getMatrixHue().setCallback(onMatrixHueChanged);
+
 	ipsClock = new IPSClock();
 	ipsClock->init();
 	ipsClock->setImageUnpacker(imageUnpacker);
 	ipsClock->setTimeSync(timeSync);
+
 
 	while (true) {
 		delay(1);
@@ -221,18 +242,24 @@ void clockTaskFn(void *pArg) {
 			Serial.printf("Mode changed to %d\n", dateOrTime.value);
     	}
 
-		switch (dateOrTime.value) {
-			case 0:
-			case 1:
-				tfts->setShowDigits(true);
-				if (timeSync->initialized() || rtcTimeSync->initialized()) {
-					ipsClock->loop();
-				}
-				break;
-			case 2:
-				tfts->setShowDigits(false);
-				weather->loop(ipsClock->dimming());
-				break;
+		if ((ipsClock->getDimming() == 2) && !ipsClock->clockOn()) {
+			tfts->enableAllDisplays();
+			tfts->checkStatus();
+			tfts->animateRain();
+			tfts->invalidateAllDigits();
+		} else {
+			switch (dateOrTime.value) {
+				case 2:
+					tfts->setShowDigits(false);
+					weather->loop(ipsClock->dimming());
+					break;
+				default:
+					tfts->setShowDigits(true);
+					if (timeSync->initialized() || rtcTimeSync->initialized()) {
+						ipsClock->loop();
+					}
+					break;
+			}
 		}
 	}
 }
@@ -288,6 +315,7 @@ String *items[] = {
 	&WSMenuHandler::ledsMenu,
 	&WSMenuHandler::facesMenu,
 	&WSMenuHandler::weatherMenu,
+	&WSMenuHandler::matrixMenu,
 	// &WSMenuHandler::presetsMenu,
 	&WSMenuHandler::infoMenu,
 	// &WSMenuHandler::presetNamesMenu,
@@ -299,6 +327,7 @@ WSConfigHandler wsClockHandler(rootConfig, "clock");
 WSConfigHandler wsLEDHandler(rootConfig, "leds");
 WSConfigHandler wsFacesHandler(rootConfig, "faces", clockFacesCallback);
 WSConfigHandler wsWeatherHandler(rootConfig, "weather");
+WSConfigHandler wsMatrixHandler(rootConfig, "matrix");
 WSInfoHandler wsInfoHandler(infoCallback);
 
 // Order of this needs to match the numbers in WSMenuHandler.cpp
@@ -313,7 +342,7 @@ WSHandler *wsHandlers[] = {
 	// &wsPresetNamesHandler,
 	NULL,
 	&wsWeatherHandler,
-	NULL,	// Currently unused
+	&wsMatrixHandler,
 	NULL
 };
 

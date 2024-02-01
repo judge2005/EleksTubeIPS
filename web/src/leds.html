@@ -9,29 +9,33 @@
 						<label for="led_pattern">Backlight Pattern</label>
 					</div>
 					<div class="dispInline">
-						<select onchange="setVisibility('bpm_container', this, ['4','5']);setVisibility('hue_container', this, ['2','4','5']);elementChange(this)"  type="picklist"
+						<select onchange="setVisibility('bpm_container', this, ['4','5']);setVisibility('hue_container', this, ['2','4','5']);setVisibility('saturation_container', this, ['2','3','4','5']);elementChange(this)"  type="picklist"
 							id="led_pattern" data-mini="true">
 							<option value="0">Dark</option>
-							<option value="1">Test</option>
 							<option value="2">Constant</option>
 							<option value="3">Rainbow</option>
 							<option value="4">Pulse</option>
 							<option value="5">Breath</option>
 						</select>
 					</div>
-					<div class="clearFloats"></div>
-					<label for="led_intensity">Backlight Intensity</label>
-				    <input onchange="elementChange(this)" type="range" name="led_intensity" id="led_intensity" min="0" max="7" value="7">
-					<div id="bpm_container" style="display: block;">
+					<div id="bpm_container" style="display: hidden;">
 						<div class="clearFloats"></div>
 						<label for="breath_per_min">Cycles per Minute</label>
 						<input onchange="elementChange(this)" type="range" name="breath_per_min" id="breath_per_min" min="1" max="20" value="20">
 					</div>
-					<div id="hue_container" style="display: block;">
+					<div id="hue_container" style="display: hidden;">
 						<div class="clearFloats"></div>
-						<label for="color_phase">Hue</label>
-				    	<input onchange="elementChange(this)" type="range" name="color_phase" id="color_phase" min="0" max="768" value="768" step="16">
+						<label for="led_hue">Hue</label>
+				    	<input onchange="elementChange(this)" type="range" name="led_hue" id="led_hue" min="0" max="255" value="89">
 					</div>
+					<div id="staturation_container" style="display: hidden;">
+						<div class="clearFloats"></div>
+						<label for="led_saturation">Saturation</label>
+				    	<input onchange="elementChange(this)" type="range" name="led_saturation" id="led_saturation" min="0" max="255" value="255">
+					</div>
+					<div class="clearFloats"></div>
+					<label for="led_value">Brightness</label>
+				    <input onchange="elementChange(this)" type="range" name="led_value" id="led_value" min="0" max="255" value="255">
 	   			</form>
     		</div>
         </div>

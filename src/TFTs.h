@@ -6,6 +6,7 @@
 #include <FS.h>
 #include <TFT_eSPI.h>
 #include "ChipSelect.h"
+#include "DigitalRainAnimation.h"
 
 class StaticSprite : public TFT_eSprite {
 public:
@@ -38,7 +39,8 @@ public:
   void showAllDigits()               { for (uint8_t digit=0; digit < NUM_DIGITS; digit++) showDigit(digit); }
   void showDigit(uint8_t digit);
   TFT_eSprite& drawImage(uint8_t digit);
-  
+  void animateRain();
+
   void setImageJustification(image_justification_t value) { imageJustification = value; }
   void setBox(uint16_t w, uint16_t h) { boxWidth = w; boxHeight = h; }
   // Controls the power to all displays
@@ -65,6 +67,11 @@ private:
 
   TFT_eSprite& getStatusSprite();
   TFT_eSprite& getSprite();
+#ifdef SMOOTH_FONT
+  DigitalRainAnim& getMatrixAnimator();
+#else
+  DigitalRainAnimation& getMatrixAnimator();
+#endif
   void drawStatus();
 
   bool showDigits = true;

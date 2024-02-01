@@ -15,6 +15,7 @@ public:
 	static String ledsMenu;
 	static String facesMenu;
 	static String weatherMenu;
+	static String matrixMenu;
 	static String infoMenu;
 
 private:

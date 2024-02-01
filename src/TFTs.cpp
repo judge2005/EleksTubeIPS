@@ -1,5 +1,8 @@
 #include "TFTs.h"
 #include <WiFi.h>
+#include "matrix-code-14.h"
+#define MATRIX_FONT &matrix_code_nfi14pt7b
+
 #define DARKER_GREY 0x18E3
 
 SemaphoreHandle_t TFTs::tftMutex = 0;
@@ -41,6 +44,30 @@ void TFTs::claim() {
 void TFTs::release(){
   xSemaphoreGive(tftMutex);
 }
+
+#ifdef SMOOTH_FONT
+DigitalRainAnim& TFTs::getMatrixAnimator() {
+  static DigitalRainAnim *animator = NULL;
+
+  if (animator == NULL) {
+    animator = new DigitalRainAnim();
+    animator->init(this);
+  }
+
+  return *animator;
+}
+#else
+DigitalRainAnimation& TFTs::getMatrixAnimator() {
+  static DigitalRainAnimation *animator = NULL;
+
+  if (animator == NULL) {
+    animator = new DigitalRainAnimation();
+    animator->init(&getSprite());
+  }
+
+  return *animator;
+}
+#endif
 
 TFT_eSprite& TFTs::getSprite() {
   static bool initialized = false;
@@ -160,6 +187,33 @@ void TFTs::drawStatus() {
     TFT_eSprite& sprite = getStatusSprite();
     sprite.pushSprite(0, height() - sprite.height());
   }
+}
+
+void TFTs::animateRain() {
+#ifdef SMOOTH_FONT
+  DigitalRainAnim animator = getMatrixAnimator();
+#else
+  DigitalRainAnimation& animator = getMatrixAnimator();
+#endif
+
+  claim();
+
+  uint8_t saved = chip_select.getDigitMap();
+  chip_select.setAll();
+
+#ifndef SMOOTH_FONT
+  TFT_eSprite& sprite = getSprite();
+  sprite.setFreeFont(MATRIX_FONT);                   // Select the font
+#endif
+  animator.loop();
+#ifndef SMOOTH_FONT
+  sprite.pushSprite(0,0);
+#endif
+  drawStatus();
+
+  chip_select.setDigitMap(saved, true);
+
+  release();
 }
 
 void TFTs::drawMeter(int val, bool first, const char *legend) {

@@ -7,6 +7,7 @@ String WSMenuHandler::facesMenu = "{\"3\": { \"url\" : \"faces.html\", \"title\"
 String WSMenuHandler::infoMenu = "{\"5\": { \"url\" : \"info.html\", \"title\" : \"Info\" }}";
 //String WSMenuHandler::presetNamesMenu = "{\"6\": { \"url\" : \"preset_names.html\", \"title\" : \"Preset Names\", \"noNav\" : true }}";
 String WSMenuHandler::weatherMenu = "{\"7\": { \"url\" : \"weather.html\", \"title\" : \"Weather\" }}";
+String WSMenuHandler::matrixMenu = "{\"8\": { \"url\" : \"matrix.html\", \"title\" : \"Screen Saver\" }}";
 
 void WSMenuHandler::handle(AsyncWebSocketClient *client, char *data) {
 	String json("{\"type\":\"sv.init.menu\", \"value\":[");
