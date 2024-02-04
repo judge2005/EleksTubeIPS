@@ -28,7 +28,21 @@ bool Button::state() {
 	}
 }
 
+void Button::setCallback(std::function<void(const Button*, Event)> callback) {
+	this->callback = callback;
+}
+
+void Button::dispatchEvent(Event evt) {
+	if (callback) {
+		callback(this, evt);
+	}
+}
+
 bool Button::clicked() {
+	return Button::getEvent() == Event::button_clicked;
+}
+
+Button::Event Button::getEvent() {
 	// A click means that the button needs to be released within say 0.5s of being pushed,
 	// otherwise it is a press. Problem with this algorithm is that this method needs
 	// to be called within 0.5s after the button down state is recorded. Also, of the button
@@ -45,11 +59,12 @@ bool Button::clicked() {
 			// Button went down, start timer
 			clickTime = now;
 			wasPressed = true;
-			return false;
+			wasLongPress = false;
+			return Event::none;
 		} else {
 			// Button isn't down now either
 			wasPressed = false;
-			return false;
+			return Event::none;
 		}
 	} else {
 		// Button was down last time we were called
@@ -58,16 +73,27 @@ bool Button::clicked() {
 			wasPressed = false;
 			if (now - clickTime > 500) {
 				// Too long
-				return false;
+				if (!wasLongPress) {
+					wasLongPress = true;
+					dispatchEvent(Event::long_press);
+					return Event::long_press;
+				}
 			} else {
 				// Yes it was!
-				return true;
+				dispatchEvent(Event::button_clicked);
+				return Event::button_clicked;
 			}
 		} else {
-			// Button is still down, won't know if it was a click
-			// until it goes up
-			return false;
+			// Button is still down
+			if (now - clickTime > 500 && !wasLongPress) {
+				// Too long
+				wasLongPress = true;
+				dispatchEvent(Event::long_press);
+				return Event::long_press;
+			}
 		}
+
+		return Event::none;
 	}
 }
 

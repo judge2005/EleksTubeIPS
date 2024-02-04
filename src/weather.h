@@ -24,6 +24,7 @@ public:
     void setImageUnpacker(ImageUnpacker *imageUnpacker) { this->imageUnpacker = imageUnpacker; }
 
     void loop(uint8_t dimming);
+    void redraw() { _redraw = true; }
 private:
     const char *daysOfWeek[7] = {
         "Sunday",
@@ -39,5 +40,6 @@ private:
     String oldIcons;
     ClockTimer::Timer displayTimer;
     ImageUnpacker *imageUnpacker;
+    bool _redraw = false;
 };
 #endif

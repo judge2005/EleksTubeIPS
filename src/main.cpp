@@ -10,6 +10,7 @@
 #include <ConfigItem.h>
 #include <EEPROMConfig.h>
 #include <ImprovWiFi.h>
+#include <eSPI_Menu.h>
 
 #include "TFTs.h"
 #include "IPSClock.h"
@@ -21,18 +22,23 @@
 #include "WSInfoHandler.h"
 #include "OpenWeatherMapWeatherService.h"
 #include "weather.h"
+#include "ScreenSaver.h"
 
 //#define DEBUG(...) { Serial.println(__VA_ARGS__); }
 #ifndef DEBUG
 #define DEBUG(...) {  }
 #endif
 
+#define SMALL_FONT  2        // font for menus
+#define ITEM_FONT   2        // font for menus
+#define TITLE_FONT  4        // font for all headings
+
 // Should match what is in the manifest files. Bump version for a release.
 const char *manifest[] = {
 	// Firmware name
 	"EleksTubeIPS V1 Replacement Firmware",
 	// Firmware version
-	"0.1.5",
+	"0.2.0",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -45,16 +51,22 @@ void infoCallback();
 String clockFacesCallback();
 void broadcastUpdate(String msg);
 void broadcastUpdate(const BaseConfigItem& item);
+void setFace(const char *menuLabel);
+void initFacesMenu();
 
 TFTs *tfts = NULL;
+eSPIMenu::Menu *menu;
 Backlights *backlights = NULL;
 IPSClock *ipsClock = NULL;
 Weather *weather = NULL;
 WeatherService *weatherService = NULL;
 ImageUnpacker *imageUnpacker = NULL;
 
+ScreenSaver screenSaver;
 GPIOButton modeButton(BUTTON_MODE_PIN, false);	// open == high, closed == low
 GPIOButton rightButton(BUTTON_RIGHT_PIN, false);	// open == high, closed == low
+GPIOButton leftButton(BUTTON_LEFT_PIN, false);	// open == high, closed == low
+GPIOButton powerButton(BUTTON_POWER_PIN, false);	// open == high, closed == low
 
 AsyncWebServer *server = new AsyncWebServer(80);
 AsyncWebSocket *ws = new AsyncWebSocket("/ws"); // access at ws://[esp ip]/ws
@@ -140,6 +152,8 @@ BaseConfigItem *matrixSet[] = {
 	&DigitalRainAnimation::getMatrixValue(),
 	&DigitalRainAnimation::getMatrixHueCycling(),
 	&DigitalRainAnimation::getMatrixHueCycleTime(),
+	&ScreenSaver::getScreenSaver(),
+	&ScreenSaver::getScreenSaverDelay(),
 	0
 };
 CompositeConfigItem matrixConfig("matrix", 0, matrixSet);
@@ -208,6 +222,73 @@ void onMatrixHueChanged(ConfigItem<int> &item) {
 	broadcastUpdate(item);
 }
 
+bool menuDrawn = false;
+
+void onButtonEvent(const Button *button, Button::Event evt) {
+	if (button == &rightButton && evt == Button::button_clicked && menuDrawn) {
+		menu->down();
+		tfts->getSprite().pushSprite(0, 0);
+	}
+
+	if (button == &leftButton && evt == Button::button_clicked  && menuDrawn) {
+		menu->up();
+		tfts->getSprite().pushSprite(0, 0);
+	}
+
+	if (button == &modeButton) {
+		if (evt == Button::long_press) {
+			if (!menuDrawn) {
+				tfts->clear();
+				initFacesMenu();
+				menu->show();
+				tfts->getSprite().pushSprite(0, 0);
+				menuDrawn = true;
+			} else {
+				tfts->invalidateAllDigits();
+				menuDrawn = false;
+				weather->redraw();
+			}
+		}
+
+		if (evt == Button::button_clicked) {
+			if (menuDrawn) {
+				setFace(menu->getSelectedText());
+				tfts->fillScreen(TFT_BLACK);
+				tfts->invalidateAllDigits();
+				menuDrawn = false;
+				weather->redraw();
+			} else {
+				IntConfigItem &dateOrTime = IPSClock::getTimeOrDate();
+
+				dateOrTime.value = (dateOrTime.value + 1) % 3;
+				dateOrTime.put();
+				broadcastUpdate(dateOrTime);
+				dateOrTime.notify();
+				tfts->invalidateAllDigits();
+			}
+		}
+	}
+
+	if (button == &powerButton) {
+		if (evt == Button::button_clicked) {
+			if (ipsClock->clockOn()) {
+				if (screenSaver.isOff()) {
+					screenSaver.start();
+					return;
+				}
+			} else {
+				ipsClock->setOnOverride();
+			}
+		}
+
+		if (evt == Button::long_press) {
+			ipsClock->overrideUntilNextChange();
+		}
+	}
+
+	screenSaver.reset();
+}
+
 void clockTaskFn(void *pArg) {
 	imageUnpacker = new ImageUnpacker();
 
@@ -229,26 +310,44 @@ void clockTaskFn(void *pArg) {
 	ipsClock->setImageUnpacker(imageUnpacker);
 	ipsClock->setTimeSync(timeSync);
 
+	leftButton.setCallback(onButtonEvent);
+	modeButton.setCallback(onButtonEvent);
+	rightButton.setCallback(onButtonEvent);
+	powerButton.setCallback(onButtonEvent);
+
+	screenSaver.reset();
 
 	while (true) {
 		delay(1);
 
-		IntConfigItem &dateOrTime = IPSClock::getTimeOrDate();
-    	if (modeButton.clicked()) {
-			dateOrTime.value = (dateOrTime.value + 1) % 3;
-			broadcastUpdate(dateOrTime);
-			dateOrTime.notify();
-			tfts->invalidateAllDigits();
-			Serial.printf("Mode changed to %d\n", dateOrTime.value);
-    	}
+		leftButton.getEvent();
+		rightButton.getEvent();
+		modeButton.getEvent();
+		powerButton.getEvent();
+		
+		tfts->checkStatus();
+
+		if (menuDrawn) {
+			continue;
+		}
 
 		if ((ipsClock->getDimming() == 2) && !ipsClock->clockOn()) {
 			tfts->enableAllDisplays();
-			tfts->checkStatus();
 			tfts->animateRain();
 			tfts->invalidateAllDigits();
+		} if (ipsClock->clockOn() && screenSaver.isOn()) {
+			switch(ScreenSaver::getScreenSaver()) {
+				case 0:
+					tfts->disableAllDisplays();
+					break;
+				default:
+					tfts->enableAllDisplays();
+					tfts->animateRain();
+					tfts->invalidateAllDigits();
+					break;
+			}
 		} else {
-			switch (dateOrTime.value) {
+			switch (IPSClock::getTimeOrDate().value) {
 				case 2:
 					tfts->setShowDigits(false);
 					weather->loop(ipsClock->dimming());
@@ -290,6 +389,8 @@ void weatherTaskFn(void *pArg) {
 		if (!weatherService->getWeatherInfo()) {
 			Serial.println("Failed to get weather");
 			toSleep = pdMS_TO_TICKS(180000);	// Try again in 3 minutes
+		} else {
+			weather->redraw();
 		}
 
 		Serial.printf("Weather task going back to sleep for %d ticks\n", toSleep);
@@ -485,6 +586,7 @@ void wsHandler(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
 	case WS_EVT_DATA:	// Yay we got something!
 		DEBUG("WS data")
 		;
+		screenSaver.reset();
 		AwsFrameInfo * info = (AwsFrameInfo*) arg;
 		if (info->final && info->index == 0 && info->len == len) {
 			//the whole message is in a single frame and we got all of it's data
@@ -587,6 +689,81 @@ void configureWebServer() {
 	server->addHandler(ws);
 	server->begin();
 	ws->enable(true);
+}
+
+
+void setFace(const char *menuLabel) {
+	if (IPSClock::getTimeOrDate() == 2) {
+		weather->getIconPack().fromString(menuLabel);
+		weather->getIconPack().put();
+		broadcastUpdate(weather->getIconPack());
+	} else {
+		ipsClock->getClockFace().fromString(menuLabel);
+		ipsClock->getClockFace().put();
+		broadcastUpdate(ipsClock->getClockFace());
+	}
+}
+
+/*
+Menu title background: 0x0A2D
+Hilight background: 0x0926
+Item background: 0x09A9
+Disabled text: 0x74F7
+text: 0xFFFF
+*/
+#define MENU_TEXT_TITLE 0xDF1C
+#define MENU_TEXT_ITEM 0xA5B7
+#define MENU_TEXT_HILIGHT 0xDF1C
+#define MENU_TEXT_DISABLED 0x3B92
+#define MENU_ITEM_BACKGROUND 0x00E5
+#define MENU_TITLE_BACKGROUND 0x0a2d
+#define MENU_ITEM_HILIGHT_BACKGROUND 0x0062
+#define ITEM_BORDER_COLOR 0xFFFF
+#define TITLE_BORDER_COLOR 0xFFFF
+
+void initFacesMenu() {
+	static const String postfix(".tar.gz");
+
+	int display = IPSClock::getTimeOrDate();
+
+	uint8_t font = TITLE_FONT;
+
+	menu->reset();
+	menu->setTitle(display == 2 ? "Icons" : "Clock Face");
+	eSPIMenu::Spec& itemSpec = menu->getItemSpec();
+	itemSpec.setFont(TITLE_FONT);
+	itemSpec.setItemColors(MENU_ITEM_BACKGROUND, MENU_TEXT_ITEM, MENU_ITEM_HILIGHT_BACKGROUND, MENU_TEXT_HILIGHT, MENU_ITEM_BACKGROUND, MENU_TEXT_DISABLED);
+	itemSpec.setMargins(1, 1, 2, 2);
+	itemSpec.setBorder(0, 2, 0, 0);
+	itemSpec.setBorderColors(MENU_ITEM_BACKGROUND, ITEM_BORDER_COLOR, MENU_ITEM_BACKGROUND);
+
+	eSPIMenu::Spec& titleSpec = menu->getTitleSpec();
+	titleSpec.setFont(TITLE_FONT);
+	titleSpec.setItemColors(MENU_TITLE_BACKGROUND, MENU_TEXT_TITLE, MENU_ITEM_HILIGHT_BACKGROUND, MENU_TEXT_HILIGHT, MENU_ITEM_BACKGROUND, MENU_TEXT_DISABLED);
+	titleSpec.setMargins(2, 2, 2, 2);
+	titleSpec.setBorder(0, 0, 1, 0);
+	titleSpec.setBorderColors(TITLE_BORDER_COLOR, TITLE_BORDER_COLOR, TITLE_BORDER_COLOR);
+
+	String dirName = "/ips/";
+	if (display == 2) {
+		dirName += "weather";
+	} else {
+		dirName += "faces";
+	}
+	fs::File dir = LittleFS.open(dirName);
+    String name = dir.getNextFileName();
+	int optIndex = 0;
+	bool selected = false;
+    while(name.length() > 0 && optIndex < ESPI_MENU_MAX_ITEMS){
+		String fileName = name.substring(dirName.length() + 1, name.length());
+		String option = fileName.substring(0, fileName.lastIndexOf(postfix));
+		eSPIMenu::State state = option == ipsClock->getClockFace() ? eSPIMenu::selected : eSPIMenu::none;
+		menu->addItem(option.c_str(), state);
+        name = dir.getNextFileName();
+		optIndex++;
+	}
+
+	tfts->fillScreen(MENU_ITEM_BACKGROUND);
 }
 
 String clockFacesCallback() {
@@ -764,6 +941,8 @@ void setup() {
 	tfts->setTextColor(TFT_WHITE, TFT_BLACK);
 	tfts->setCursor(0, 0, 2);
 	tfts->setStatus("setup...");
+
+	menu = new eSPIMenu::Menu(&tfts->getSprite());
 
 	createSSID();
 

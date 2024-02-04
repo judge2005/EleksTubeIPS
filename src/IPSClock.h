@@ -28,6 +28,9 @@ public:
     void setImageUnpacker(ImageUnpacker *imageUnpacker) { this->imageUnpacker = imageUnpacker; }
 
     bool clockOn();
+    void setOnOverride() { onOverride = millis(); };
+    void overrideUntilNextChange() { temporaryOverride = true; }
+
     uint8_t dimming() { return clockOn() ? 255 : 40; }
 private:
     static char* digitToName[10];
@@ -36,6 +39,9 @@ private:
     String oldClockFace;
 	TimeSync *pTimeSync = 0;
     ImageUnpacker *imageUnpacker;
+    unsigned long onOverride = 0;
+    bool temporaryOverride = false;
+    bool prevScheduleOn = false;
 };
 
 #endif

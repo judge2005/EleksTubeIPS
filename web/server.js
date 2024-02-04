@@ -76,6 +76,7 @@ var pages = {
 			{"2": { "url" : "leds.html", "title" : "LEDs" }},
 			{"3": { "url" : "faces.html", "title" : "Files" }},
 			{"7": { "url" : "weather.html", "title" : "Weather" }},
+			{"8": { "url" : "matrix.html", "title" : "Screen Saver" }},
 			{"5": { "url" : "info.html", "title" : "Info" }}
 		]
 	}
@@ -148,8 +149,8 @@ var sendPresetNames = function(conn) {
 	conn.send(json);
 }
 
-var sendSync = function(conn) {
-	var json = '{"type":"sv.init.sync","value":';
+var sendMatrix = function(conn) {
+	var json = '{"type":"sv.init.matrix","value":';
 	json += JSON.stringify(state[8]);
 	json += '}';
 	console.log(json);
@@ -211,10 +212,8 @@ var state = {
 		"units":"imperial"
 	},
 	"8": {
-		'sync_port' : '12345',
-		'sync_role' : '0',
-		'set_icon_sync' : 'burble',
-		'wifi_ap' : true
+		'screen_saver' : '1',
+		'screen_saver_delay' : '53'
 	}
 }
 
@@ -298,7 +297,7 @@ wss.on('connection', function(conn) {
     		sendWeatherValues(conn);
     		break;
     	case 8:
-    		sendSync(conn);
+    		sendMatrix(conn);
     		break;
     	case 9:
     		message = message.substring(message.indexOf(':')+1);

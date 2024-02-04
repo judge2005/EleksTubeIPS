@@ -236,6 +236,7 @@
 					if (typeof radioEl != undefined && radioEl.prop('type') == 'radio') {
 						radioEl.prop('checked', true);
 						fieldSet.checkboxradio("refresh");
+						radioEl.change();
 					} else {
 						element.html(this[key]);
 					}

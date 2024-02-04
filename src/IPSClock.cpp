@@ -23,26 +23,35 @@ void IPSClock::init() {
 }
 
 bool IPSClock::clockOn() {
+    if (millis() - onOverride <= 10000) {
+        return true;
+    }
+    
 	struct tm now;
 	suseconds_t uSec;
+    bool scheduledOn = false;
 
 	if (getDisplayOn().value == getDisplayOff().value) {
-		return true;
-	}
-
-    if (pTimeSync) {
+		scheduledOn = true;
+	} else if (pTimeSync) {
         pTimeSync->getLocalTime(&now, &uSec);
 
         if (getDisplayOn().value < getDisplayOff().value) {
-            return now.tm_hour >= getDisplayOn().value && now.tm_hour < getDisplayOff().value;
-        }
-
-        if (getDisplayOn().value > getDisplayOff().value) {
-            return !(now.tm_hour >= getDisplayOff().value && now.tm_hour < getDisplayOn().value);
+            scheduledOn = now.tm_hour >= getDisplayOn().value && now.tm_hour < getDisplayOff().value;
+        } else if (getDisplayOn().value > getDisplayOff().value) {
+            scheduledOn = !(now.tm_hour >= getDisplayOff().value && now.tm_hour < getDisplayOn().value);
         }
     }
 
-	return false;
+    if (prevScheduleOn != scheduledOn) {
+        temporaryOverride = false;
+    } else {
+        if (temporaryOverride) {
+            scheduledOn = !scheduledOn;
+        }
+    }
+    
+	return scheduledOn;
 }
 
 void IPSClock::loop() {

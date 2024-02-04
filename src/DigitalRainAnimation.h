@@ -62,8 +62,6 @@ private:
   char getASCIIChar();
   //a function that gets only alphabets from ASCII code.
   char getAbcASCIIChar();
-  //move the position to start from out of the screen.
-  int setYPos(int lineLen);
   //the function is to get the random number (including max)
   int getRandomNum(int min, int max);
   //the function is to generate a random key with length with a length

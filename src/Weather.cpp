@@ -22,11 +22,13 @@ void Weather::loop(uint8_t dimming) {
         tfts->claim();
         tfts->invalidateAllDigits();
         tfts->release();
+        _redraw = true;
     }
     
     unsigned long nowMs = millis();
 
-    if (displayTimer.expired(nowMs)) {
+    if (_redraw || displayTimer.expired(nowMs)) {
+        _redraw = false;
         static char txt[10];
 
         tfts->claim();

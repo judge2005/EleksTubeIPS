@@ -39,6 +39,8 @@ public:
   void showAllDigits()               { for (uint8_t digit=0; digit < NUM_DIGITS; digit++) showDigit(digit); }
   void showDigit(uint8_t digit);
   TFT_eSprite& drawImage(uint8_t digit);
+  TFT_eSprite& getSprite();
+
   void animateRain();
 
   void setImageJustification(image_justification_t value) { imageJustification = value; }
@@ -66,7 +68,6 @@ private:
   static SemaphoreHandle_t tftMutex;
 
   TFT_eSprite& getStatusSprite();
-  TFT_eSprite& getSprite();
 #ifdef SMOOTH_FONT
   DigitalRainAnim& getMatrixAnimator();
 #else

@@ -91,8 +91,8 @@ def add_to_pixels(img):
 def process(image, output_file):
     if args.scale:
         image = resize(image, 135, 240)
-    if args.scale_icon:
-        image = resize(image, 128, 128)
+    if args.scale_icon != -1:
+        image = resize(image, args.scale_icon, args.scale_icon)
     if args.trim:
         image = trim(image)
     if image.has_transparency_data:
@@ -281,8 +281,9 @@ parser.add_argument(
 parser.add_argument(
     "--scale_icon",
     dest="scale_icon",
-    action="store_true",
-    help="scale the input/tile to 128x128 maintaining aspect ratio"
+    type=int,
+    default=-1,
+    help="scale the input/tile to valxval maintaining aspect ratio. Default is to not scale"
 )
 
 parser.add_argument('file',nargs='+')

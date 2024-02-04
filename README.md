@@ -18,6 +18,9 @@ This firmware uses the WiFi support that your clock already has to sync the time
   * Upload, delete and select the images used for the clock display
   * Configure the weather forecast
   * Upload, delete and select the icons used for the weather display
+* Clock faces and weather icons can be selected using the buttons.
+* You can switch between time, date and weather using the buttons.
+* It has a screen saver.
 * There is also a tool to convert images in to a format that can be displayed on the clock
 
 This image shows the clock running in 4 digit AM/PM mode:
@@ -27,6 +30,10 @@ This image shows the clock running in 4 digit AM/PM mode:
 This shows a weather forecast:
 
 ![Captive Portal](docs/weather_display.jpg)
+
+This shows the digital rain screen saver:
+
+![Captive Portal](docs/matrix.jpg)
 
 # Documentation
 

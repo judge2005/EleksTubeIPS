@@ -132,12 +132,6 @@ char DigitalRainAnimation::getAbcASCIIChar()
   return (char)(random(0, 2) == 0 ? random(65, 91) : random(97, 123));
 }
 
-// move the position to start from out of the screen.
-int DigitalRainAnimation::setYPos(int lineLen)
-{
-  return lineLen * -20;
-}
-
 // the function is to get the random number (including max)
 int DigitalRainAnimation::getRandomNum(int min, int max)
 {
