@@ -29,7 +29,7 @@ public:
 
     bool clockOn();
     void setOnOverride() { onOverride = millis(); };
-    void overrideUntilNextChange() { temporaryOverride = true; }
+    void overrideUntilNextChange() { prevScheduleOn = clockOn(); temporaryOverride = true; }
 
     uint8_t dimming() { return clockOn() ? 255 : 40; }
 private:

@@ -43,14 +43,14 @@ bool IPSClock::clockOn() {
         }
     }
 
-    if (prevScheduleOn != scheduledOn) {
-        temporaryOverride = false;
-    } else {
-        if (temporaryOverride) {
+    if (temporaryOverride) {
+        if (prevScheduleOn == scheduledOn) {
             scheduledOn = !scheduledOn;
+        } else {
+            temporaryOverride = false;
         }
     }
-    
+
 	return scheduledOn;
 }
 

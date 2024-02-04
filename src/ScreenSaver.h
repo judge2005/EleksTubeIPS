@@ -18,7 +18,7 @@ public:
     void start() {
         resetTime = millis() - getDelayMs();
     }
-    
+
 	bool isOn() {
 		return !isOff();
 	}
@@ -30,8 +30,12 @@ public:
 		return (delayMs == 0) || (nowMs - resetTime <= delayMs);	// So zero = always off
 	}
 
-	void reset() {
+	bool reset() {
+        bool wasOn = isOn();
+
 		resetTime = millis();	// Sensor will stay high while movement is detected
+
+        return wasOn;
 	}
 
 private:

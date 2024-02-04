@@ -225,6 +225,29 @@ void onMatrixHueChanged(ConfigItem<int> &item) {
 bool menuDrawn = false;
 
 void onButtonEvent(const Button *button, Button::Event evt) {
+	// Any event will reset the screensaver timer, which will turn it off if it was visible
+	bool screenSaverWasOn = screenSaver.reset();
+
+	if (screenSaverWasOn && ipsClock->clockOn()) {
+		// If the screen saver was running (and visible), any button any event cancels it and that is all
+		return;
+	}
+
+	if (button == &powerButton && evt == Button::long_press) {
+		// Screensaver isn't running or clock is off, set on/off override and exit
+		ipsClock->overrideUntilNextChange();
+		return;
+	}
+
+	if (!ipsClock->clockOn()) {
+		// Otherwise, if the clock is off, any event turns it on for 10 seconds
+		ipsClock->setOnOverride();
+		return;
+	}
+
+	// Now we know the clock is on so we can do more interactive stuff...
+
+	// ... like the menu
 	if (button == &rightButton && evt == Button::button_clicked && menuDrawn) {
 		menu->down();
 		tfts->getSprite().pushSprite(0, 0);
@@ -258,6 +281,7 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 				menuDrawn = false;
 				weather->redraw();
 			} else {
+				// ... or switching display modes. This *is* the mode button after all
 				IntConfigItem &dateOrTime = IPSClock::getTimeOrDate();
 
 				dateOrTime.value = (dateOrTime.value + 1) % 3;
@@ -269,24 +293,12 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 		}
 	}
 
+	// If we got here, the screen saver wasn't on, clicking the power button turns it on
 	if (button == &powerButton) {
-		if (evt == Button::button_clicked) {
-			if (ipsClock->clockOn()) {
-				if (screenSaver.isOff()) {
-					screenSaver.start();
-					return;
-				}
-			} else {
-				ipsClock->setOnOverride();
-			}
-		}
-
-		if (evt == Button::long_press) {
-			ipsClock->overrideUntilNextChange();
+		if (!screenSaverWasOn) {
+			screenSaver.start();
 		}
 	}
-
-	screenSaver.reset();
 }
 
 void clockTaskFn(void *pArg) {
