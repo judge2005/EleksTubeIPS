@@ -518,6 +518,8 @@ void broadcastUpdate(const BaseConfigItem& item) {
 }
 
 void updateValue(int screen, String pair) {
+	screenSaver.reset();
+
 	int index = pair.indexOf(':');
 	DEBUG(pair)
 	// _key has to hang around because key points to an internal data structure
@@ -598,7 +600,6 @@ void wsHandler(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
 	case WS_EVT_DATA:	// Yay we got something!
 		DEBUG("WS data")
 		;
-		screenSaver.reset();
 		AwsFrameInfo * info = (AwsFrameInfo*) arg;
 		if (info->final && info->index == 0 && info->len == len) {
 			//the whole message is in a single frame and we got all of it's data
