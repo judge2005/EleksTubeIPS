@@ -92,4 +92,25 @@
   #define CSSR_LATCH_PIN (17)
 #endif
 
+#ifdef HARDWARE_Elekstube_CLOCK_V2  //  EleksTube IPS clock V2 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+// Please note that the V2 hardware is locked. You can't install new firmware short of replacing the ESP32 Pico with a new one
+  // WS2812 (or compatible) LEDs on the back of the display modules.
+  #define BACKLIGHTS_PIN (12)
+
+  // Buttons, active low, externally pulled up (with actual resistors!)
+  #define BUTTON_LEFT_PIN (33)
+  #define BUTTON_MODE_PIN (32)
+  #define BUTTON_RIGHT_PIN (35)
+  #define BUTTON_POWER_PIN (34)
+
+  // I2C to DS3231 RTC.
+  #define RTC_SCL_PIN (22)
+  #define RTC_SDA_PIN (21)
+
+  // Chip Select shift register, to select the display
+  #define CSSR_DATA_PIN (14)
+  #define CSSR_CLOCK_PIN (9) // SD2
+  #define CSSR_LATCH_PIN (10) // SD3
+#endif
+
 #endif /* GLOBAL_DEFINES_H_ */
