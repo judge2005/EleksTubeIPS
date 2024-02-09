@@ -16,7 +16,7 @@ public:
 	}
 
     void start() {
-        resetTime = millis() - getDelayMs();
+        forceOn = true;
     }
 
 	bool isOn() {
@@ -24,6 +24,10 @@ public:
 	}
 
 	bool isOff() {
+		if (forceOn) {
+			return false;
+		}
+
 		unsigned long nowMs = millis();
 
         unsigned long delayMs = getDelayMs();
@@ -33,6 +37,8 @@ public:
 	bool reset() {
         bool wasOn = isOn();
 
+		forceOn = false;
+		
 		resetTime = millis();	// Sensor will stay high while movement is detected
 
         return wasOn;
@@ -40,6 +46,7 @@ public:
 
 private:
 	unsigned long resetTime;
+	bool forceOn = false;
 };
 
 #endif /* _IPS_SCREEN_SAVER_H_ */
