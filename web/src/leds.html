@@ -23,19 +23,26 @@
 						<label for="breath_per_min">Cycles per Minute</label>
 						<input onchange="elementChange(this)" type="range" name="breath_per_min" id="breath_per_min" min="1" max="20" value="20">
 					</div>
-					<div id="hue_container" style="display: none;">
+					<fieldset id="led_colors" class="ui-fieldset ui-corner-all ui-shadow">
+						<legend class="ui-legend ui-corner-all ">Colors</legend>
+						<div id="hue_container" style="display: none;">
+							<div class="clearFloats"></div>
+							<label for="led_hue">Hue</label>
+							<input data-wrapper-class="hue" onchange="elementChange(this);" type="range" name="led_hue" id="led_hue" min="0" max="255" value="89">
+						</div>
+						<div id="saturation_container" style="display: none;">
+							<div class="clearFloats"></div>
+							<label for="led_saturation">Saturation</label>
+							<input data-wrapper-class="saturation" onchange="elementChange(this)" type="range" name="led_saturation" id="led_saturation" min="0" max="255" value="255">
+						</div>
 						<div class="clearFloats"></div>
-						<label for="led_hue">Hue</label>
-				    	<input onchange="elementChange(this)" type="range" name="led_hue" id="led_hue" min="0" max="255" value="89">
-					</div>
-					<div id="saturation_container" style="display: none;">
-						<div class="clearFloats"></div>
-						<label for="led_saturation">Saturation</label>
-				    	<input onchange="elementChange(this)" type="range" name="led_saturation" id="led_saturation" min="0" max="255" value="255">
-					</div>
+						<label for="led_value">Brightness</label>
+						<input data-wrapper-class="value" onchange="elementChange(this)" type="range" name="led_value" id="led_value" min="0" max="255" value="255">
+						<div class="dispInline">
+							<input data-wrapper-class="spectrum" class="color_picker" maxlength="1" type='text' id="led_color_picker" />
+						</div>
+						</fieldset>
 					<div class="clearFloats"></div>
-					<label for="led_value">Brightness</label>
-				    <input onchange="elementChange(this)" type="range" name="led_value" id="led_value" min="0" max="255" value="255">
-	   			</form>
+			   </form>
     		</div>
         </div>

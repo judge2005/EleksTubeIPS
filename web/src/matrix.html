@@ -20,32 +20,40 @@
 						</fieldset>
 					</div>
 					<div id="matrix_container" style="display: none;">
-						<label for="matrix_speed">Animation frames/sec</label>
-						<input onchange="elementChange(this)" type="range" name="matrix_speed" id="matrix_speed" min="1" max="50" value="40">
-						<div class="clearFloats"></div>
-						<div class="dispInlineLabel">
-							<label for="matrix_hue_cycling">Hue Cycling</label>
-						</div>
-						<div class="dispInline">
-							<input onchange="setVisibility('mct_container', this, [true]);elementChange(this)" type="checkbox"
-								data-role="flipswitch" name="matrix_hue_cycling" id="matrix_hue_cycling"
-								data-on-text="Yes" data-off-text="No"
-								data-wrapper-class="custom-label-flipswitch">
-						</div>
-						<div id="mct_container" style="display: block;">
+						<div data-role="fieldcontain">
+							<label for="matrix_speed">Animation frames/sec</label>
+							<input onchange="elementChange(this)" type="range" name="matrix_speed" id="matrix_speed" min="1" max="50" value="40">
 							<div class="clearFloats"></div>
-							<label for="matrix_hue_cycle_time">Cycle Time(s)</label>
-							<input onchange="elementChange(this)" type="range" name="matrix_hue_cycle_time" id="matrix_hue_cycle_time" min="12" max="1200" value="139">
+							<div class="dispInlineLabel">
+								<label for="matrix_hue_cycling">Hue Cycling</label>
+							</div>
+							<div class="dispInline">
+								<input onchange="setVisibility('mct_container', this, [true]);elementChange(this)" type="checkbox"
+									data-role="flipswitch" name="matrix_hue_cycling" id="matrix_hue_cycling"
+									data-on-text="Yes" data-off-text="No"
+									data-wrapper-class="custom-label-flipswitch">
+							</div>
+							<div id="mct_container" style="display: block;">
+								<div class="clearFloats"></div>
+								<label for="matrix_hue_cycle_time">Cycle Time(s)</label>
+								<input onchange="elementChange(this)" type="range" name="matrix_hue_cycle_time" id="matrix_hue_cycle_time" min="12" max="1200" value="139">
+							</div>
 						</div>
 						<div class="clearFloats"></div>
-						<label for="matrix_hue">Hue</label>
-						<input onchange="elementChange(this)" type="range" name="matrix_hue" id="matrix_hue" min="0" max="255" value="85">
-						<div class="clearFloats"></div>
-						<label for="matrix_saturation">Saturation</label>
-						<input onchange="elementChange(this)" type="range" name="matrix_saturation" id="matrix_saturation" min="0" max="255" value="255">
-						<div class="clearFloats"></div>
-						<label for="matrix_value">Brightness</label>
-						<input onchange="elementChange(this)" type="range" name="matrix_value" id="matrix_value" min="0" max="255" value="255">
+						<fieldset id="matrix_colors" class="ui-fieldset ui-corner-all ui-shadow">
+							<legend class="ui-legend ui-corner-all ">Colors</legend>
+							<label for="matrix_hue">Hue</label>
+							<input data-wrapper-class="hue" onchange="elementChange(this)" type="range" name="matrix_hue" id="matrix_hue" min="0" max="255" value="85">
+							<div class="clearFloats"></div>
+							<label for="matrix_saturation">Saturation</label>
+							<input data-wrapper-class="saturation" onchange="elementChange(this)" type="range" name="matrix_saturation" id="matrix_saturation" min="0" max="255" value="255">
+							<div class="clearFloats"></div>
+							<label for="matrix_value">Brightness</label>
+							<input data-wrapper-class="value" onchange="elementChange(this)" type="range" name="matrix_value" id="matrix_value" min="0" max="255" value="255">
+							<div class="dispInline">
+								<input data-wrapper-class="spectrum" class="color_picker" maxlength="1" type='text' id="matrix_color_picker" />
+							</div>
+						</fieldset>
 					</div>
 	   			</form>
     		</div>

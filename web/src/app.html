@@ -17,11 +17,13 @@
 	</script>
 	<script src="/jquery/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
 	<script src="/jquery/jquery.roundslider/1.3/roundslider.min.js"></script>
+	<script src="/jquery/spectrum/spectrum.js"></script>
 	<!-- endbuild -->
 
 	<!-- build:css script.css -->
-	<link rel="stylesheet" href="/jquery/mobile/1.4.5/jquery.mobile-1.4.5.min.css" />
+	<link href="/jquery/mobile/1.4.5/jquery.mobile-1.4.5.min.css" rel="stylesheet" />
 	<link href="/jquery/jquery.roundslider/1.3/roundslider.min.css" rel="stylesheet" />
+	<link href="/jquery/spectrum/spectrum.css" rel="stylesheet" />
 	<!-- endbuild -->
 
 	<link rel="shortcut icon"
@@ -60,6 +62,40 @@
 			position: relative !important;
 		}
 		
+		.spectrum {
+			width: 52px !important;
+		}
+
+		.hue + .ui-slider-track {
+			background-image: linear-gradient(to right, red,yellow,lime,cyan,blue,magenta, red);
+		}
+
+		.saturation + .ui-slider-track {
+			background-image: linear-gradient(to right, white, hwb(120 0% 0%));
+		}
+
+		.value + .ui-slider-track {
+			background-image: linear-gradient(to right, black, hwb(120 0% 0%));
+		}
+
+		.ui-fieldset {
+			padding-left: 1em !important;
+			padding-right: 1em !important;
+		}
+
+		.ui-legend {
+			background-color: #e9e9e9;
+			color: black;
+			padding: 5px 10px;
+			margin-left: -1em;
+			margin-bottom: 1em;
+			font-weight: bold;
+		}
+
+		input {
+			margin: 5px;
+		}
+
 		.headerText {
 			opacity: 1 !important;
 			background-color: #e9e9e9 !important;
@@ -155,6 +191,9 @@
 	</style>
 	<script>
 		var serverSetting = false;
+		var clockColors = {};
+		var pickerColors = {};
+
 		function updateElements(values) {
 			serverSetting = true;
 			var val = values["display_on"];
@@ -245,6 +284,7 @@
 					if (elType == "number") {
 						try {
 							element.slider("refresh");
+							colorChange(element);
 						} catch (ex) { }
 					} else if (elType == 'picklist') {
 						element.selectmenu("refresh");
@@ -295,10 +335,11 @@
 			if (serverSetting) {
 				return;
 			}
+			element=$(element);
 			var pageId = getPageId($(".ui-page-active").attr("id"));
 			var value = getElementValue(element);
 			var elType = $(element).attr('type');
-			var name = element.id;
+			var name = element.attr("id");
 
 			if (elType == "radio") {
 				name = $(element).attr('name');
@@ -312,21 +353,61 @@
 			elementBlur(element);
 		}
 
-		function hsv_to_hsl(h, s, v) {
-			// both hsv and hsl values are in [0, 1]
-			var l = (2 - s) * v / 2;
+		function colorChange(element) {
+			element=$(element);
+			var val = getElementValue(element);
+			var elementId = element.attr('id');
+			var fieldset = $("fieldset:has(#" + elementId +")");
+			var cp = fieldset.find(".color_picker");
+			var fieldsetId = fieldset.attr("id");
+			if (element.hasClass('hue')) {
+				var track = fieldset.find(".saturation + .ui-slider-track");
+				var css = "linear-gradient(to right, white, hwb(" + Math.round(val * 360 / 255) + " 0% 0%))";
+				track.css({"background-image": css});
+				track = fieldset.find(".value + .ui-slider-track");
+				css = "linear-gradient(to right, black, hwb(" + Math.round(val * 360 / 255) + " 0% 0%))";
+				track.css({"background-image": css});
 
-			if (l != 0) {
-				if (l == 1) {
-					s = 0
-				} else if (l < 0.5) {
-					s = s * v / (l * 2)
-				} else {
-					s = s * v / (2 - l * 2)
+				if (typeof cp != 'undefined') {
+					try {
+						var spectrumLedColor = pickerColors[fieldsetId];
+						clockColors[fieldsetId].h = val;
+						spectrumLedColor.h = val*360/255;
+						cp.spectrum("set", tinycolor(spectrumLedColor));
+					} catch(ex) {
+						// console.log("Bad call to color picker");
+						// console.log(ex);
+					}
 				}
 			}
 
-			return [h, s, l]
+			if (element.hasClass('saturation')) {
+				if (typeof cp != 'undefined') {
+					try {
+						var spectrumLedColor = pickerColors[fieldsetId];
+						clockColors[fieldsetId].s = val;
+						spectrumLedColor.s = val/255;
+						cp.spectrum("set", tinycolor(spectrumLedColor));
+					} catch(ex) {
+						// console.log("Bad call to color picker");
+						// console.log(ex);
+					}
+				}
+			}
+
+			if (element.hasClass('value')) {
+				if (typeof cp != 'undefined') {
+					try {
+						var spectrumLedColor = pickerColors[fieldsetId];
+						clockColors[fieldsetId].v = val;
+						spectrumLedColor.v = val/255;
+						cp.spectrum("set", tinycolor(spectrumLedColor));
+					} catch(ex) {
+						// console.log("Bad call to color picker");
+						// console.log(ex);
+					}
+				}
+			}
 		}
 
 		function showDeletePopup(filename) {
@@ -567,6 +648,61 @@
 
 		$(document).on("pagecreate", function () {
 			console.log("pagecreate");
+
+			$('.color_picker').each(function(i, cp) {
+				cp = $(cp);
+				var elementId = cp.attr("id");
+				var fieldset = $("fieldset:has(#" + elementId +")");
+
+				clockColors[fieldset.attr("id")] = {"h":0,"s":255,"v":255};
+				pickerColors[fieldset.attr("id")] = {"h":0,"s":1,"v":1};
+
+				cp.spectrum({
+					color: 180,
+					chooseText: "Close",
+					cancelText: "",
+					move: function(tinycolor) {
+						if (serverSetting) {
+							return;
+						}
+						var hsv = tinycolor.toHsv();
+
+						var elementId = $(this).attr("id");
+						var fieldset = $("fieldset:has(#" + elementId +")");
+						var clockColor = clockColors[fieldset.attr("id")];
+						var pickerColor = pickerColors[fieldset.attr("id")];
+
+						pickerColor.h = hsv.h;
+						pickerColor.s = hsv.s;
+						pickerColor.v = hsv.v;
+
+						var h = Math.round(pickerColor.h*255/360);
+						var s = Math.round(pickerColor.s*255);
+						var v = Math.round(pickerColor.v*255);
+
+						var pageId = getPageId($(".ui-page-active").attr("id"));
+
+						if (h != clockColor.h) {
+							clockColor.h = h;
+							var sliderId = fieldset.find(".hue").attr("id");
+							safeSend('9:' + pageId + ':' + sliderId + ':' + h);
+						}
+
+						if (s != clockColor.s) {
+							clockColor.s = s;
+							var sliderId = fieldset.find(".saturation").attr("id");
+							safeSend('9:' + pageId + ':' + sliderId + ':' + s);
+						}
+
+						if (v != clockColor.v) {
+							clockColor.v = v;
+							var sliderId = fieldset.find(".value").attr("id");
+							safeSend('9:' + pageId + ':' + sliderId + ':' + v);
+						}
+					},
+				});
+			});
+
 			$.fn.roundSlider.prototype._invertRange = true;
 			$("#on_range").roundSlider({
 				sliderType: "range",

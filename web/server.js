@@ -77,7 +77,9 @@ var pages = {
 			{"3": { "url" : "faces.html", "title" : "Files" }},
 			{"7": { "url" : "weather.html", "title" : "Weather" }},
 			{"8": { "url" : "matrix.html", "title" : "Screen Saver" }},
-			{"5": { "url" : "info.html", "title" : "Info" }}
+			{"5": { "url" : "info.html", "title" : "Info" }},
+			{"4": { "url" : "presets.html", "title" : "Presets" }},
+			{"6": { "url" : "preset_names.html", "title" : "Preset Names", "noNav" : true}}
 		]
 	}
 
@@ -97,8 +99,6 @@ var sendClockValues = function(conn) {
 	json += '}';
 	console.log(json);
 	conn.send(json);
-
-	sendFacesValues(wssConn);
 }
 
 var sendLEDValues = function(conn) {
@@ -166,12 +166,16 @@ var state = {
 		'display_on':  10,
 		'display_off':  20,
 		'dimming': 1,
-		'time_server':  'http://niobo.us/blah'
+		'time_server':  'http://niobo.us/blah',
+		'set_icon_clock': 'Foo'
 	},
 	"2": {
 		'led_pattern': 3,
 		'breath_per_min': 7,
-		'led_intensity': 5
+		'led_hue': 255,
+		'led_saturation': 200,
+		'led_value': 210,
+		'set_icon_leds': 'Bar'
 	},
 	"3": {
 		'set_icon_faces': 'Bletch',
@@ -182,7 +186,8 @@ var state = {
 			'divergence': 'divergence.tar.gz',
 			'dots': 'dots.tar.gz'
 		},
-		'file_set':'faces'	// Deliberately out of order
+		'file_set':'faces',	// Deliberately out of order
+		'set_icon_weather': 'Bletch'
 	},
 	"4": {
 		'preset' : 'set3'
@@ -209,11 +214,13 @@ var state = {
 		"weather_token":"462cf98d57c30f4cc3698a70a63bd3bb",
 		"weather_latitude":"21.2",
 		"weather_longitude":"-37.1",
-		"units":"imperial"
+		"units":"imperial",
+		'set_icon_weather': 'To'
 	},
 	"8": {
 		'screen_saver' : '1',
-		'screen_saver_delay' : '53'
+		'screen_saver_delay' : '53',
+		'set_icon_matrix': 'You'
 	}
 }
 
@@ -249,19 +256,23 @@ var updateValue = function(conn, screen, pair) {
 }
 
 var updateHue = function(conn) {
-	// var hue = state['2']['hue'];
-	// hue = (hue + 1) % 256;
-	// updateValue(conn, 2, "hue:" + hue);
-	var val = state['1']['time_or_date'];
-	val = (val + 1) % 3;
-	updateValue(conn, 1, "time_or_date:" + val)
+	// var hue = state['2']['led_hue'];
+	// hue = (hue + 5) % 256;
+	// updateValue(conn, 2, "led_hue:" + hue);
+
+	// var intensity = state['2']['led_value'];
+	// intensity = (intensity + 2) % 256;
+	// updateValue(conn, 2, "led_value:" + intensity);
+	// var val = state['1']['time_or_date'];
+	// val = (val + 1) % 3;
+	// updateValue(conn, 1, "time_or_date:" + val)
 }
 
 wss.on('connection', function(conn) {
 	wssConn = conn;
 
     console.log('connected');
-	var hueTimer = setInterval(updateHue, 5000, conn);
+	var hueTimer = setInterval(updateHue, 500, conn);
 
     //connection is up, let's add a simple simple event
 	conn.on('message', function(data, isBinary) {

@@ -518,7 +518,9 @@ void broadcastUpdate(const BaseConfigItem& item) {
 }
 
 void updateValue(int screen, String pair) {
-	screenSaver.reset();
+	if (screen != 8) {
+		screenSaver.reset();
+	}
 
 	int index = pair.indexOf(':');
 	DEBUG(pair)
