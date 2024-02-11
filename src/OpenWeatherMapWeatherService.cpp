@@ -99,6 +99,7 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
 
     Serial.print("requesting URL: ");
     Serial.println(url);
+    
     client.println(url);
     client.println("Host: api.openweathermap.org");
     client.println("Connection: keep-alive");

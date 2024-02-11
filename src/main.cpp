@@ -36,7 +36,19 @@
 // Should match what is in the manifest files. Bump version for a release.
 const char *manifest[] = {
 	// Firmware name
+#if defined(HARDWARE_PunkCyber_CLOCK)
+	"PCBWay RGB Glow Tube Clock Firmware",
+#elif defined(HARDWARE_Elekstube_CLOCK)
 	"EleksTubeIPS V1 Replacement Firmware",
+#elif defined(HARDWARE_Elekstube_CLOCK_V2)
+	"EleksTubeIPS V2 Replacement Firmware",
+#elif defined(HARDWARE_NovelLife_SE_CLOCK)
+	"NovelLife SE Replacement Firmware",
+#elif defined(HARDWARE_SI_HAI_CLOCK)
+	"Si Hai Clock Replacement Firmware",
+#else
+	"Unknown clock hardware",
+#endif
 	// Firmware version
 	"0.2.0",
 	// Hardware chip/variant

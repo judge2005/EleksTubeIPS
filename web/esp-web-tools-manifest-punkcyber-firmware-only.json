@@ -1,0 +1,14 @@
+{
+    "name": "PCBWay RGB Glow Tube Clock Firmware",
+    "version": "0.2.0",
+    "new_install_prompt_erase": true,
+    "builds": [
+      {
+        "chipFamily": "ESP32",
+        "improv": false,
+        "parts": [
+          { "path": "firmware-punkcyber.0.2.0.bin", "offset": 65536 }
+        ]
+      }
+    ]
+  }

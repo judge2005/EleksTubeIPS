@@ -16,13 +16,22 @@
 // ************ Hardware definitions *********************
 
 // Common indexing scheme, used to identify the digit
-#define SECONDS_ONES (0)
-#define SECONDS_TENS (1)
-#define MINUTES_ONES (2)
-#define MINUTES_TENS (3)
-#define HOURS_ONES   (4)
-#define HOURS_TENS   (5)
-#define NUM_DIGITS   6
+#define NUM_DIGITS   (6)
+#ifdef HARDWARE_PunkCyber_CLOCK
+  #define SECONDS_ONES (5)
+  #define SECONDS_TENS (4)
+  #define MINUTES_ONES (3)
+  #define MINUTES_TENS (2)
+  #define HOURS_ONES   (1)
+  #define HOURS_TENS   (0)
+#else
+  #define SECONDS_ONES (0)
+  #define SECONDS_TENS (1)
+  #define MINUTES_ONES (2)
+  #define MINUTES_TENS (3)
+  #define HOURS_ONES   (4)
+  #define HOURS_TENS   (5)
+#endif
 
 #define SECONDS_ONES_MAP (0x01 << SECONDS_ONES)
 #define SECONDS_TENS_MAP (0x01 << SECONDS_TENS)

@@ -45,7 +45,7 @@ void Weather::loop(uint8_t dimming) {
         uint16_t DAY_BG_COLOR = tfts->dimColor(TFT_RED);
 
         for (int i=0; i<6; i++) {
-            tfts->setDigit(i, weatherService->getIconName(i).c_str(), TFTs::no);
+            tfts->setDigit(indexToScreen[i], weatherService->getIconName(i).c_str(), TFTs::no);
             TFT_eSprite &sprite = tfts->drawImage(i);
         
             if (i == 5) {

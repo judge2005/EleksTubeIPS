@@ -26,6 +26,15 @@ public:
     void loop(uint8_t dimming);
     void redraw() { _redraw = true; }
 private:
+    const int indexToScreen[NUM_DIGITS] = {
+        SECONDS_ONES,
+        SECONDS_TENS,
+        MINUTES_ONES,
+        MINUTES_TENS,
+        HOURS_ONES,
+        HOURS_TENS
+    };
+    
     const char *daysOfWeek[7] = {
         "Sunday",
         "Monday",
