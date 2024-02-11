@@ -92,7 +92,7 @@ void Backlights::fill(byte hue, byte sat, byte val) {
 	RgbColor color = HsbColor((byte)(hue)/256.0, (byte)(sat)/256.0, val/256.0);
 
   for (uint8_t digit=0; digit < NUM_DIGITS; digit++) {
-		pixels.SetPixelColor(digit, color);
+		pixels.SetPixelColor(digit, colorGamma.Correct(color));
   }
 }
 
@@ -106,7 +106,7 @@ void Backlights::show() {
 
 void Backlights::setPixelColor(uint8_t digit, uint8_t hue, uint8_t sat, uint8_t val) {
 		RgbColor color = HsbColor((byte)(hue)/256.0, (byte)(sat)/256.0, val/256.0);
-		pixels.SetPixelColor(digit, color);
+		pixels.SetPixelColor(digit, colorGamma.Correct(color));
 }
 
 const String Backlights::patterns_str[Backlights::num_patterns] = 

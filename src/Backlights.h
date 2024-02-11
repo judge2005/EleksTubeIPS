@@ -45,6 +45,7 @@ private:
   bool dimming = false;
   
   NeoPixelBus <NeoGrbFeature, Neo800KbpsMethod> pixels;
+  NeoGamma<NeoGammaTableMethod> colorGamma;
 
   // Pattern methods
   void rainbowPattern();

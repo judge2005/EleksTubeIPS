@@ -3,6 +3,11 @@
 #define SECONDS_IN_DAY 86400
 #define SECONDS_IN_PERIOD 10800
 
+static size_t _freeHeap() {
+    size_t free8bitHeap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    return free8bitHeap;
+}
+
 OpenWeatherMapWeatherService::OpenWeatherMapWeatherService() : WeatherService() {
 /*
  * Only want these fields for current conditions:
@@ -154,7 +159,8 @@ bool OpenWeatherMapWeatherService::getCurrentWeatherInfo(WiFiClientSecure &clien
 
 	StaticJsonDocument<256> doc;
 
-    Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
+    Serial.print("Free heap: ");
+    Serial.println(_freeHeap());
 
     bool parsingError = false;
 
@@ -163,161 +169,165 @@ bool OpenWeatherMapWeatherService::getCurrentWeatherInfo(WiFiClientSecure &clien
         JsonObject weather = doc["weather"][0];
         conditions = weather["main"] | "Unknown";
         iconNames[5] = weather["icon"] | "unknown";
-        Serial.printf("Conditions: %s\n", conditions);
-        Serial.printf("Icon name: %s\n", iconNames[5].c_str());
 
         JsonObject main = doc["main"];
         temp = main.containsKey("temp") ? main["temp"] : -1;
         humidity = main.containsKey("humidity") ? main["humidity"] : -1;
-        Serial.printf("Temp: %f\n", temp);
 	} else {
         parsingError = true;
-		Serial.printf("Deserialize error while parsing weather: %s. Capacity=%d. Usage=%d\n", deserializeError.c_str(), doc.capacity(), doc.memoryUsage());
+		Serial.print("Deserialize error while parsing weather: ");
+		Serial.println(deserializeError.c_str());
 	}
 
-    Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
+    Serial.print("Free heap: ");
+    Serial.println(_freeHeap());
 
     return !parsingError;
 }
 
 bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &client) {
-    if (!sendRequest(client, "forecast")) {
-        return false;
-    }
-
-	DynamicJsonDocument doc(6144);
-
-    Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
-
+    DeserializationError deserializeError;
     bool parsingError = false;
 
-	DeserializationError deserializeError = deserializeJson(doc, client, DeserializationOption::Filter(forecastFilter));
-	if (!deserializeError) {
-        bool missing = false;
-/*
-{
-    "list": [
-        {
-            "dt": true,
-            "main": {
-                "temp": true
-            },
-            "weather": [
-                {
-                    "main": true,
-                    "icon": true
-                }
-            ]
+    Serial.print("Free heap: ");
+    Serial.print(_freeHeap());
+    Serial.print(", Max block size=");
+    Serial.println(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+
+    {
+        if (!sendRequest(client, "forecast")) {
+            return false;
         }
-    ],
-    "city": {
-        "timezone": true
+
+        DynamicJsonDocument forecastDoc(6144);
+        DeserializationError deserializeError = deserializeJson(forecastDoc, client, DeserializationOption::Filter(forecastFilter));
+        if (!deserializeError) {
+            bool missing = false;
+    /*
+    {
+        "list": [
+            {
+                "dt": true,
+                "main": {
+                    "temp": true
+                },
+                "weather": [
+                    {
+                        "main": true,
+                        "icon": true
+                    }
+                ]
+            }
+        ],
+        "city": {
+            "timezone": true
+        }
     }
-}
 
-*/
-        int tzOffset = doc["city"]["timezone"] | 0;
-        Serial.printf("TZ Offset: %d\n", tzOffset);
+    */
+            int tzOffset = forecastDoc["city"]["timezone"] | 0;
 
-        time_t now;
-        struct tm timeinfo;
-        getLocalTime(&timeinfo);
-        time(&now);
+            time_t now;
+            struct tm timeinfo;
+            getLocalTime(&timeinfo);
+            time(&now);
 
-        // Truncate to midnight in current timezone:
-        time_t midnightLocal = now - (now + tzOffset) % SECONDS_IN_DAY;
-        midnightLocal += SECONDS_IN_DAY;   // Advance to midnight of next day
-        time_t nextNoon = midnightLocal + SECONDS_IN_DAY / 2;   // Calculate noon of next day too
+            // Truncate to midnight in current timezone:
+            time_t midnightLocal = now - (now + tzOffset) % SECONDS_IN_DAY;
+            midnightLocal += SECONDS_IN_DAY;   // Advance to midnight of next day
+            time_t nextNoon = midnightLocal + SECONDS_IN_DAY / 2;   // Calculate noon of next day too
 
-        Serial.printf("Next noon: %d\n", nextNoon);
+            time_t ftime = now + tzOffset;
+            struct tm ftm;
+            gmtime_r(&ftime, &ftm);
+            int dIndex = ftm.tm_wday;
 
-        time_t ftime = now + tzOffset;
-        struct tm ftm;
-        gmtime_r(&ftime, &ftm);
-        Serial.printf("Day %d, hour %d, minute %d\n", ftm.tm_wday, ftm.tm_hour, ftm.tm_min);
-        int dIndex = ftm.tm_wday;
+            JsonArray list = forecastDoc["list"];
+            int iconNameIndex = 4;
+            const char *iName = "unknown";
+            int hiLoIndex = 5;
+            float maxTemp = -200;
+            float minTemp = 200;
+            temp_min[hiLoIndex] = -1;
+            temp_max[hiLoIndex] = -1;
+            float temp = -500;
 
-        JsonArray list = doc["list"];
-        int iconNameIndex = 4;
-        const char *iName = "unknown";
-        int hiLoIndex = 5;
-        float maxTemp = -200;
-        float minTemp = 200;
-        temp_min[hiLoIndex] = -1;
-        temp_max[hiLoIndex] = -1;
-        float temp = -500;
+            for (int i=0; i<list.size(); i++) {
+                JsonObject forecast = list[i];
+                long dt = forecast.containsKey("dt") ? forecast["dt"] : -1;
 
-        for (int i=0; i<list.size(); i++) {
-            JsonObject forecast = list[i];
-            long dt = forecast.containsKey("dt") ? forecast["dt"] : -1;
+                JsonObject main = forecast["main"];
+                temp = main.containsKey("temp") ? main["temp"] : -500;
+                if (temp != -500) {
+                    maxTemp = max(maxTemp, temp);
+                    minTemp = min(minTemp, temp);
+                    temp_min[hiLoIndex] = minTemp;
+                    temp_max[hiLoIndex] = maxTemp;
+                }
 
-            JsonObject main = forecast["main"];
-            temp = main.containsKey("temp") ? main["temp"] : -500;
-            if (temp != -500) {
-                maxTemp = max(maxTemp, temp);
-                minTemp = min(minTemp, temp);
-                temp_min[hiLoIndex] = minTemp;
-                temp_max[hiLoIndex] = maxTemp;
+                JsonObject weather = forecast["weather"][0];
+                iName = weather.containsKey("icon") ? (const char*)weather["icon"] : "unknown";
+                if (dt >= nextNoon) {
+                    nextNoon += SECONDS_IN_DAY;
+                    iconNames[iconNameIndex] = iName;
+                    iconNameIndex--;
+                }
+
+                if (dt > midnightLocal) {
+                    midnightLocal += SECONDS_IN_DAY;
+                    hiLoIndex--;
+                    temp_min[hiLoIndex] = -1;
+                    temp_max[hiLoIndex] = -1;
+                    maxTemp = -200;
+                    minTemp = 200;
+                    dIndex = (dIndex + 1) % 7;
+                    days[hiLoIndex] = dIndex;
+                }
             }
 
-            JsonObject weather = forecast["weather"][0];
-            iName = weather.containsKey("icon") ? (const char*)weather["icon"] : "unknown";
-            if (dt >= nextNoon) {
-                nextNoon += SECONDS_IN_DAY;
-                iconNames[iconNameIndex] = iName;
-                Serial.printf("DT: %d, Weather Icon: %s\n", dt, iName);
-                iconNameIndex--;
-            }
-
-            if (dt > midnightLocal) {
-                midnightLocal += SECONDS_IN_DAY;
+            if (hiLoIndex == 1) {
                 hiLoIndex--;
-                temp_min[hiLoIndex] = -1;
-                temp_max[hiLoIndex] = -1;
-                maxTemp = -200;
-                minTemp = 200;
                 dIndex = (dIndex + 1) % 7;
                 days[hiLoIndex] = dIndex;
+                if (temp != 500) {
+                    temp_min[hiLoIndex] = temp_max[hiLoIndex] = temp;
+                }
+            }
+
+            // Sometimes the last forecast entry is before noon on that day
+            if (iconNameIndex >= 0) {
+                iconNames[iconNameIndex--] = iName;
+            }
+
+            // Just in case
+            if (iconNameIndex >= 0) {
+                for (int i=iconNameIndex; i--; i>=0) {
+                    iconNames[i] = "unknown";
+                }
+            }
+
+            if(missing) {
+                parsingError = true;
+                serializeJson(forecastDoc, Serial);
+                Serial.println("");
             }
         }
-
-        if (hiLoIndex == 1) {
-            hiLoIndex--;
-            dIndex = (dIndex + 1) % 7;
-            days[hiLoIndex] = dIndex;
-            if (temp != 500) {
-                temp_min[hiLoIndex] = temp_max[hiLoIndex] = temp;
-            }
-        }
-
-        // Sometimes the last forecast entry is before noon on that day
-        if (iconNameIndex >= 0) {
-            iconNames[iconNameIndex--] = iName;
-        }
-
-        // Just in case
-        if (iconNameIndex >= 0) {
-            for (int i=iconNameIndex; i--; i>=0) {
-                iconNames[i] = "unknown";
-            }
-        }
-
-        if(missing) {
-            parsingError = true;
-			serializeJson(doc, Serial);
-			Serial.println("");
-		}
-	} else {
+    }
+    if (deserializeError) {
         parsingError = true;
-		Serial.printf("Deserialize error while parsing forecast: %s. Capacity=%d. Usage=%d\n", deserializeError.c_str(), doc.capacity(), doc.memoryUsage());
-	}
+        Serial.print("Deserialize error while parsing forecast: ");
+        Serial.println(deserializeError.c_str());
+    }
 
-    Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
+    Serial.print("Free heap: ");
+    Serial.println(_freeHeap());
 
     return !parsingError;
 }
 
 bool OpenWeatherMapWeatherService::getWeatherInfo() {
+    bool ret = false;
+
     WiFiClientSecure client;
 
     const char *host = "api.openweathermap.org";
@@ -336,8 +346,9 @@ bool OpenWeatherMapWeatherService::getWeatherInfo() {
     if (!client.connected())
     {
         Serial.println("Failed to connect");
-        return false;
+    } else {
+        ret = getCurrentWeatherInfo(client) && getForecastWeatherInfo(client);
     }
 
-    return getCurrentWeatherInfo(client) && getForecastWeatherInfo(client);
-}
+    return ret;
+ }

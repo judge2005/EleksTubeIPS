@@ -5,6 +5,7 @@
 extern "C" {
 #include "esp_ota_ops.h"
 #include "esp_image_format.h"
+#include "esp_heap_caps.h"
 }
 
 static uint32_t sketchSize(sketchSize_t response) {
@@ -33,9 +34,15 @@ void WSInfoHandler::handle(AsyncWebSocketClient *client, char *data) {
 	JsonObject root = doc.to<JsonObject>();
 
 	root["type"] = "sv.init.clock";
+	size_t freeHeap = ESP.getFreeHeap();
+	size_t free8bitHeap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+	size_t freeIRAMHeap = freeHeap - free8bitHeap;
 
 	JsonVariant value = root.createNestedObject("value");
-	value["esp_free_heap"] = ESP.getFreeHeap();
+	value["esp_free_iram_heap"] = freeIRAMHeap;
+	value["esp_free_heap"] = free8bitHeap;
+	value["esp_free_heap_min"] = ESP.getMinFreeHeap();
+	value["esp_max_alloc_heap"] = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 	value["esp_sketch_size"] = sketchSize(SKETCH_SIZE_TOTAL);
 	value["esp_sketch_space"] = sketchSize(SKETCH_SIZE_FREE);
 
