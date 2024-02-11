@@ -49,4 +49,4 @@ See [the wiki](https://github.com/judge2005/EleksTubeIPS/wiki "wiki") for detail
 
 [Original documentation and software from EleksMaker.](https://wiki.eleksmaker.com/doku.php?id=ips)
 
-This code wouldn't exist without the work done by the people on [this reddit discussion](https://wiki.eleksmaker.com/doku.php?id=ips).
+This code wouldn't exist without the work done by the people on [this reddit discussion](https://www.reddit.com/r/arduino/comments/mq5td9/hacking_the_elekstube_ips_clock_anyone_tried_it/).
