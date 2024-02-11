@@ -53,6 +53,7 @@ void ImageUnpacker::unpackImages(const String &faceName, const String &dest) {
             Serial.println("File unzipped");
         }
 
+#ifdef notdef
         dir = LittleFS.open(dest);
         File file = dir.openNextFile();
         while(file){
@@ -72,5 +73,6 @@ void ImageUnpacker::unpackImages(const String &faceName, const String &dest) {
             file = dir.openNextFile();
         }
         dir.close();
+#endif
     }
 }
