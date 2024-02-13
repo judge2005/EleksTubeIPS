@@ -46,7 +46,7 @@ void Weather::loop(uint8_t dimming) {
 
         for (int i=0; i<6; i++) {
             tfts->setDigit(indexToScreen[i], weatherService->getIconName(i).c_str(), TFTs::no);
-            TFT_eSprite &sprite = tfts->drawImage(i);
+            TFT_eSprite &sprite = tfts->drawImage(indexToScreen[i]);
         
             if (i == 5) {
                 sprite.setTextColor(TEMP_COLOR, TFT_BLACK, false);
