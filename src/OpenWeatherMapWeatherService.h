@@ -31,8 +31,8 @@ private:
     bool getCurrentWeatherInfo(WiFiClientSecure &client);
     bool getForecastWeatherInfo(WiFiClientSecure &client);
 
-    StaticJsonDocument<144> todayFilter;
-    StaticJsonDocument<176> forecastFilter;
+    JsonDocument todayFilter;
+    JsonDocument forecastFilter;
 
     String conditions = "unknown";
     String iconNames[6] {

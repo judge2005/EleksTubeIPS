@@ -110,11 +110,15 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
     uint8_t c;
     size_t n = 0;
     bool haveChar = false;
+    size_t totalRead = 0;
+
     while (client.connected())
     {
         delay(1);
 
         while ((n = client.readBytes(&c, 1)) == 1) {
+            totalRead++;
+
             if (c == '\n') {
                 Serial.println();
                 break;
@@ -132,14 +136,14 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
                 response_ok = false;
                 break;
             }
-        }
-
-        // If we got here, we read '\n'
-        if (!haveChar) {
-            response_ok = true;
-            break;
         } else {
-            haveChar = false;   // Read a non-empty line, go around again
+            // If we got here, we read '\n'
+            if (!haveChar) {
+                response_ok = true;
+                break;
+            } else {
+                haveChar = false;   // Read a non-empty line, go around again
+            }
         }
     }
 
@@ -147,6 +151,9 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
     {
         Serial.println("Error reading header data from server.");
         return false;
+    } else {
+        Serial.print("Total bytes read = ");
+        Serial.println(totalRead);
     }
 
     return true;
@@ -158,7 +165,7 @@ bool OpenWeatherMapWeatherService::getCurrentWeatherInfo(WiFiClientSecure &clien
         return false;
     }
 
-	StaticJsonDocument<256> doc;
+	JsonDocument doc;
 
     Serial.print("Free heap: ");
     Serial.println(_freeHeap());
@@ -200,7 +207,7 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
             return false;
         }
 
-        DynamicJsonDocument forecastDoc(6144);
+        JsonDocument forecastDoc;
         DeserializationError deserializeError = deserializeJson(forecastDoc, client, DeserializationOption::Filter(forecastFilter));
         if (!deserializeError) {
             bool missing = false;
@@ -227,6 +234,12 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
 
     */
             int tzOffset = forecastDoc["city"]["timezone"] | 0;
+
+            if (tzOffset == 0) {
+                missing = true;
+                Serial.print("Could not get timezone");
+                return false;
+            }
 
             time_t now;
             struct tm timeinfo;
@@ -257,6 +270,11 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
                 JsonObject forecast = list[i];
                 long dt = forecast.containsKey("dt") ? forecast["dt"] : -1;
 
+                if (dt == -1) {
+                    missing = true;
+                    Serial.print("Could not get timestamp for item ");
+                    Serial.println(i);
+                }
                 JsonObject main = forecast["main"];
                 temp = main.containsKey("temp") ? main["temp"] : -500;
                 if (temp != -500) {
@@ -264,10 +282,20 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
                     minTemp = min(minTemp, temp);
                     temp_min[hiLoIndex] = minTemp;
                     temp_max[hiLoIndex] = maxTemp;
+                } else {
+                    missing = true;
+                    Serial.print("Could not get temp for item ");
+                    Serial.println(i);
                 }
 
                 JsonObject weather = forecast["weather"][0];
                 iName = weather.containsKey("icon") ? (const char*)weather["icon"] : "unknown";
+                if (strcmp(iName, "unkown") == 0) {
+                    missing = true;
+                    Serial.print("Could not get icon for item ");
+                    Serial.println(i);
+                }
+
                 if (dt >= nextNoon) {
                     nextNoon += SECONDS_IN_DAY;
                     iconNames[iconNameIndex] = iName;
@@ -308,12 +336,18 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
             }
 
             if(missing) {
+                Serial.print("Couldn't read all data. Free heap: ");
+                Serial.print(_freeHeap());
+                Serial.print(", Max block size=");
+                Serial.println(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+
                 parsingError = true;
                 serializeJson(forecastDoc, Serial);
                 Serial.println("");
             }
         }
     }
+
     if (deserializeError) {
         parsingError = true;
         Serial.print("Deserialize error while parsing forecast: ");
