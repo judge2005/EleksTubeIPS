@@ -88,6 +88,17 @@ def add_to_pixels(img):
             c = pixels[i,j];
             pixels[i,j] = (c[0] + args.add, c[1] + args.add, c[2] + args.add)
 
+def invert_image(img):
+    pixels = img.load() 
+    
+    # Extracting the width and height 
+    # of the image: 
+    width, height = img.size 
+    for i in range(width): 
+        for j in range(height):
+            c = pixels[i,j];
+            pixels[i,j] = (c[0] ^ 0xff, c[1] ^ 0xff, c[2] ^ 0xff)
+
 def process(image, output_file):
     if args.scale:
         image = resize(image, 135, 240)
@@ -108,6 +119,9 @@ def process(image, output_file):
 
     if args.contrast != 1:
         image = ImageEnhance.Contrast(image).enhance(args.contrast)
+
+    if args.invert:
+        invert_image(image)
 
     if args.bpp == 16:
         pixels = list(image.getdata())        
@@ -268,6 +282,13 @@ parser.add_argument(
     dest="info",
     action="store_true",
     help="only show image info"
+)
+
+parser.add_argument(
+    "--invert",
+    dest="invert",
+    action="store_true",
+    help="Invert colors"
 )
 
 parser.add_argument(
