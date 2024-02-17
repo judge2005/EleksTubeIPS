@@ -1,12 +1,15 @@
 #include "OpenWeatherMapWeatherService.h"
+#include <math.h>
 
 #define SECONDS_IN_DAY 86400
 #define SECONDS_IN_PERIOD 10800
 
+#ifdef DEBUG_WEATHER_MEMORY
 static size_t _freeHeap() {
     size_t free8bitHeap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
     return free8bitHeap;
 }
+#endif
 
 OpenWeatherMapWeatherService::OpenWeatherMapWeatherService() : WeatherService() {
 /*
@@ -90,15 +93,19 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
 
     if (strlen(token) == 0)
     {
+#ifdef DEBUG_WEATHER_HTTP
         Serial.println("No token defined");
+#endif
         return false;
     }
 
     char url[255];
     sprintf(url, "GET /data/2.5/%s?lat=%s&lon=%s&appid=%s&units=%s HTTP/1.1", request, getLatitude().value, getLongitude().value, token, getUnits().value);
 
+#ifdef DEBUG_WEATHER_HTTP
     Serial.print("requesting URL: ");
     Serial.println(url);
+#endif
     
     client.println(url);
     client.println("Host: api.openweathermap.org");
@@ -120,11 +127,15 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
             totalRead++;
 
             if (c == '\n') {
-                Serial.println();
+#ifdef DEBUG_WEATHER_HTTP
+               Serial.println();
+#endif
                 break;
             }
             if (c != '\r') {
+#ifdef DEBUG_WEATHER_HTTP
                 Serial.print((char)c);
+#endif
                 haveChar = true;    // a non-empty line
             }
         }
@@ -149,11 +160,15 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
 
     if (!response_ok)
     {
+#ifdef DEBUG_WEATHER_HTTP
         Serial.println("Error reading header data from server.");
+#endif
         return false;
     } else {
+#ifdef DEBUG_WEATHER_HTTP
         Serial.print("Total bytes read = ");
         Serial.println(totalRead);
+#endif
     }
 
     return true;
@@ -167,8 +182,10 @@ bool OpenWeatherMapWeatherService::getCurrentWeatherInfo(WiFiClientSecure &clien
 
 	JsonDocument doc;
 
+#ifdef DEBUG_WEATHER_MEMORY
     Serial.print("Free heap: ");
     Serial.println(_freeHeap());
+#endif
 
     bool parsingError = false;
 
@@ -179,16 +196,20 @@ bool OpenWeatherMapWeatherService::getCurrentWeatherInfo(WiFiClientSecure &clien
         iconNames[5] = weather["icon"] | "unknown";
 
         JsonObject main = doc["main"];
-        temp = main.containsKey("temp") ? main["temp"] : -1;
-        humidity = main.containsKey("humidity") ? main["humidity"] : -1;
+        temp = main.containsKey("temp") ? main["temp"] : NAN;
+        humidity = main.containsKey("humidity") ? main["humidity"] : NAN;
 	} else {
         parsingError = true;
+#ifdef DEBUG_DESERIALIZATION
 		Serial.print("Deserialize error while parsing weather: ");
 		Serial.println(deserializeError.c_str());
+#endif
 	}
 
+#ifdef DEBUG_WEATHER_MEMORY
     Serial.print("Free heap: ");
     Serial.println(_freeHeap());
+#endif
 
     return !parsingError;
 }
@@ -197,10 +218,12 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
     DeserializationError deserializeError;
     bool parsingError = false;
 
+#ifdef DEBUG_WEATHER_MEMORY
     Serial.print("Free heap: ");
     Serial.print(_freeHeap());
     Serial.print(", Max block size=");
     Serial.println(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+#endif
 
     {
         if (!sendRequest(client, "forecast")) {
@@ -237,7 +260,9 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
 
             if (tzOffset == 0) {
                 missing = true;
+#ifdef DEBUG_DESERIALIZATION
                 Serial.print("Could not get timezone");
+#endif
                 return false;
             }
 
@@ -262,38 +287,44 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
             int hiLoIndex = 5;
             float maxTemp = -200;
             float minTemp = 200;
-            temp_min[hiLoIndex] = -1;
-            temp_max[hiLoIndex] = -1;
-            float temp = -500;
+            temp_min[hiLoIndex] = NAN;
+            temp_max[hiLoIndex] = NAN;
+            float temp = NAN;
 
             for (int i=0; i<list.size(); i++) {
                 JsonObject forecast = list[i];
-                long dt = forecast.containsKey("dt") ? forecast["dt"] : -1;
+                long dt = forecast.containsKey("dt") ? forecast["dt"] : NAN;
 
-                if (dt == -1) {
+                if (isnan(dt)) {
                     missing = true;
+#ifdef DEBUG_DESERIALIZATION
                     Serial.print("Could not get timestamp for item ");
                     Serial.println(i);
+#endif
                 }
                 JsonObject main = forecast["main"];
-                temp = main.containsKey("temp") ? main["temp"] : -500;
-                if (temp != -500) {
+                temp = main.containsKey("temp") ? main["temp"] : -NAN;
+                if (!isnan(temp)) {
                     maxTemp = max(maxTemp, temp);
                     minTemp = min(minTemp, temp);
                     temp_min[hiLoIndex] = minTemp;
                     temp_max[hiLoIndex] = maxTemp;
                 } else {
                     missing = true;
+#ifdef DEBUG_DESERIALIZATION
                     Serial.print("Could not get temp for item ");
                     Serial.println(i);
+#endif
                 }
 
                 JsonObject weather = forecast["weather"][0];
                 iName = weather.containsKey("icon") ? (const char*)weather["icon"] : "unknown";
                 if (strcmp(iName, "unkown") == 0) {
                     missing = true;
+#ifdef DEBUG_DESERIALIZATION
                     Serial.print("Could not get icon for item ");
                     Serial.println(i);
+#endif
                 }
 
                 if (dt >= nextNoon) {
@@ -305,8 +336,8 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
                 if (dt > midnightLocal) {
                     midnightLocal += SECONDS_IN_DAY;
                     hiLoIndex--;
-                    temp_min[hiLoIndex] = -1;
-                    temp_max[hiLoIndex] = -1;
+                    temp_min[hiLoIndex] = NAN;
+                    temp_max[hiLoIndex] = NAN;
                     maxTemp = -200;
                     minTemp = 200;
                     dIndex = (dIndex + 1) % 7;
@@ -318,7 +349,7 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
                 hiLoIndex--;
                 dIndex = (dIndex + 1) % 7;
                 days[hiLoIndex] = dIndex;
-                if (temp != 500) {
+                if (!isnan(temp)) {
                     temp_min[hiLoIndex] = temp_max[hiLoIndex] = temp;
                 }
             }
@@ -336,6 +367,7 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
             }
 
             if(missing) {
+#ifdef DEBUG_WEATHER_MEMORY
                 Serial.print("Couldn't read all data. Free heap: ");
                 Serial.print(_freeHeap());
                 Serial.print(", Max block size=");
@@ -344,18 +376,23 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
                 parsingError = true;
                 serializeJson(forecastDoc, Serial);
                 Serial.println("");
+#endif
             }
         }
     }
 
     if (deserializeError) {
         parsingError = true;
+#ifdef DEBUG_DESERIALIZATION
         Serial.print("Deserialize error while parsing forecast: ");
         Serial.println(deserializeError.c_str());
+#endif
     }
 
+#ifdef DEBUG_WEATHER_MEMORY
     Serial.print("Free heap: ");
     Serial.println(_freeHeap());
+#endif
 
     return !parsingError;
 }
@@ -370,7 +407,9 @@ bool OpenWeatherMapWeatherService::getWeatherInfo() {
     client.setInsecure();         // skip verification
     client.setTimeout(15 * 1000); // 15 Seconds
 
+#ifdef DEBUG_WEATHER_HTTP
     Serial.println("HTTPS Connecting");
+#endif
     int r = 0; // retry counter
     while ((!client.connect(host, httpsPort)) && (r < 10))
     {

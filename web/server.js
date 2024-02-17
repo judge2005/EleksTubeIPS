@@ -166,6 +166,7 @@ var state = {
 		'display_on':  10,
 		'display_off':  20,
 		'dimming': 1,
+		'four_digit_display': 2,
 		'time_server':  'http://niobo.us/blah',
 		'set_icon_clock': 'Foo'
 	},
@@ -215,11 +216,17 @@ var state = {
 		"weather_latitude":"21.2",
 		"weather_longitude":"-37.1",
 		"units":"imperial",
+		'weather_hue': 255,
+		'weather_saturation': 200,
+		'weather_value': 210,
 		'set_icon_weather': 'To'
 	},
 	"8": {
 		'screen_saver' : '1',
 		'screen_saver_delay' : '53',
+		'matrix_hue': 255,
+		'matrix_saturation': 200,
+		'matrix_value': 210,
 		'set_icon_matrix': 'You'
 	}
 }

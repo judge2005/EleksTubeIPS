@@ -11,6 +11,7 @@
 class StaticSprite : public TFT_eSprite {
 public:
   StaticSprite(TFT_eSPI *tft) : TFT_eSprite(tft) {}
+  void pushImageWithTransparency(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t *data, uint16_t transparentColor = 0);
   void init();
 
   static uint8_t output_buffer[];
@@ -39,7 +40,7 @@ public:
   void showAllDigits()               { for (uint8_t digit=0; digit < NUM_DIGITS; digit++) showDigit(digit); }
   void showDigit(uint8_t digit);
   TFT_eSprite& drawImage(uint8_t digit);
-  TFT_eSprite& getSprite();
+  StaticSprite& getSprite();
 
   void animateRain();
 
@@ -64,6 +65,8 @@ public:
   void drawMeter(int val, bool first, const char *legend);
 
   uint16_t dimColor(uint16_t pixel);
+  void setMonochromeColor(int color);
+
 private:
   static SemaphoreHandle_t tftMutex;
 
@@ -80,7 +83,8 @@ private:
   uint16_t boxWidth = TFT_WIDTH;
   uint16_t boxHeight = TFT_HEIGHT;
   uint8_t dimming = 255; // amount of dimming graphics
-  
+  int monochromeColor = -1;
+
   unsigned long statusTime = 0;
   bool statusSet = false;
 

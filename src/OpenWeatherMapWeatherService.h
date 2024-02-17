@@ -49,14 +49,14 @@ private:
     };
 
     float temp_min[6] {
-        -1, -1, -1, -1, -1, -1
+        NAN, NAN, NAN, NAN, NAN, NAN
     };
 
     float temp_max[6] {
-        -1, -1, -1, -1, -1, -1
+        NAN, NAN, NAN, NAN, NAN, NAN
     };
 
-    float temp = -1;
+    float temp = NAN;
 
     int humidity;
 #ifndef USE_SYNC_CLIENT

@@ -46,8 +46,24 @@
 					</select>
 				</div>
 			</div>
+			<div data-role="fieldcontain">
+				<input onclick="elementChange(this, true)" data-mini="true" id="get_weather" type="button" value="Get Weather"/>
+			</div>
 			<div class="clearFloats"></div>
-			<input onclick="elementChange(this, true)" data-mini="true" id="get_weather" type="button" value="Get Weather"/>
+			<fieldset id="weather_colors" class="ui-fieldset ui-corner-all ui-shadow">
+				<legend class="ui-legend ui-corner-all ">Foreground Color</legend>
+				<label for="weather_hue">Hue</label>
+				<input data-wrapper-class="hue" onchange="elementChange(this)" type="range" name="weather_hue" id="weather_hue" min="0" max="255" value="85">
+				<div class="clearFloats"></div>
+				<label for="weather_saturation">Saturation</label>
+				<input data-wrapper-class="saturation" onchange="elementChange(this)" type="range" name="weather_saturation" id="weather_saturation" min="0" max="255" value="255">
+				<div class="clearFloats"></div>
+				<label for="weather_value">Brightness</label>
+				<input data-wrapper-class="value" onchange="elementChange(this)" type="range" name="weather_value" id="weather_value" min="0" max="255" value="255">
+				<div class="dispInline">
+					<input data-wrapper-class="spectrum" class="color_picker" maxlength="1" type='text' id="weather_color_picker" />
+				</div>
+			</fieldset>
 </form>
 	</div>
 </div>

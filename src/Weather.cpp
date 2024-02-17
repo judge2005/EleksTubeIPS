@@ -2,6 +2,8 @@
 
 #include "TFTs.h"
 #include "weather.h"
+#include "ColorConversion.h"
+#include <math.h>
 
 Weather::Weather(WeatherService *weatherService) {
     this->weatherService = weatherService;
@@ -15,7 +17,98 @@ void drawCross(int x, int y, unsigned int color)
 
 const int tzOffset = -18000;
 
-void Weather::loop(uint8_t dimming) {
+void Weather::drawDisplay(int index, int display, bool showDay) {
+    char txt[10];
+
+    // Load 'space' glyph if any
+    tfts->setShowDigits(true);
+    tfts->setImageJustification(TFTs::MIDDLE_CENTER);
+    tfts->setDigit(SECONDS_ONES, "space", TFTs::no);
+    TFT_eSprite &sprite = tfts->drawImage(SECONDS_ONES);
+    tfts->setShowDigits(false);
+
+    tfts->setImageJustification(TFTs::TOP_CENTER);
+    tfts->setBox(128, 128);
+
+    uint16_t rgb565 = hsv2rgb565(getWeatherHue(), getWeatherSaturation(), getWeatherValue());
+
+    uint16_t TEMP_COLOR = tfts->dimColor(rgb565);
+    uint16_t HILO_COLOR = TEMP_COLOR;
+    uint16_t DAY_FG_COLOR = tfts->dimColor(TFT_GOLD);
+    uint16_t DAY_BG_COLOR = tfts->dimColor(TFT_RED);
+	tfts->setMonochromeColor(rgb565);
+
+    tfts->setDigit(indexToScreen[display], weatherService->getIconName(index).c_str(), TFTs::no);
+    tfts->drawImage(indexToScreen[display]);
+
+    float val = NAN;
+
+    if (index == 5) {
+        sprite.setTextColor(TEMP_COLOR);
+        sprite.setTextFont(6);
+        sprite.setTextDatum(BC_DATUM);
+        val = weatherService->getNowTemp();
+        if (isnan(val)) {
+            strcpy(txt, "--");
+        } else {
+            sprintf(txt, "%.0f", round(val));
+        }
+        sprite.drawString(txt, sprite.width()/2, sprite.height()*3/4);
+    }
+
+    sprite.setTextColor(HILO_COLOR);
+
+    sprite.setTextFont(4);
+    sprite.setTextDatum(BL_DATUM);
+    val = round(weatherService->getHigh(index));
+    if (isnan(val)) {
+        strcpy(txt, "H: --");
+    } else {
+        sprintf(txt, "H: %.0f", round(val));
+    }
+    sprite.drawString(txt, 0, sprite.height()-28);
+
+    sprite.setTextDatum(BR_DATUM);
+    val = round(weatherService->getLow(index));
+    if (isnan(val)) {
+        strcpy(txt, "L: --");
+    } else {
+        sprintf(txt, "L: %.0f", round(val));
+    }
+    sprite.drawString(txt, sprite.width(), sprite.height()-28);
+
+    if (showDay) {
+        sprite.setTextDatum(BC_DATUM);
+        sprite.fillRect(0, sprite.height() - 26, sprite.width(), 26, DAY_BG_COLOR);
+        sprite.setTextColor(DAY_FG_COLOR);
+        if (index == 5)     // today
+            sprite.drawString("Today", sprite.width()/2, sprite.height() + 2);
+        else {
+            int dow = weatherService->getDayOfWeek(index);
+            if (dow >= 0) {
+                sprite.drawString(daysOfWeek[weatherService->getDayOfWeek(index)], sprite.width()/2, sprite.height() + 2);
+            } else {
+                sprite.drawString("Unknown", sprite.width()/2, sprite.height() + 2);
+            }
+        }
+    }
+
+    sprite.pushSprite(0, 0);
+}
+
+void Weather::drawSingleDay(uint8_t dimming, int day, int display) {
+    checkIconPack();
+    unsigned long nowMs = millis();
+
+    if (preDraw(dimming)) {
+        // day is indexed from 0 thru 5 with 0 being today
+        drawDisplay(5-day, display, false);
+
+        postDraw();
+    }
+}
+
+void Weather::checkIconPack() {
     if (getIconPack().value != oldIcons) {
         oldIcons = getIconPack().value;
         imageUnpacker->unpackImages("/ips/weather/" + getIconPack().value, "/ips/weather_cache");
@@ -24,68 +117,43 @@ void Weather::loop(uint8_t dimming) {
         tfts->release();
         _redraw = true;
     }
-    
+}
+
+bool Weather::preDraw(uint8_t dimming) {
     unsigned long nowMs = millis();
 
     if (_redraw || displayTimer.expired(nowMs)) {
         _redraw = false;
-        static char txt[10];
 
         tfts->claim();
+    	tfts->setShowDigits(false);
+        // tfts->invalidateAllDigits();
         tfts->setDimming(dimming);
-        tfts->invalidateAllDigits();
+
+        displayTimer.init(nowMs, 10000);
+
+        return true;
+    }
+
+    return false;
+}
+
+void Weather::postDraw() {
+    tfts->release();
+}
+
+void Weather::loop(uint8_t dimming) {
+    checkIconPack();
+
+    if (preDraw(dimming)) {
         tfts->checkStatus();
         tfts->enableAllDisplays();
-        tfts->setImageJustification(TFTs::TOP_CENTER);
-        tfts->setBox(128, 128);
-
-        uint16_t TEMP_COLOR = tfts->dimColor(TFT_WHITE);
-        uint16_t HILO_COLOR = tfts->dimColor(TFT_SILVER);
-        uint16_t DAY_FG_COLOR = tfts->dimColor(TFT_GOLD);
-        uint16_t DAY_BG_COLOR = tfts->dimColor(TFT_RED);
 
         for (int i=0; i<6; i++) {
-            tfts->setDigit(indexToScreen[i], weatherService->getIconName(i).c_str(), TFTs::no);
-            TFT_eSprite &sprite = tfts->drawImage(indexToScreen[i]);
-        
-            if (i == 5) {
-                sprite.setTextColor(TEMP_COLOR, TFT_BLACK, false);
-                sprite.setTextFont(6);
-                sprite.setTextDatum(BC_DATUM);
-                sprintf(txt, "%.0f", round(weatherService->getNowTemp()));
-                sprite.drawString(txt, sprite.width()/2, sprite.height()*3/4);
-            }
-
-            sprite.setTextColor(HILO_COLOR, TFT_BLACK, false);
-
-            sprite.setTextFont(4);
-            sprite.setTextDatum(BL_DATUM);
-            sprintf(txt, "H: %.0f", round(weatherService->getHigh(i)));
-            sprite.drawString(txt, 0, sprite.height()-28);
-
-            sprite.setTextDatum(BR_DATUM);
-            sprintf(txt, "L: %.0f", weatherService->getLow(i));
-            sprite.drawString(txt, sprite.width(), sprite.height()-28);
-
-            sprite.setTextDatum(BC_DATUM);
-            sprite.fillRect(0, sprite.height() - 26, sprite.width(), 26, DAY_BG_COLOR);
-            sprite.setTextColor(DAY_FG_COLOR, DAY_BG_COLOR, true);
-            if (i == 5)     // today
-                sprite.drawString("Today", sprite.width()/2, sprite.height() + 2);
-            else {
-                int dow = weatherService->getDayOfWeek(i);
-                if (dow >= 0) {
-                    sprite.drawString(daysOfWeek[weatherService->getDayOfWeek(i)], sprite.width()/2, sprite.height() + 2);
-                } else {
-                    sprite.drawString("Unknown", sprite.width()/2, sprite.height() + 2);
-                }
-            }
-
-            sprite.pushSprite(0, 0);
+            drawDisplay(i, i);
         }
-        tfts->release();
- 
-        displayTimer.init(nowMs, 10000);
+
+        postDraw();
    }
 }
 

@@ -82,20 +82,24 @@ void IPSClock::loop() {
             tfts->setBox(tfts->width(), tfts->height());
             tfts->checkStatus();
             tfts->enableAllDisplays();
+            // tfts->invalidateAllDigits();
+
             if (getTimeOrDate().value == 0) {
                 uint8_t hour = now.tm_hour;
 
                 // refresh starting on seconds
-                if (getShowSeconds()) {
+                if (getFourDigitDisplay() == 0) {
                     tfts->setDigit(SECONDS_ONES, digitToName[now.tm_sec % 10], TFTs::yes);
                     tfts->setDigit(SECONDS_TENS, digitToName[now.tm_sec / 10], TFTs::yes);
                     tfts->setDigit(MINUTES_ONES, digitToName[now.tm_min % 10], TFTs::yes);
                     tfts->setDigit(MINUTES_TENS, digitToName[now.tm_min / 10], TFTs::yes);
                 } else {
-                    if (getHourFormat()) {  // true == show am/pm indicator
-                        tfts->setDigit(SECONDS_ONES, hour < 12 ? "am" : "pm", TFTs::yes);
-                    } else {
-                        tfts->setDigit(SECONDS_ONES, "space", TFTs::yes);
+                    if (getFourDigitDisplay() == 1) {
+                        if (getHourFormat()) {  // true == show am/pm indicator
+                            tfts->setDigit(SECONDS_ONES, hour < 12 ? "am" : "pm", TFTs::yes);
+                        } else {
+                            tfts->setDigit(SECONDS_ONES, "space", TFTs::yes);
+                        }
                     }
                     tfts->setDigit(SECONDS_TENS, digitToName[now.tm_min % 10], TFTs::yes);
                     tfts->setDigit(MINUTES_ONES, digitToName[now.tm_min / 10], TFTs::yes);

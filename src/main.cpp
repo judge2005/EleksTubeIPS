@@ -115,12 +115,12 @@ BaseConfigItem *clockSet[] = {
 	&IPSClock::getTimeOrDate(),
 	&IPSClock::getHourFormat(),
 	&IPSClock::getLeadingZero(),
+	&IPSClock::getFourDigitDisplay(),
 	&IPSClock::getDisplayOn(),
 	&IPSClock::getDisplayOff(),
 	&IPSClock::getClockFace(),
 	&IPSClock::getDimming(),
 	&IPSClock::getTimeZone(),
-	&IPSClock::getShowSeconds(),
 	0
 };
 CompositeConfigItem clockConfig("clock", 0, clockSet);
@@ -152,6 +152,9 @@ BaseConfigItem *weatherSet[] = {
     &WeatherService::getLatitude(),
     &WeatherService::getLongitude(),
     &WeatherService::getUnits(),
+	&Weather::getWeatherHue(),
+	&Weather::getWeatherSaturation(),
+	&Weather::getWeatherValue(),
     0
 };
 CompositeConfigItem weatherConfig("weather", 0, weatherSet);
@@ -232,6 +235,15 @@ void onFileSetChanged(ConfigItem<String> &item) {
 
 void onMatrixHueChanged(ConfigItem<int> &item) {
 	broadcastUpdate(item);
+}
+
+void onDisplayChanged(ConfigItem<int> &item) {
+	weather->redraw();
+}
+
+template <class T>
+void onWeatherColorChanged(ConfigItem<T> &item) {
+	weather->redraw();
 }
 
 bool menuDrawn = false;
@@ -324,6 +336,9 @@ void clockTaskFn(void *pArg) {
 
 	weather = new Weather(weatherService);
 	weather->setImageUnpacker(imageUnpacker);
+	Weather::getWeatherHue().setCallback(onWeatherColorChanged);
+	Weather::getWeatherSaturation().setCallback(onWeatherColorChanged);
+	Weather::getWeatherValue().setCallback(onWeatherColorChanged);
 
 	fileSet.setCallback(onFileSetChanged);
 
@@ -333,6 +348,7 @@ void clockTaskFn(void *pArg) {
 	ipsClock->init();
 	ipsClock->setImageUnpacker(imageUnpacker);
 	ipsClock->setTimeSync(timeSync);
+	ipsClock->getTimeOrDate().setCallback(onDisplayChanged);
 
 	leftButton.setCallback(onButtonEvent);
 	modeButton.setCallback(onButtonEvent);
@@ -373,13 +389,15 @@ void clockTaskFn(void *pArg) {
 		} else {
 			switch (IPSClock::getTimeOrDate().value) {
 				case 2:
-					tfts->setShowDigits(false);
 					weather->loop(ipsClock->dimming());
 					break;
 				default:
 					tfts->setShowDigits(true);
 					if (timeSync->initialized() || rtcTimeSync->initialized()) {
 						ipsClock->loop();
+						if (ipsClock->getFourDigitDisplay() == 2 && IPSClock::getTimeOrDate().value == 0) {
+							weather->drawSingleDay(ipsClock->dimming(), 0, 0);
+						}
 					}
 					break;
 			}
@@ -749,7 +767,7 @@ text: 0xFFFF
 #define TITLE_BORDER_COLOR 0xFFFF
 
 void initFacesMenu() {
-	static const String postfix(".tar.gz");
+	String postfix(".tar.gz");
 
 	int display = IPSClock::getTimeOrDate();
 
@@ -794,10 +812,10 @@ void initFacesMenu() {
 }
 
 String clockFacesCallback() {
-	static const String postfix(".tar.gz");
-	static const String quote("\"");
-	static const String quoteColonQuote("\":\"");
-	static const String comma_quote(",\"");
+	const String postfix(".tar.gz");
+	const String quote("\"");
+	const String quoteColonQuote("\":\"");
+	const String comma_quote(",\"");
 
 	String options = ",\"face_files\":{";
 	String sep = quote;

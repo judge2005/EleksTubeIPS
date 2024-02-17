@@ -12,55 +12,63 @@
 			</div>
 			<div class="dispInline">
 				<fieldset data-role="controlgroup" data-type="horizontal" data-mini="true" id="display_type">
-					<input onchange="elementChange(this)" type="radio" name="time_or_date" id="display_time" value="0">
+					<input onchange="elementChange(this);setVisibility('time_container', this, ['0']);setVisibility('date_container', this, ['1']);" type="radio" name="time_or_date" id="display_time" value="0">
 					<label for="display_time">Time</label>
-					<input onchange="elementChange(this)" type="radio" name="time_or_date" id="display_date" value="1">
+					<input onchange="elementChange(this);setVisibility('time_container', this, ['0']);setVisibility('date_container', this, ['1']);" type="radio" name="time_or_date" id="display_date" value="1">
 					<label for="display_date">Date</label>
-					<input onchange="elementChange(this)" type="radio" name="time_or_date" id="display_weather" value="2">
+					<input onchange="elementChange(this);setVisibility('time_container', this, ['0']);setVisibility('date_container', this, ['1']);" type="radio" name="time_or_date" id="display_weather" value="2">
 					<label for="display_weather">Weather</label>
 				</fieldset>
 			</div>
-			<div class="clearFloats"></div>
-			<div class="dispInlineLabel">
-				<label for="show_seconds">Show Seconds</label>
-			</div>
-			<div class="dispInline">
-				<input onchange="elementChange(this)" type="checkbox"
-					data-role="flipswitch" name="show_seconds" id="show_seconds"
-					data-on-text="Yes" data-off-text="No"
-					data-wrapper-class="custom-label-flipswitch">
-			</div>
-			<div class="clearFloats"></div>
-			<div class="dispInlineLabel">
-				<label for="hour_format">12/24 Hour</label>
-			</div>
-			<div class="dispInline">
-				<input onchange="elementChange(this)" type="checkbox"
-					data-role="flipswitch" name="hour_format" id="hour_format"
-					data-on-text="12H" data-off-text="24H"
-					data-wrapper-class="custom-label-flipswitch">
-			</div>
-			<div class="clearFloats"></div>
-			<div class="dispInlineLabel">
-					<label for="leading_zero">Leading Zero</label>
-			</div>
-			<div class="dispInline">
+			<div id="time_container" style="display: none;">
+				<div class="clearFloats"></div>
+				<div class="dispInlineLabel">
+					<label for="digit_count">Number of Digits</label>
+				</div>
+				<div class="dispInline">
+					<fieldset data-role="controlgroup" data-type="horizontal" data-mini="true" id="digit_count">
+						<input onchange="elementChange(this)" type="radio" name="four_digit_display" id="six_digits" value="0">
+						<label for="six_digits">Six</label>
+						<input onchange="elementChange(this)" type="radio" name="four_digit_display" id="four_digits" value="1">
+						<label for="four_digits">Four AM/PM</label>
+						<input onchange="elementChange(this)" type="radio" name="four_digit_display" id="four_digits_plus_weather" value="2">
+						<label for="four_digits_plus_weather">Four + Weather</label>
+					</fieldset>
+				</div>
+				<div class="clearFloats"></div>
+				<div class="dispInlineLabel">
+					<label for="hour_format">12/24 Hour</label>
+				</div>
+				<div class="dispInline">
 					<input onchange="elementChange(this)" type="checkbox"
-					data-role="flipswitch" name="leading_zero" id="leading_zero"
-					data-on-text="On" data-off-text="Off"
-					data-wrapper-class="custom-label-flipswitch">
+						data-role="flipswitch" name="hour_format" id="hour_format"
+						data-on-text="12H" data-off-text="24H"
+						data-wrapper-class="custom-label-flipswitch">
+				</div>
+				<div class="clearFloats"></div>
+				<div class="dispInlineLabel">
+						<label for="leading_zero">Leading Zero</label>
+				</div>
+				<div class="dispInline">
+						<input onchange="elementChange(this)" type="checkbox"
+						data-role="flipswitch" name="leading_zero" id="leading_zero"
+						data-on-text="On" data-off-text="Off"
+						data-wrapper-class="custom-label-flipswitch">
+				</div>
 			</div>
-			<div class="clearFloats"></div>
-			<div class="dispInlineLabel">
-				<label for="date_format">Date Format</label>
-			</div>
-			<div class="dispInline">
-				<select onchange="elementChange(this)" type="picklist"
-					id="date_format" data-mini="true">
-					<option value="0">DD-MM-YY</option>
-					<option value="1">MM-DD-YY</option>
-					<option value="2">YY-MM-DD</option>
-				</select>
+			<div id="date_container" style="display: none;">
+				<div class="clearFloats"></div>
+				<div class="dispInlineLabel">
+					<label for="date_format">Date Format</label>
+				</div>
+				<div class="dispInline">
+					<select onchange="elementChange(this)" type="picklist"
+						id="date_format" data-mini="true">
+						<option value="0">DD-MM-YY</option>
+						<option value="1">MM-DD-YY</option>
+						<option value="2">YY-MM-DD</option>
+					</select>
+				</div>
 			</div>
 			<div class="clearFloats"></div>
 			<div class="dispInlineLabel">

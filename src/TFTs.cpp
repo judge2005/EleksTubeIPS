@@ -1,13 +1,78 @@
 #include "TFTs.h"
 #include <WiFi.h>
 #include "matrix-code-14.h"
+#include <byteswap.h>
 #define MATRIX_FONT &matrix_code_nfi14pt7b
 
 #define DARKER_GREY 0x18E3
 
+// Clipping macro for pushImage
+#define PI_CLIP                                        \
+  if (_vpOoB) return;                                  \
+  x+= _xDatum;                                         \
+  y+= _yDatum;                                         \
+                                                       \
+  if ((x >= _vpW) || (y >= _vpH)) return;              \
+                                                       \
+  int32_t dx = 0;                                      \
+  int32_t dy = 0;                                      \
+  int32_t dw = w;                                      \
+  int32_t dh = h;                                      \
+                                                       \
+  if (x < _vpX) { dx = _vpX - x; dw -= dx; x = _vpX; } \
+  if (y < _vpY) { dy = _vpY - y; dh -= dy; y = _vpY; } \
+                                                       \
+  if ((x + dw) > _vpW ) dw = _vpW - x;                 \
+  if ((y + dh) > _vpH ) dh = _vpH - y;                 \
+                                                       \
+  if (dw < 1 || dh < 1) return;
+
 SemaphoreHandle_t TFTs::tftMutex = 0;
 
 uint8_t StaticSprite::output_buffer[(TFT_HEIGHT * TFT_WIDTH + 1) * sizeof(uint16_t)];
+
+void StaticSprite::pushImageWithTransparency(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t *data, uint16_t transparentColor)
+{
+  if (data == nullptr) return;
+
+  PI_CLIP;
+
+  // Pointer within original image
+  uint16_t *ptro = data + dx + dy * w;
+  // Pointer within sprite image
+  uint16_t *ptrs = _img + x + y * _iwidth;
+
+  uint16_t oPixel;
+
+  if(_swapBytes)
+  {
+    while (dh--)
+    {
+      for (int pixelX = 0; pixelX < dw; pixelX++) {
+        oPixel = ptro[pixelX];
+        if (oPixel != transparentColor) {
+          ptrs[pixelX] = __bswap_16(oPixel);
+        }
+      }
+      ptro += w;
+      ptrs += _iwidth;
+    }
+  }
+  else
+  {
+    while (dh--)
+    {
+      for (int pixelX = 0; pixelX < dw; pixelX++) {
+        oPixel = ptro[pixelX];
+        if (oPixel != transparentColor) {
+          ptrs[pixelX] = oPixel;
+        }
+      }
+      ptro += w;
+      ptrs += _iwidth;
+    }
+  }
+}
 
 void StaticSprite::init() {
   _iwidth  = _dwidth  = _bitwidth = TFT_WIDTH;
@@ -69,7 +134,7 @@ DigitalRainAnimation& TFTs::getMatrixAnimator() {
 }
 #endif
 
-TFT_eSprite& TFTs::getSprite() {
+StaticSprite& TFTs::getSprite() {
   static bool initialized = false;
   static StaticSprite *sprite;
 
@@ -465,6 +530,10 @@ uint16_t TFTs::dimColor(uint16_t color) {
   return (r << 11) | (g << 5) | b;
 }
 
+void TFTs::setMonochromeColor(int color) {
+  monochromeColor = color;
+}
+
 bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int16_t rowSize, bool reversed, uint32_t *palette, fs::File &file) {
   // Calculate top left coords of box - default to MIDDLE_CENTER
   int16_t x = (TFT_WIDTH - boxWidth) / 2;
@@ -514,8 +583,10 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
   Serial.println(outputBufferSize);
 #endif
 
-  TFT_eSprite& sprite = getSprite();
-  sprite.fillSprite(0);
+  StaticSprite& sprite = getSprite();
+  if (!(bitDepth == 1 && monochromeColor >= 0)) {
+    sprite.fillSprite(0);
+  }
   
   bool oldSwapBytes = sprite.getSwapBytes();
   sprite.setSwapBytes(true);
@@ -580,9 +651,16 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
             b = c; g = c >> 8; r = c >> 16;
             break;
           case 1:
-            c = palette[(*inputPtr >> (7 - (col & 0x07))) & 0x01];
+            int pixel = (*inputPtr >> (7 - (col & 0x07))) & 0x01;
             if ((col & 0x07) == 0x07) inputPtr++;
-            b = c; g = c >> 8; r = c >> 16;
+            if (monochromeColor >= 0 && pixel == 1) {
+              r = (monochromeColor >> 8) & 0xF8;
+              b = (monochromeColor << 3) & 0xF8;
+              g = (monochromeColor >> 3) & 0xFC;
+            } else {
+              c = palette[pixel];
+              b = c; g = c >> 8; r = c >> 16;
+            }
             break;
         }
         
@@ -601,7 +679,11 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
     }
 
     int spriteRow = reversed ? (h-row-1) + y : row + y;
-    sprite.pushImage(x, spriteRow, w, 1, (uint16_t*)outputBuffer);
+    if (bitDepth == 1 && monochromeColor >= 0) {
+      sprite.pushImageWithTransparency(x, spriteRow, w, 1, (uint16_t*)outputBuffer);
+    } else {
+      sprite.pushImage(x, spriteRow, w, 1, (uint16_t*)outputBuffer);
+    }
 #ifdef USE_DMA
     dmaBufRows++;
     if (dmaBufRows == 10) {
