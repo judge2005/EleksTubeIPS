@@ -56,26 +56,51 @@ void Weather::drawDisplay(int index, int display, bool showDay) {
         sprite.drawString(txt, sprite.width()/2, sprite.height()*3/4);
     }
 
+    sprite.setTextFont(4);
+
+    int baseline = sprite.height()-28;
+    int arrowHeight = 10, arrowWidth = 10;
+    int arrowPadding = 2;
+    int tempInset=10;
+    int textHeight = sprite.fontHeight();
+    int arrowTop = baseline - textHeight + 2;
+
     sprite.setTextColor(HILO_COLOR);
 
-    sprite.setTextFont(4);
     sprite.setTextDatum(BL_DATUM);
     val = round(weatherService->getHigh(index));
     if (isnan(val)) {
-        strcpy(txt, "H: --");
+        strcpy(txt, "--");
     } else {
-        sprintf(txt, "H: %.0f", round(val));
+        sprintf(txt, "%.0f", round(val));
     }
-    sprite.drawString(txt, 0, sprite.height()-28);
+    sprite.drawString(txt, tempInset + arrowWidth + arrowPadding, baseline);
 
-    sprite.setTextDatum(BR_DATUM);
+    // Draw up-arrow
+    sprite.fillTriangle(tempInset, arrowTop+arrowHeight,     // bottom left
+                tempInset+arrowWidth, arrowTop+arrowHeight,  // bottom right
+                tempInset+arrowWidth/2, arrowTop,            // top-center
+                TEMP_COLOR);
+
+
     val = round(weatherService->getLow(index));
     if (isnan(val)) {
-        strcpy(txt, "L: --");
+        strcpy(txt, "--");
     } else {
-        sprintf(txt, "L: %.0f", round(val));
+        sprintf(txt, "%.0f", round(val));
     }
-    sprite.drawString(txt, sprite.width(), sprite.height()-28);
+    int textWidth=sprite.textWidth(txt, 4);
+    sprite.setTextDatum(BL_DATUM);
+    sprite.drawString(txt, sprite.width() - tempInset - textWidth, baseline);
+
+    // Draw down-arrow
+    int arrowLeft = sprite.width() - tempInset - textWidth - arrowPadding - arrowWidth;
+
+    sprite.fillTriangle(arrowLeft, arrowTop,        // top left
+            arrowLeft + arrowWidth, arrowTop,       // top right
+            arrowLeft + arrowWidth/2, arrowTop+arrowHeight, // bottom center
+            TEMP_COLOR);
+
 
     if (showDay) {
         sprite.setTextDatum(BC_DATUM);
