@@ -161,9 +161,7 @@ def process(image, output_file):
         image = invert_image(image)
 
     if args.bpp < 16:
-        print(image.getpalette())
         image = image.quantize(colors=1 << args.bpp, kmeans=128, method=Image.MAXCOVERAGE)
-        print(image.getpalette())
 
     if args.bpp == 16 or args.bpp == 4 or args.bpp == 1:
         with open(output_file, 'wb') as f:
