@@ -9,22 +9,37 @@ def create_header(width, height):
     # Create an RGB565 BMP file header
 
     total_header_size = 14 + 40 # V3 len = 40 bytes
-    total_header_size = 14 + 40 + 12 # V3 len = 40 bytes
-    bitmap_size = ((16 * width + 31) >> 5) * 4 * height
-    file_size = total_header_size + bitmap_size
-    
-    print("input file size=" + str(bitmap_size) + ", output file size=" + str(file_size));
+    palette_size = 0
+    match args.bpp:
+        case 4:
+            palette_size = 32
+        case 1:
+            palette_size = 8
+            
+    # total_header_size = 14 + 40 + 12 # V3 len = 40 bytes
+    bitmap_size = ((args.bpp * width + 31) >> 5) * 4 * height
 
+    file_size = total_header_size + palette_size + bitmap_size
+    
+    print("input file size=" + str(bitmap_size) + ", output file size=" + str(file_size))
+
+    # struct.pack: I=4 bytes, H=2 bytes, lower case=signed, '<'=little-endian
     # BMP header: Magic (2 bytes), file size, 2 ignored values, bitmap offset
-    header = struct.pack('<H 3I', 0x4D42, file_size, 0, total_header_size)
+    header = struct.pack('<H 3I', 0x4D42, file_size, 0, total_header_size + palette_size)
 
     # DIB V3 header: header size, px width, px height, num of color planes, bpp, compression method,
     # bitmap data size, horizontal resolution, vertical resolution, number of colors in palette, number of important colors used
     # Few of these matter, so there are a bunch of default/"magic" numbers here...
-    header += struct.pack('<I 2i H H I I 2i 2I', 40, width, height, 1, 16, 3, file_size, 0x0B13, 0x0B13, 0, 0)
+    header += struct.pack('<I 2i H H I I 2i', 40, width, height, 1, args.bpp, 0, file_size, 0x0B13, 0x0B13)
 
-    # RGB565 masks
-    header += struct.pack('<3I', 0x0000f800, 0x000007e0, 0x0000001f)
+    match args.bpp:
+        case 16:
+            # Zero size palette, zero important colors
+            header += struct.pack('<2I', 0, 0)
+            # RGB565 masks
+            # header += struct.pack('<3I', 0x0000f800, 0x000007e0, 0x0000001f)
+        case 1:
+            header += struct.pack('<2I', 2, 2)
 
     return header
 
@@ -36,16 +51,46 @@ def scale_pixel(p, factor):
 
     return val
 
-def write_bin(f, pixel_list, width, height):
-    for row in range(height-1, -1, -1):
-        for col in range(0, width, 1) :
-            r = scale_pixel(pixel_list[row*width + col][0], 8)
-            g = scale_pixel(pixel_list[row*width + col][1], 4)
-            b = scale_pixel(pixel_list[row*width + col][2], 8)
-            c = (r << 11) | (g << 5) | b
-            f.write(struct.pack('<H', c))
-        if (width % 2) == 1:
-            f.write(struct.pack('<H', 0))
+def write_bin(f, image, width, height):
+    pixel_list = list(image.getdata())        
+
+    match args.bpp:
+        case 16:
+            for row in range(height-1, -1, -1):
+                for col in range(0, width, 1) :
+                    r = scale_pixel(pixel_list[row*width + col][0], 8)
+                    g = scale_pixel(pixel_list[row*width + col][1], 4)
+                    b = scale_pixel(pixel_list[row*width + col][2], 8)
+                    c = (r << 11) | (g << 5) | b
+                    f.write(struct.pack('<H', c))
+                if (width % 2) == 1:
+                    f.write(struct.pack('<H', 0))
+
+        case 1: # Image will already be in 'P' mode, i.e. one byte per pixel
+            colors = image.getpalette()
+            print(colors)
+            # Do this in reverse order because quantize does some weird stuff
+            for color in range(len(colors)-3, -3, -3):
+                f.write(struct.pack('<I', colors[color] + (colors[color+1] << 8) + (colors[color+2] << 16)))
+            for row in range(height-1, -1, -1):
+                byte = 0
+                pixels = 0
+                bytesToWrite = 4
+                for col in range(0, width, 1) :
+                    c = pixel_list[row*width + col]
+                    # this looks odd image.quantize seems to invert the pixels
+                    byte = byte << 1 | (1-c)
+                    pixels += 1
+                    if pixels == 8:
+                        bytesToWrite = (bytesToWrite + 3) % 4
+                        pixels = 0
+                        f.write(struct.pack('<B', byte))
+                        byte = 0
+                if pixels != 0:
+                    bytesToWrite = (bytesToWrite + 3) % 4
+                    f.write(struct.pack('<B', byte << (8-pixels)))
+                for i in range(0, bytesToWrite):
+                    f.write(struct.pack('<B', 0))
 
 def write_rgb565(f, byte_list, width, height):
     for row in range(height-1, -1, -1):
@@ -85,19 +130,11 @@ def add_to_pixels(img):
     width, height = img.size 
     for i in range(width): 
         for j in range(height):
-            c = pixels[i,j];
+            c = pixels[i,j]
             pixels[i,j] = (c[0] + args.add, c[1] + args.add, c[2] + args.add)
 
 def invert_image(img):
-    pixels = img.load() 
-    
-    # Extracting the width and height 
-    # of the image: 
-    width, height = img.size 
-    for i in range(width): 
-        for j in range(height):
-            c = pixels[i,j];
-            pixels[i,j] = (c[0] ^ 0xff, c[1] ^ 0xff, c[2] ^ 0xff)
+    return ImageChops.invert(img)
 
 def process(image, output_file):
     if args.scale:
@@ -121,18 +158,19 @@ def process(image, output_file):
         image = ImageEnhance.Contrast(image).enhance(args.contrast)
 
     if args.invert:
-        invert_image(image)
+        image = invert_image(image)
 
-    if args.bpp == 16:
-        pixels = list(image.getdata())        
+    if args.bpp < 16:
+        print(image.getpalette())
+        image = image.quantize(colors=1 << args.bpp, kmeans=128, method=Image.MAXCOVERAGE)
+        print(image.getpalette())
+
+    if args.bpp == 16 or args.bpp == 4 or args.bpp == 1:
         with open(output_file, 'wb') as f:
             f.write(create_header(image.width, image.height))
-            write_bin(f, pixels, image.width, image.height)
-    if args.bpp < 16:
-        image = image.quantize(colors=1 << args.bpp, kmeans=128, method=Image.MAXCOVERAGE)
-        image.save(output_file);
-    if args.bpp > 16:
-        image.save(output_file);
+            write_bin(f, image, image.width, image.height)
+    else:
+        image.save(output_file)
     
     print(output_file + ", colors=" + str(len(set(image.getdata()))) + ", width=" + str(image.width) + ", height=" + str(image.height))
 
@@ -317,7 +355,7 @@ if len(args.file) > 0:
         exit(1)
 
     for file in args.file:
-        fileType = pathlib.Path(file).suffix;
+        fileType = pathlib.Path(file).suffix
         if fileType == '.bin':
             with open(file, 'rb') as inf:
                 pixels = list(inf.read())
