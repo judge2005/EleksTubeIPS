@@ -95,6 +95,7 @@ TaskHandle_t commitEEPROMTask;
 TaskHandle_t weatherTask;
 
 SemaphoreHandle_t wsMutex;
+SemaphoreHandle_t memMutex;
 QueueHandle_t weatherQueue;
 
 AsyncWiFiManagerParameter *hostnameParam;
@@ -375,7 +376,9 @@ void clockTaskFn(void *pArg) {
 			tfts->enableAllDisplays();
 			tfts->animateRain();
 			tfts->invalidateAllDigits();
-		} if (ipsClock->clockOn() && screenSaver.isOn()) {
+		}
+		
+		if (ipsClock->clockOn() && screenSaver.isOn()) {
 			switch(ScreenSaver::getScreenSaver()) {
 				case 0:
 					tfts->disableAllDisplays();
@@ -387,6 +390,10 @@ void clockTaskFn(void *pArg) {
 					break;
 			}
 		} else {
+			// Memory is an issue if one of the below decides to unpack a .gz.tar file
+			// and the weather task decides to retrieve the forecast at the same time
+			xSemaphoreTake(memMutex, portMAX_DELAY);
+
 			switch (IPSClock::getTimeOrDate().value) {
 				case 2:
 					weather->loop(ipsClock->dimming());
@@ -401,6 +408,8 @@ void clockTaskFn(void *pArg) {
 					}
 					break;
 			}
+
+			xSemaphoreGive(memMutex);
 		}
 	}
 }
@@ -415,27 +424,32 @@ void weatherTaskFn(void *pArg) {
 
 		if (result == pdTRUE) {
 			if (value == 2) {	// Location coordinates changed
-				Serial.println("Weather task sleeping 30 seconds");
+				DEBUG("Weather task sleeping 30 seconds");
 				value = 0;
 				delay(30000);	// In case user is changing latitude and longitude, i.e. wait for both to possibly change
 			}
-			Serial.println("Weather task getting right to it");
+			DEBUG("Weather task getting right to it");
 		}
 
 		// Drain the queue of any pending messages
 		while (xQueueReceive(weatherQueue, &value, 0) == pdTRUE);
 
-		Serial.println("Trying to get weather info");
+		DEBUG("Trying to get weather info");
 
 		toSleep = DEFAULT_WEATHER_SLEEP;
-		if (!weatherService->getWeatherInfo()) {
-			Serial.println("Failed to get weather");
+		// Memory is an issue if the clock task decides to unpack a .gz.tar file
+		// and this task tries to retrieve the forecast at the same time
+		xSemaphoreTake(memMutex, portMAX_DELAY);
+		bool gotWeather = weatherService->getWeatherInfo();
+		xSemaphoreGive(memMutex);
+		if (!gotWeather) {
+			DEBUG("Failed to get weather");
 			toSleep = pdMS_TO_TICKS(180000);	// Try again in 3 minutes
 		} else {
 			weather->redraw();
 		}
 
-		Serial.printf("Weather task going back to sleep for %d ticks\n", toSleep);
+//		Serial.printf("Weather task going back to sleep for %d ticks\n", toSleep);
 	}
 }
 
@@ -975,6 +989,7 @@ void setup() {
 	DEBUG("Setup...");
 
 	wsMutex = xSemaphoreCreateMutex();
+	memMutex = xSemaphoreCreateMutex();
     weatherQueue = xQueueCreate(5, sizeof(uint32_t));
 	tfts = new TFTs();
 
