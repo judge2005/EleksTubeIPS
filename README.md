@@ -28,11 +28,11 @@ This firmware uses the WiFi support that your clock already has to sync the time
   * The [NovelLife SE](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-2/) clock
   * The [PCBWay 'Punkcyber'](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-4/) clock.
 
-This image shows the clock running in 4 digit AM/PM mode:
+This image shows the clock running in 4 digit mode with weather forecast
 
-![Captive Portal](docs/nimo.jpg)
+![Captive Portal](docs/original.jpg)
 
-This shows a weather forecast:
+This shows a weather forecast using colored icons:
 
 ![Captive Portal](docs/weather_display.jpg)
 
