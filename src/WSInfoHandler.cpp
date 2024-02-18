@@ -41,7 +41,7 @@ void WSInfoHandler::handle(AsyncWebSocketClient *client, char *data) {
 	JsonVariant value = root.createNestedObject("value");
 	value["esp_free_iram_heap"] = freeIRAMHeap;
 	value["esp_free_heap"] = free8bitHeap;
-	value["esp_free_heap_min"] = ESP.getMinFreeHeap();
+	value["esp_free_heap_min"] = heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT);
 	value["esp_max_alloc_heap"] = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 	value["esp_sketch_size"] = sketchSize(SKETCH_SIZE_TOTAL);
 	value["esp_sketch_space"] = sketchSize(SKETCH_SIZE_FREE);
