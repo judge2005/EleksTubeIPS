@@ -446,7 +446,7 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
   }
 
   bitDepth = read16(bmpFile);
-  if (bitDepth != 24 && bitDepth != 16 && bitDepth != 1 && bitDepth != 4 && bitDepth != 8) {
+  if (bitDepth != 24 && bitDepth != 16 && bitDepth != 1 && bitDepth != 4 && bitDepth != 2 && bitDepth != 8) {
     Serial.print("Bad bit depth: ");
     Serial.println(bitDepth);
     return false;
@@ -621,6 +621,7 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
       {
         uint16_t r, g, b;
         uint32_t c = 0;
+        int pixel = 0;
 
         switch (bitDepth) {
           case 32:
@@ -650,8 +651,14 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
             if (col & 0x01) inputPtr++;
             b = c; g = c >> 8; r = c >> 16;
             break;
+          case 2:
+            pixel = (*inputPtr >> ((3 - (col & 0x03))) << 1) & 0x03;
+            if ((col & 0x03) == 0x03) inputPtr++;
+            c = palette[pixel];
+            b = c; g = c >> 8; r = c >> 16;
+            break;
           case 1:
-            int pixel = (*inputPtr >> (7 - (col & 0x07))) & 0x01;
+            pixel = (*inputPtr >> (7 - (col & 0x07))) & 0x01;
             if ((col & 0x07) == 0x07) inputPtr++;
             if (monochromeColor >= 0 && pixel == 1) {
               r = (monochromeColor >> 8) & 0xF8;
@@ -762,9 +769,9 @@ TFT_eSprite& TFTs::drawImage(uint8_t digit) {
   }
   
   // check if file is already loaded into buffer; skip loading if it is. Saves 50 to 150 msec of time.
-  if (strcmp(loadedFilename, filename) != 0) {
+  // if (strcmp(loadedFilename, filename) != 0 || !showDigits) {
     LoadImageIntoBuffer(filename);
-  }
+  // }
 #ifdef USE_DMA
   else {
     TFT_eSprite& sprite = getSprite();
