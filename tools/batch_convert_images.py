@@ -12,7 +12,9 @@ def create_header(width, height):
     palette_size = 0
     match args.bpp:
         case 4:
-            palette_size = 32
+            palette_size = 64
+        case 2:
+            palette_size = 16
         case 1:
             palette_size = 8
             
@@ -38,6 +40,10 @@ def create_header(width, height):
             header += struct.pack('<2I', 0, 0)
             # RGB565 masks
             # header += struct.pack('<3I', 0x0000f800, 0x000007e0, 0x0000001f)
+        case 4:
+            header += struct.pack('<2I', 16, 16)
+        case 2:
+            header += struct.pack('<2I', 4, 4)
         case 1:
             header += struct.pack('<2I', 2, 2)
 
@@ -66,12 +72,62 @@ def write_bin(f, image, width, height):
                 if (width % 2) == 1:
                     f.write(struct.pack('<H', 0))
 
+        case 4: # Image will already be in 'P' mode, i.e. one byte per pixel
+            colors = image.getpalette()
+            print(colors)
+            # Write out the palette
+            for color in range(0, len(colors), 3):
+                f.write(struct.pack('<I', (colors[color] << 16) + (colors[color+1] << 8) + (colors[color+2])))
+            for row in range(height-1, -1, -1):
+                byte = 0
+                pixels = 0
+                bytesToWrite = 4
+                for col in range(0, width, 1) :
+                    c = pixel_list[row*width + col]
+                    byte = byte << 4 | c
+                    pixels += 1
+                    if pixels == 2:
+                        bytesToWrite = (bytesToWrite + 3) % 4
+                        pixels = 0
+                        f.write(struct.pack('<B', byte))
+                        byte = 0
+                if pixels != 0:
+                    bytesToWrite = (bytesToWrite + 3) % 4
+                    f.write(struct.pack('<B', byte << ((2-pixels) * 4)))
+                for i in range(0, bytesToWrite):
+                    f.write(struct.pack('<B', 0))
+
+        case 2: # Image will already be in 'P' mode, i.e. one byte per pixel
+            colors = image.getpalette()
+            print(colors)
+            # Write out the palette
+            for color in range(0, len(colors), 3):
+                f.write(struct.pack('<I', (colors[color] << 16) + (colors[color+1] << 8) + (colors[color+2])))
+            for row in range(height-1, -1, -1):
+                byte = 0
+                pixels = 0
+                bytesToWrite = 4
+                for col in range(0, width, 1) :
+                    c = pixel_list[row*width + col]
+                    byte = byte << 2 | c
+                    pixels += 1
+                    if pixels == 4:
+                        bytesToWrite = (bytesToWrite + 3) % 4
+                        pixels = 0
+                        f.write(struct.pack('<B', byte))
+                        byte = 0
+                if pixels != 0:
+                    bytesToWrite = (bytesToWrite + 3) % 4
+                    f.write(struct.pack('<B', byte << ((4-pixels) * 2)))
+                for i in range(0, bytesToWrite):
+                    f.write(struct.pack('<B', 0))
+
         case 1: # Image will already be in 'P' mode, i.e. one byte per pixel
             colors = image.getpalette()
             print(colors)
             # Do this in reverse order because quantize does some weird stuff
             for color in range(len(colors)-3, -3, -3):
-                f.write(struct.pack('<I', colors[color] + (colors[color+1] << 8) + (colors[color+2] << 16)))
+                f.write(struct.pack('<I', (colors[color] << 16) + (colors[color+1] << 8) + (colors[color+2])))
             for row in range(height-1, -1, -1):
                 byte = 0
                 pixels = 0
@@ -163,7 +219,7 @@ def process(image, output_file):
     if args.bpp < 16:
         image = image.quantize(colors=1 << args.bpp, kmeans=128, method=Image.MAXCOVERAGE)
 
-    if args.bpp == 16 or args.bpp == 4 or args.bpp == 1:
+    if args.bpp == 16 or args.bpp == 4 or args.bpp == 2 or args.bpp == 1:
         with open(output_file, 'wb') as f:
             f.write(create_header(image.width, image.height))
             write_bin(f, image, image.width, image.height)
@@ -224,7 +280,7 @@ parser.add_argument(
     dest="bpp",
     type=int,
     default=16,
-    choices=[1, 8, 16, 24, 32],
+    choices=[1, 2, 4, 8, 16, 24, 32],
     help="bits per pixel - defaults to 16"
 )
 

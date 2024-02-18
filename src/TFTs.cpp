@@ -465,7 +465,7 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
   Serial.println(dimming);
 #endif
   uint32_t palette[256];
-  if (bitDepth <= 8) // 1,4,8 bit bitmap: read color palette
+  if (bitDepth <= 8) // 1,2,4,8 bit bitmap: read color palette
   {
     read32(bmpFile); read32(bmpFile); read32(bmpFile); // size, w resolution, h resolution
     paletteSize = read32(bmpFile);
@@ -652,7 +652,7 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
             b = c; g = c >> 8; r = c >> 16;
             break;
           case 2:
-            pixel = (*inputPtr >> ((3 - (col & 0x03))) << 1) & 0x03;
+            pixel = (*inputPtr >> ((3 - (col & 0x03))<< 1)) & 0x03;
             if ((col & 0x03) == 0x03) inputPtr++;
             c = palette[pixel];
             b = c; g = c >> 8; r = c >> 16;
