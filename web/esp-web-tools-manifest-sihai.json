@@ -1,6 +1,6 @@
 {
     "name": "Si Hai Clock Replacement Firmware",
-    "version": "0.2.0",
+    "version": "$version$",
     "new_install_prompt_erase": true,
     "new_install_improv_wait_time": 30,
     "builds": [
@@ -11,8 +11,8 @@
           { "path": "bootloader.bin", "offset": 4096 },
           { "path": "partitions.bin", "offset": 32768 },
           { "path": "boot_app0.bin", "offset": 57344 },
-          { "path": "firmware-sihai.0.2.0.bin", "offset": 65536 },
-          { "path": "littlefs.0.2.0.bin", "offset": 1572864 }
+          { "path": "firmware-sihai-$version$.bin", "offset": 65536 },
+          { "path": "littlefs-$version$.bin", "offset": 1572864 }
         ]
       }
     ]

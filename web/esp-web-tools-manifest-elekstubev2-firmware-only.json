@@ -1,5 +1,5 @@
 {
-    "name": "PCBWay RGB Glow Tube Clock Firmware",
+    "name": "EleksTubeIPS V2 Replacement Firmware",
     "version": "$version$",
     "new_install_prompt_erase": true,
     "builds": [
@@ -7,7 +7,7 @@
         "chipFamily": "ESP32",
         "improv": false,
         "parts": [
-          { "path": "firmware-punkcyber-$version$.bin", "offset": 65536 }
+          { "path": "firmware-elekstubev2-$version$.bin", "offset": 65536 }
         ]
       }
     ]

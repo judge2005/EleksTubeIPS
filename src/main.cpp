@@ -50,7 +50,7 @@ const char *manifest[] = {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"0.2.0",
+	"1.0.0",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name

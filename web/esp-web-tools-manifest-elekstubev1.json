@@ -1,5 +1,5 @@
 {
-    "name": "PCBWay RGB Glow Tube Clock Firmware",
+    "name": "EleksTubeIPS V1 Replacement Firmware",
     "version": "$version$",
     "new_install_prompt_erase": true,
     "new_install_improv_wait_time": 30,
@@ -11,7 +11,7 @@
           { "path": "bootloader.bin", "offset": 4096 },
           { "path": "partitions.bin", "offset": 32768 },
           { "path": "boot_app0.bin", "offset": 57344 },
-          { "path": "firmware-punkcyber-$version$.bin", "offset": 65536 },
+          { "path": "firmware-elekstubev1-$version$.bin", "offset": 65536 },
           { "path": "littlefs-$version$.bin", "offset": 1572864 }
         ]
       }

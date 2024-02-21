@@ -1,13 +1,13 @@
 {
-    "name": "EleksTubeIPS V1 Replacement Firmware",
-    "version": "0.2.0",
+    "name": "NovelLife SE Replacement Firmware",
+    "version": "$version$",
     "new_install_prompt_erase": true,
     "builds": [
       {
         "chipFamily": "ESP32",
         "improv": false,
         "parts": [
-          { "path": "firmware.0.2.0.bin", "offset": 65536 }
+          { "path": "firmware-novellifese-$version$.bin", "offset": 65536 }
         ]
       }
     ]
