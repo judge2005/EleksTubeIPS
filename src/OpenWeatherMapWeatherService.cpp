@@ -197,7 +197,7 @@ bool OpenWeatherMapWeatherService::getCurrentWeatherInfo(WiFiClientSecure &clien
 
         JsonObject main = doc["main"];
         temp = main.containsKey("temp") ? main["temp"] : NAN;
-        humidity = main.containsKey("humidity") ? main["humidity"] : NAN;
+        humidity = main.containsKey("humidity") ? main["humidity"] : -1;
 	} else {
         parsingError = true;
 #ifdef DEBUG_DESERIALIZATION
@@ -256,9 +256,9 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
     }
 
     */
-            int tzOffset = forecastDoc["city"]["timezone"] | 0;
+            int tzOffset = forecastDoc["city"]["timezone"] | -1;
 
-            if (tzOffset == 0) {
+            if (tzOffset == -1) {
                 missing = true;
 #ifdef DEBUG_DESERIALIZATION
                 Serial.print("Could not get timezone");
@@ -303,7 +303,7 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
 #endif
                 }
                 JsonObject main = forecast["main"];
-                temp = main.containsKey("temp") ? main["temp"] : -NAN;
+                temp = main.containsKey("temp") ? main["temp"] : NAN;
                 if (!isnan(temp)) {
                     maxTemp = max(maxTemp, temp);
                     minTemp = min(minTemp, temp);
