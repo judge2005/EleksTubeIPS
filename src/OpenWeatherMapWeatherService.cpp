@@ -118,10 +118,10 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
     size_t n = 0;
     bool haveChar = false;
     size_t totalRead = 0;
-
+    uint32_t delayMs = 1;
     while (client.connected())
     {
-        delay(1);
+        delay(delayMs);
 
         while ((n = client.readBytes(&c, 1)) == 1) {
             totalRead++;
@@ -142,7 +142,8 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
 
         // Either we failed to read a byte (so we want to try again), or we read '\n'
         if (n != 1) {
-            if (millis() - StartTime > 15 * 1000)
+            delayMs += 10;
+            if (millis() - StartTime > 2 * 1000)
             {
                 response_ok = false;
                 break;

@@ -50,7 +50,7 @@ const char *manifest[] = {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.0.0",
+	"1.0.2",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -427,6 +427,9 @@ void weatherTaskFn(void *pArg) {
 				DEBUG("Weather task sleeping 30 seconds");
 				value = 0;
 				delay(30000);	// In case user is changing latitude and longitude, i.e. wait for both to possibly change
+			} else if (value == 1) {
+				value = 0;
+				delay(5000);	// Give memory some time to free
 			}
 			DEBUG("Weather task getting right to it");
 		}
@@ -437,16 +440,18 @@ void weatherTaskFn(void *pArg) {
 		DEBUG("Trying to get weather info");
 
 		toSleep = DEFAULT_WEATHER_SLEEP;
-		// Memory is an issue if the clock task decides to unpack a .gz.tar file
-		// and this task tries to retrieve the forecast at the same time
-		xSemaphoreTake(memMutex, portMAX_DELAY);
-		bool gotWeather = weatherService->getWeatherInfo();
-		xSemaphoreGive(memMutex);
-		if (!gotWeather) {
-			DEBUG("Failed to get weather");
-			toSleep = pdMS_TO_TICKS(180000);	// Try again in 3 minutes
-		} else {
-			weather->redraw();
+		if ((WiFi.status() == WL_CONNECTED) && !wifiManager->isAP()) {
+			// Memory is an issue if the clock task decides to unpack a .gz.tar file
+			// and this task tries to retrieve the forecast at the same time
+			xSemaphoreTake(memMutex, portMAX_DELAY);
+			bool gotWeather = weatherService->getWeatherInfo();
+			xSemaphoreGive(memMutex);
+			if (!gotWeather) {
+				DEBUG("Failed to get weather");
+				toSleep = pdMS_TO_TICKS(180000);	// Try again in 3 minutes
+			} else {
+				weather->redraw();
+			}
 		}
 
 //		Serial.printf("Weather task going back to sleep for %d ticks\n", toSleep);
