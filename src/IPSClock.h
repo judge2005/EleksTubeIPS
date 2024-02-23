@@ -16,7 +16,7 @@ public:
     static BooleanConfigItem& getHourFormat() { static BooleanConfigItem hour_format("hour_format", true); return hour_format; }	// 12/24 hour
     static ByteConfigItem& getFourDigitDisplay() { static ByteConfigItem four_digit_display("four_digit_display", 2); return four_digit_display; }	// 6 or 4 digit clock or 4 digits + weather
     static BooleanConfigItem& getLeadingZero() { static BooleanConfigItem leading_zero("leading_zero", true); return leading_zero; }	//
-    static ByteConfigItem& getDisplayOn() { static ByteConfigItem display_on("display_on", 6); return display_on; }
+    static ByteConfigItem& getDisplayOn() { static ByteConfigItem display_on("display_on", 0); return display_on; }
     static ByteConfigItem& getDisplayOff() { static ByteConfigItem display_off("display_off", 24); return display_off; }
     static StringConfigItem& getClockFace() { static StringConfigItem clock_face("clock_face", 25, "original"); return clock_face; }	// <clock_face>.tar.gz, max length is 31
     static StringConfigItem& getTimeZone() { static StringConfigItem time_zone("time_zone", 63, "EST5EDT,M3.2.0,M11.1.0"); return time_zone; }	// POSIX timezone format
