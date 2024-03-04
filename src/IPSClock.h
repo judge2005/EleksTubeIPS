@@ -30,11 +30,12 @@ public:
     bool clockOn();
     void setOnOverride() { onOverride = millis(); };
     void overrideUntilNextChange() { prevScheduleOn = clockOn(); temporaryOverride = true; }
-
-    uint8_t dimming() { return clockOn() ? 255 : 40; }
+    void setBrightness(byte brightness) { this->brightness = brightness; }
+    uint8_t getBrightness() { return getDimming() == 1 && brightness == 255 ? 40 : brightness; }
 private:
     static char* digitToName[10];
 
+    byte brightness = 255;
     ClockTimer::Timer displayTimer;
     String oldClockFace;
 	TimeSync *pTimeSync = 0;

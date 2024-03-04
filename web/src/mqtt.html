@@ -1,0 +1,52 @@
+
+<div data-role="page" id="MQTT">
+	<div data-role="header" data-position="fixed">
+		<h1>MQTT</h1>
+		<a href="#mainMenu" data-rel="main-menu-panel"
+			class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
+	</div>
+	<div data-role="content">
+		<form action="/set_mqtt" method="POST" id="mqtt_form">
+			<div data-role="fieldcontain">
+				<div class="clearFloats"></div>
+				<div class="dispInlineLabel">
+					<label for="mqtt_host">Broker IP Address</label>
+				</div>				
+				<div class="dispInline">
+					<input
+						onblur="elementBlur(this, 'Value must be an IP address')" type="text" id="mqtt_host"
+						placeholder="IP Address" minlength="7" maxlength="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$"
+						data-mini="true" />
+				</div>
+				<div class="clearFloats"></div>
+				<div class="dispInlineLabel">
+					<label for="mqtt_port">Broker Port</label>
+				</div>
+				<div class="dispInline">
+					<input maxlength="5"
+						onblur="elementBlur(this, 'Value must be an integer')" type="text" id="mqtt_port"
+						pattern="\d*" 
+						data-mini="true"/>
+				</div>
+				<div class="clearFloats"></div>
+				<div class="dispInlineLabel">
+					<label for="mqtt_user">User</label>
+				</div>
+				<div class="dispInline">
+					<input maxlength="25"
+						onblur="elementBlur(this)" type="text" id="mqtt_user"
+						data-mini="true" />
+				</div>
+				<div class="clearFloats"></div>
+				<div class="dispInlineLabel">
+					<label for="mqtt_password">Password</label>
+				</div>
+				<div class="dispInline">
+					<input maxlength="25"
+						onblur="elementBlur(this)" type="text" id="mqtt_password"
+						data-mini="true" />
+				</div>
+			</div>
+		</form>
+	</div>
+</div>

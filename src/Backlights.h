@@ -38,11 +38,11 @@ public:
   void PowerOn()  { off = false; }
   void PowerOff()  { off = true; }
   void setOn(bool on) { off = !on; }
-  void setDimming(bool dimming) { this->dimming = dimming; }
+  void setBrightness(byte brightness) { this->brightness = brightness; }
 
 private:
   bool off;
-  bool dimming = false;
+  byte brightness = 255;
   
   NeoPixelBus <NeoGrbFeature, Neo800KbpsMethod> pixels;
   NeoGamma<NeoGammaTableMethod> colorGamma;

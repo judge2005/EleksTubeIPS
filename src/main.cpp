@@ -23,6 +23,8 @@
 #include "OpenWeatherMapWeatherService.h"
 #include "weather.h"
 #include "ScreenSaver.h"
+#include "mqttBroker.h"
+#include "IRAMPtrArray.h"
 
 //#define DEBUG(...) { Serial.println(__VA_ARGS__); }
 #ifndef DEBUG
@@ -50,11 +52,11 @@ const char *manifest[] = {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.0.2",
+	"1.5.0",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
-	"Clock"
+	"IPS Clock"
 };
 
 String getChipId(void);
@@ -73,6 +75,7 @@ IPSClock *ipsClock = NULL;
 Weather *weather = NULL;
 WeatherService *weatherService = NULL;
 ImageUnpacker *imageUnpacker = NULL;
+byte brightness = 255;
 
 ScreenSaver screenSaver;
 GPIOButton modeButton(BUTTON_MODE_PIN, false);	// open == high, closed == low
@@ -86,6 +89,7 @@ DNSServer *dns = new DNSServer();
 AsyncWiFiManager *wifiManager = new AsyncWiFiManager(server, dns);
 TimeSync *timeSync;
 RTCTimeSync *rtcTimeSync;
+MQTTBroker *mqttBroker;
 
 TaskHandle_t wifiManagerTask;
 TaskHandle_t clockTask;
@@ -110,7 +114,7 @@ StringConfigItem hostName("hostname", 63, "elekstubeips");
 
 // Clock config
 
-BaseConfigItem *clockSet[] = {
+IRAMPtrArray<BaseConfigItem*> clockSet {
 	// Clock
 	&IPSClock::getDateFormat(),
 	&IPSClock::getTimeOrDate(),
@@ -126,7 +130,7 @@ BaseConfigItem *clockSet[] = {
 };
 CompositeConfigItem clockConfig("clock", 0, clockSet);
 
-BaseConfigItem *ledSet[] = {
+IRAMPtrArray<BaseConfigItem*> ledSet {
     // LEDs
     &Backlights::getLEDPattern(),
     &Backlights::getLEDHue(),
@@ -138,7 +142,7 @@ BaseConfigItem *ledSet[] = {
 CompositeConfigItem ledConfig("leds", 0, ledSet);
 
 StringConfigItem fileSet("file_set", 10, "faces");
-BaseConfigItem *faceSet[] = {
+IRAMPtrArray<BaseConfigItem*> faceSet {
 	// Faces
 	&IPSClock::getClockFace(),
 	&Weather::getIconPack(),
@@ -147,7 +151,7 @@ BaseConfigItem *faceSet[] = {
 };
 CompositeConfigItem facesConfig("faces", 0, faceSet);
 
-BaseConfigItem *weatherSet[] = {
+IRAMPtrArray<BaseConfigItem*> weatherSet {
     // Weather service
     &WeatherService::getWeatherToken(),
     &WeatherService::getLatitude(),
@@ -160,7 +164,7 @@ BaseConfigItem *weatherSet[] = {
 };
 CompositeConfigItem weatherConfig("weather", 0, weatherSet);
 
-BaseConfigItem *matrixSet[] = {
+IRAMPtrArray<BaseConfigItem*> matrixSet {
     // Weather service
 	&DigitalRainAnimation::getMatrixSpeed(),
 	&DigitalRainAnimation::getMatrixHue(),
@@ -174,6 +178,17 @@ BaseConfigItem *matrixSet[] = {
 };
 CompositeConfigItem matrixConfig("matrix", 0, matrixSet);
 
+IRAMPtrArray<BaseConfigItem*> mqttSet {
+    // MQTT service
+	&MQTTBroker::getHost(),
+	&MQTTBroker::getPort(),
+	&MQTTBroker::getUser(),
+	&MQTTBroker::getPassword(),
+	0
+};
+
+CompositeConfigItem mqttConfig("mqtt", 0, mqttSet);
+
 // Global configuration
 BaseConfigItem *configSetGlobal[] = {
 	&hostName,
@@ -183,13 +198,14 @@ BaseConfigItem *configSetGlobal[] = {
 CompositeConfigItem globalConfig("global", 0, configSetGlobal);
 
 // All configurations
-BaseConfigItem *configSetRoot[] = {
+IRAMPtrArray<BaseConfigItem*> configSetRoot {
 	&globalConfig,
 	&clockConfig,
 	&ledConfig,
 	&facesConfig,
 	&weatherConfig,
 	&matrixConfig,
+	&mqttConfig,
 	0
 };
 
@@ -209,6 +225,11 @@ void asyncTimeSetCallback(String time) {
 void asyncTimeErrorCallback(String msg) {
 	DEBUG(msg);
 	rtcTimeSync->enabled(true);
+}
+
+template<class T>
+void onMqttParamsChanged(ConfigItem<T> &item) {
+	mqttBroker->init(ssid);
 }
 
 void onTimezoneChanged(ConfigItem<String> &tzItem) {
@@ -394,16 +415,17 @@ void clockTaskFn(void *pArg) {
 			// and the weather task decides to retrieve the forecast at the same time
 			xSemaphoreTake(memMutex, portMAX_DELAY);
 
+			ipsClock->setBrightness(brightness);
 			switch (IPSClock::getTimeOrDate().value) {
 				case 2:
-					weather->loop(ipsClock->dimming());
+					weather->loop(ipsClock->getBrightness());
 					break;
 				default:
 					tfts->setShowDigits(true);
 					if (timeSync->initialized() || rtcTimeSync->initialized()) {
 						ipsClock->loop();
 						if (ipsClock->getFourDigitDisplay() == 2 && IPSClock::getTimeOrDate().value == 0) {
-							weather->drawSingleDay(ipsClock->dimming(), 0, 0);
+							weather->drawSingleDay(ipsClock->getBrightness(), 0, 0);
 						}
 					}
 					break;
@@ -418,6 +440,8 @@ void clockTaskFn(void *pArg) {
 void weatherTaskFn(void *pArg) {
 	TickType_t toSleep = DEFAULT_WEATHER_SLEEP;
 	while (true) {
+		mqttBroker->checkConnection();
+		
 		// Read from weatherQueue. Wait at most 'toSleep' ticks.
 		uint32_t value;
 		BaseType_t result = xQueueReceive(weatherQueue, &value, toSleep);
@@ -472,13 +496,13 @@ void createSSID() {
 	ssid = (chipId + hostName).substring(0, 31);
 }
 
-String *items[] = {
+IRAMPtrArray<String*> items {
 	&WSMenuHandler::clockMenu,
 	&WSMenuHandler::ledsMenu,
 	&WSMenuHandler::facesMenu,
 	&WSMenuHandler::weatherMenu,
 	&WSMenuHandler::matrixMenu,
-	// &WSMenuHandler::presetsMenu,
+	&WSMenuHandler::mqttMenu,
 	&WSMenuHandler::infoMenu,
 	// &WSMenuHandler::presetNamesMenu,
 	0
@@ -490,16 +514,16 @@ WSConfigHandler wsLEDHandler(rootConfig, "leds");
 WSConfigHandler wsFacesHandler(rootConfig, "faces", clockFacesCallback);
 WSConfigHandler wsWeatherHandler(rootConfig, "weather");
 WSConfigHandler wsMatrixHandler(rootConfig, "matrix");
+WSConfigHandler wsMqttHandler(rootConfig, "mqtt");
 WSInfoHandler wsInfoHandler(infoCallback);
 
 // Order of this needs to match the numbers in WSMenuHandler.cpp
-WSHandler *wsHandlers[] = {
+IRAMPtrArray<WSHandler*> wsHandlers {
 	&wsMenuHandler,
 	&wsClockHandler,
 	&wsLEDHandler,
 	&wsFacesHandler,
-	// &wsPresetValuesHandler,
-	NULL,
+	&wsMqttHandler,
 	&wsInfoHandler,
 	// &wsPresetNamesHandler,
 	NULL,
@@ -563,7 +587,9 @@ void broadcastUpdate(const BaseConfigItem& item) {
     	ws->textAll(buffer);
     }
 
-	xSemaphoreGive(wsMutex);
+	mqttBroker->publishState();
+
+	xSemaphoreGive(wsMutex);	
 }
 
 void updateValue(int screen, String pair) {
@@ -614,7 +640,7 @@ void handleWSMsg(AsyncWebSocketClient *client, char *data) {
 	int code = wholeMsg.substring(0, wholeMsg.indexOf(':')).toInt();
 
 	if (code < 9) {
-		if (code < sizeof(wsHandlers)/sizeof(wsHandlers[0])) {
+		if (code < wsHandlers.length()) {
 			if (wsHandlers[code] != NULL) {
 				wsHandlers[code]->handle(client, data);
 			}
@@ -822,6 +848,9 @@ void initFacesMenu() {
 		String fileName = name.substring(dirName.length() + 1, name.length());
 		String option = fileName.substring(0, fileName.lastIndexOf(postfix));
 		eSPIMenu::State state = option == ipsClock->getClockFace() ? eSPIMenu::selected : eSPIMenu::none;
+		if (display == 2) {
+			state = option == weather->getIconPack() ? eSPIMenu::selected : eSPIMenu::none;
+		}
 		menu->addItem(option.c_str(), state);
         name = dir.getNextFileName();
 		optIndex++;
@@ -867,23 +896,22 @@ void ledTaskFn(void *pArg) {
 		if (ipsClock != NULL) {
 			if (ipsClock->clockOn()) {
 				backlights->setOn(true);
-				backlights->setDimming(false);
 			} else {
 				if (IPSClock::getDimming() == 1) {
 					backlights->setOn(true);
-					backlights->setDimming(true);
 				} else {
 					backlights->setOn(false);
-					backlights->setDimming(false);
 				}
 			}
+			backlights->setBrightness(brightness);
 			backlights->loop();
 		}
 		delay(16);
 	}
 }
 
-void setWiFiCredentials(const char *ssid, const char *password) {
+void setWiFiCredentials(const char *ssid, const char *password)
+{
 	WiFi.disconnect();
 	wifiManager->setRouterCredentials(ssid, password);
 	wifiManager->connect();
@@ -1036,7 +1064,7 @@ void setup() {
     xTaskCreatePinnedToCore(
 		ledTaskFn, /* Function to implement the task */
 		"led task", /* Name of the task */
-		2048,  /* Stack size in words */
+		1500,  /* Stack size in words */
 		NULL,  /* Task input parameter */
 		tskIDLE_PRIORITY + 2,  /* Priority of the task (idle) */
 		&ledTask,  /* Task handle. */
@@ -1094,7 +1122,7 @@ void setup() {
 	xTaskCreatePinnedToCore(
 		wifiManagerTaskFn,    /* Function to implement the task */
 		"WiFi Manager task",  /* Name of the task */
-		4096,                 /* Stack size in words */
+		3000,                 /* Stack size in words */
 		NULL,                 /* Task input parameter */
 		tskIDLE_PRIORITY + 2, /* Priority of the task (idle) */
 		&wifiManagerTask,     /* Task handle. */
@@ -1111,11 +1139,19 @@ void setup() {
 		xPortGetCoreID()
 	);
 
+	mqttBroker = new MQTTBroker();
+	MQTTBroker::getHost().setCallback(onMqttParamsChanged);
+	MQTTBroker::getPort().setCallback(onMqttParamsChanged);
+	MQTTBroker::getUser().setCallback(onMqttParamsChanged);
+	MQTTBroker::getPassword().setCallback(onMqttParamsChanged);
+	mqttBroker->init(ssid);
 
     Serial.print("setup() running on core ");
     Serial.println(xPortGetCoreID());
+
     vTaskDelete(NULL);	// Delete this task (so loop() won't be called)
 }
 
 void loop() {
+	
 }

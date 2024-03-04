@@ -16,6 +16,7 @@ public:
 	static String facesMenu;
 	static String weatherMenu;
 	static String matrixMenu;
+	static String mqttMenu;
 	static String infoMenu;
 
 private:

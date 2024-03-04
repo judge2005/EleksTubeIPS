@@ -77,8 +77,8 @@ var pages = {
 			{"3": { "url" : "faces.html", "title" : "Files" }},
 			{"7": { "url" : "weather.html", "title" : "Weather" }},
 			{"8": { "url" : "matrix.html", "title" : "Screen Saver" }},
+			{"4": { "url" : "mqtt.html", "title" : "MQTT" }},
 			{"5": { "url" : "info.html", "title" : "Info" }},
-			{"4": { "url" : "presets.html", "title" : "Presets" }},
 			{"6": { "url" : "preset_names.html", "title" : "Preset Names", "noNav" : true}}
 		]
 	}
@@ -126,7 +126,7 @@ var sendWeatherValues = function(conn) {
 }
 
 var sendPresetValues = function(conn) {
-	var json = '{"type":"sv.init.presets","value":';
+	var json = '{"type":"sv.init.mqtt","value":';
 	json += JSON.stringify(state[4]);
 	json += '}';
 	console.log(json);
@@ -191,7 +191,10 @@ var state = {
 		'set_icon_weather': 'Bletch'
 	},
 	"4": {
-		'preset' : 'set3'
+		'mqtt_host' : "",
+		'mqtt_port' : 1883,
+		'mqtt_user' : "",
+		'mqtt_password' : ""
 	},
 	"5": {
 		'esp_boot_version' : "1234",
@@ -254,11 +257,8 @@ var updateValue = function(conn, screen, pair) {
 
 	}
 
-	if (screen == 4 || screen == 6) {
-		state[screen][key] = '"' + value + '"';
-	} else {
-		state[screen][key] = value;
-	}
+	state[screen][key] = value;
+
 	broadcastUpdate(conn, key, state[screen][key]);
 }
 

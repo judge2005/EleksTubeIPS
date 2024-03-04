@@ -77,7 +77,7 @@ void IPSClock::loop() {
 
         if (clockOn() || (getDimming() == 1)) {
             tfts->claim();
-            tfts->setDimming(dimming());
+            tfts->setDimming(getBrightness());
             tfts->setImageJustification(TFTs::MIDDLE_CENTER);
             tfts->setBox(tfts->width(), tfts->height());
             tfts->checkStatus();

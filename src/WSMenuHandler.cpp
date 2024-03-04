@@ -3,7 +3,7 @@
 String WSMenuHandler::clockMenu = "{\"1\": { \"url\" : \"clock.html\", \"title\" : \"Clock\" }}";
 String WSMenuHandler::ledsMenu = "{\"2\": { \"url\" : \"leds.html\", \"title\" : \"LEDs\" }}";
 String WSMenuHandler::facesMenu = "{\"3\": { \"url\" : \"faces.html\", \"title\" : \"Files\" }}";
-//String WSMenuHandler::presetsMenu = "{\"4\": { \"url\" : \"presets.html\", \"title\" : \"Presets\", \"noNav\" : true }}";
+String WSMenuHandler::mqttMenu = "{\"4\": { \"url\" : \"mqtt.html\", \"title\" : \"MQTT\" }}";
 String WSMenuHandler::infoMenu = "{\"5\": { \"url\" : \"info.html\", \"title\" : \"Info\" }}";
 //String WSMenuHandler::presetNamesMenu = "{\"6\": { \"url\" : \"preset_names.html\", \"title\" : \"Preset Names\", \"noNav\" : true }}";
 String WSMenuHandler::weatherMenu = "{\"7\": { \"url\" : \"weather.html\", \"title\" : \"Weather\" }}";

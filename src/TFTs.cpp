@@ -763,10 +763,12 @@ TFT_eSprite& TFTs::drawImage(uint8_t digit) {
   chip_select.setDigit(digit);
 
   if (showDigits) {
-    sprintf(filename, "/ips/cache/%s.bmp", icons[digit]);
+    strcpy(filename, "/ips/cache/");
   } else {
-    sprintf(filename, "/ips/weather_cache/%s.bmp", icons[digit]);
+    strcpy(filename, "/ips/weather_cache/");
   }
+  strcat(filename, icons[digit]);
+  strcat(filename, ".bmp");
   
   // check if file is already loaded into buffer; skip loading if it is. Saves 50 to 150 msec of time.
   // if (strcmp(loadedFilename, filename) != 0 || !showDigits) {

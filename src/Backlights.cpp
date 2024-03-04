@@ -1,8 +1,6 @@
 #include "Backlights.h"
 #include <math.h>
 
-#define BACKLIGHT_DIMMED_INTENSITY  4
-
 void Backlights::begin()  {
 	pixels.Begin(); // This initializes the NeoPixel library.
 	pixels.Show();
@@ -12,16 +10,15 @@ void Backlights::loop() {
   //   enum patterns { dark, constant, rainbow, pulse, breath, num_patterns };
   uint8_t current_pattern = getLEDPattern();
 
-  if ((off && !dimming) || current_pattern == dark) {
+  if (off || current_pattern == dark) {
     clear();
     show();
   }
   else if (current_pattern == constant) {
-    uint8_t val = getLEDValue();
+    uint16_t val = getLEDValue();
 
-    if (dimming) {
-      val /= 2;
-    }
+    val = val * brightness / 255;
+    
     fill(getLEDHue(), getLEDSaturation(), val);
     show();
   }
@@ -39,10 +36,8 @@ void Backlights::loop() {
 void Backlights::pulsePattern() {
   float pulse_length_millis = (60.0f * 1000) / getBreathPerMin().value;
   float valAdjust = 1 + abs(sin(2 * M_PI * millis() / pulse_length_millis)) * 254;
-  uint8_t val = valAdjust * getLEDValue().value / 256;
-  if (dimming) {
-    val = val / 2 ;
-  }  
+  uint16_t val = valAdjust * getLEDValue().value / 256;
+  val = val * brightness / 255;
 
   fill(getLEDHue(), getLEDSaturation(), val);
 
@@ -55,10 +50,7 @@ void Backlights::breathPattern() {
   float pulse_length_millis = (60.0f * 1000) / getBreathPerMin().value;
   float val = (exp(sin(2 * M_PI * millis() / pulse_length_millis)) - 0.36787944f) * 108.0f;
   val = val * getLEDValue().value / 256;
-
-  if (dimming) {
-    val = val / 2;
-  }  
+  val = val * brightness / 255;
 
   fill(getLEDHue(), getLEDSaturation(), val);
 
@@ -74,11 +66,9 @@ void Backlights::rainbowPattern() {
   // TODO Make this /10 a parameter
   uint16_t hue = millis()/100 % 256;  
   
-  uint8_t val = getLEDValue();
+  uint16_t val = getLEDValue();
 
-  if (dimming) {
-    val /= 2;
-  }
+  val = val * brightness / 255;
 
   for (uint8_t digit=0; digit < NUM_DIGITS; digit++) {
     // Shift the hue for this LED.
