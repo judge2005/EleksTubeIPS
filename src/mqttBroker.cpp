@@ -14,6 +14,7 @@ extern ScreenSaver screenSaver;
 extern void broadcastUpdate(const BaseConfigItem&);
 extern IRAMPtrArray<char*> manifest;
 extern byte brightness;
+extern SemaphoreHandle_t memMutex;
 
 void MQTTBroker::onConnect(bool sessionPresent)
 {
@@ -114,14 +115,21 @@ void MQTTBroker::checkConnection() {
 
 void MQTTBroker::publishState() {
     if (client.connected()) {
-        JsonDocument volatileState;
-        volatileState["screen_saver_on"] = screenSaver.isOn() ? "ON" : "OFF";
-        volatileState["brightness"] = brightness;
-        char buffer[256];
-        size_t n = serializeJson(volatileState, buffer);
+        // Takes a lot of memory
+        if (xSemaphoreTake(memMutex, pdMS_TO_TICKS(100)) == pdTRUE)
+        {
+            JsonDocument volatileState;
+            volatileState["screen_saver_on"] = screenSaver.isOn() ? "ON" : "OFF";
+            volatileState["brightness"] = brightness;
+            char buffer[256];
+            size_t n = serializeJson(volatileState, buffer);
 
-        client.publish(volatileStateTopic, 0, false, buffer);
-        client.publish(persistentStateTopic, 0, false, rootConfig.toJSON().c_str());
+            client.publish(volatileStateTopic, 0, false, buffer);
+            client.publish(persistentStateTopic, 0, false, rootConfig.toJSON().c_str());
+            xSemaphoreGive(memMutex);
+        } else {
+            // Serial.println("Gave up waiting for memory semaphore");
+        }
     }
 }
 
