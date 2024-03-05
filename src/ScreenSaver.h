@@ -5,7 +5,7 @@
 
 class ScreenSaver {
 public:
-	ScreenSaver() : resetTime(0) {
+	ScreenSaver() : resetTime(0), changeCallback([](bool) {}) {
 	}
 
     static ByteConfigItem& getScreenSaver() { static ByteConfigItem screen_saver("screen_saver", 1); return screen_saver; }
@@ -31,7 +31,13 @@ public:
 		unsigned long nowMs = millis();
 
         unsigned long delayMs = getDelayMs();
-		return (delayMs == 0) || (nowMs - resetTime <= delayMs);	// So zero = always off
+		bool isOff = (delayMs == 0) || (nowMs - resetTime <= delayMs);	// So zero = always off
+		if (wasOff != isOff) {
+			wasOff = isOff;
+			changeCallback(isOff);
+		}
+
+		return isOff;
 	}
 
 	bool reset() {
@@ -44,7 +50,12 @@ public:
         return wasOn;
 	}
 
+    void setChangeCallback(std::function<void(bool)> callback) { changeCallback = callback; }
+
 private:
+    std::function<void(bool)> changeCallback;
+
+	bool wasOff = true;
 	unsigned long resetTime;
 	bool forceOn = false;
 };

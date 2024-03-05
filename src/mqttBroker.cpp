@@ -6,12 +6,13 @@
 
 #include "ScreenSaver.h"
 #include "mqttBroker.h"
+#include "IRAMPtrArray.h"
 
 extern AsyncWiFiManager *wifiManager;
 extern CompositeConfigItem rootConfig;
 extern ScreenSaver screenSaver;
 extern void broadcastUpdate(const BaseConfigItem&);
-extern const char *manifest[];
+extern IRAMPtrArray<char*> manifest;
 extern byte brightness;
 
 void MQTTBroker::onConnect(bool sessionPresent)
@@ -89,6 +90,9 @@ bool MQTTBroker::init(const String& id) {
         client.onDisconnect([this](AsyncMqttClientDisconnectReason reason) { this->onDisconnect(reason); });
         client.onMessage([this](char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t length, size_t index, size_t total_length) {
             this->onMessage(topic, payload, properties, length, index, total_length); });
+        
+        screenSaver.setChangeCallback([this](bool isOff) { this->publishState(); });
+        
         reconnect = true;
     }
 

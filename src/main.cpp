@@ -36,7 +36,7 @@
 #define TITLE_FONT  4        // font for all headings
 
 // Should match what is in the manifest files. Bump version for a release.
-const char *manifest[] = {
+IRAMPtrArray<char*> manifest {
 	// Firmware name
 #if defined(HARDWARE_PunkCyber_CLOCK)
 	"PCBWay RGB Glow Tube Clock Firmware",
@@ -190,7 +190,7 @@ IRAMPtrArray<BaseConfigItem*> mqttSet {
 CompositeConfigItem mqttConfig("mqtt", 0, mqttSet);
 
 // Global configuration
-BaseConfigItem *configSetGlobal[] = {
+IRAMPtrArray<BaseConfigItem*> configSetGlobal = {
 	&hostName,
 	0
 };
