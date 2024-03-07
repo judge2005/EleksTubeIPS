@@ -27,11 +27,8 @@ void MQTTBroker::onDisconnect(AsyncMqttClientDisconnectReason reason)
 {
 	Serial.printf("Disconnected from MQTT: %u\n", static_cast<uint8_t>(reason));
 
-	if (WiFi.isConnected())
-	{
-		reconnect = true;
-		lastReconnect = millis();
-	}
+    reconnect = true;
+    lastReconnect = millis();
 }
 
 void MQTTBroker::onMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t length, size_t index, size_t total_length)
