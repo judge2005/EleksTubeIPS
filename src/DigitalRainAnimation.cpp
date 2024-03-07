@@ -1,6 +1,8 @@
 #include "DigitalRainAnimation.h"
 #include "ColorConversion.h"
 
+extern byte brightness;
+
 unsigned long DigitalRainAnimation::getMsDelay() {
   return 1000UL / getMatrixSpeed();
 }
@@ -15,7 +17,7 @@ void DigitalRainAnimation::prepareAnim()
   width = _gfx->width();
   height = _gfx->height();
   _gfx->fillRect(0, 0, width, height, 0);
-  _gfx->setTextColor(hsv2rgb565(getMatrixHue(), getMatrixSaturation(), getMatrixValue()), 0);
+  _gfx->setTextColor(hsv2rgb565(getMatrixHue(), getMatrixSaturation(), getMatrixValue() * brightness / 255L), 0);
   numOfline = (width + lineWidth - 1) / lineWidth;
   numOfRows = (_gfx->height() + letterHeight - 1) / letterHeight + 2; // 2 greater than fits on the display
 
@@ -65,7 +67,7 @@ void DigitalRainAnimation::mutateCharAt(int lineNum, int row)
 void DigitalRainAnimation::lineAnimation2(int startX, int lineNum, int dropIndex)
 {
   uint8_t hue = getMatrixHue();
-  uint8_t val = getMatrixValue();
+  uint8_t val = getMatrixValue() * brightness / 255L;
   uint8_t sat = getMatrixSaturation();
 
   bool isKeyMode = keyString.length() > 0;
