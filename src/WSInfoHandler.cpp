@@ -71,11 +71,9 @@ void WSInfoHandler::handle(AsyncWebSocketClient *client, char *data) {
 	// 	value["off_time"] = pBlankingMonitor->offTime();
 	// }
 
-    size_t len = measureJson(root);
-
-    AsyncWebSocketMessageBuffer buffer(len);
-	serializeJson(root, (char *)buffer.get(), len + 1);
-	client->text(&buffer);
+	String serializedJSON;
+	serializeJson(root, serializedJSON);
+	client->text(serializedJSON);
 }
 
 
