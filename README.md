@@ -22,6 +22,7 @@ This firmware uses the WiFi support that your clock already has to sync the time
 * You can switch between time, date and weather using the buttons.
 * It has a screen saver.
 * There is also a tool to convert images in to a format that can be displayed on the clock
+* It can connect to a MQTT broker, primarily to allow use of movement and luminance sensors. The full state of the clock is published too.
 * There are specific variants for:
   * The [EleksTube v1 clock](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1/) (which includes the Xunfeng IPS clock)
   * The [Si Hai](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-3/) clock
