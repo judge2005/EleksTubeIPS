@@ -6,8 +6,10 @@
 #include <ESPmDNS.h>
 #include <AsyncWiFiManager.h>
 #include <EspSNTPTimeSync.h>
-#ifndef HARDWARE_SI_HAI_CLOCK
+#ifndef DS1302
 #include <EspRTCTimeSync.h>
+#else
+#include <EspDS1302TimeSync.h>
 #endif
 #include <ConfigItem.h>
 #include <EEPROMConfig.h>
@@ -54,7 +56,7 @@ IRAMPtrArray<char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.5.0",
+	"1.5.1",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -90,8 +92,10 @@ AsyncWebSocket *ws = new AsyncWebSocket("/ws"); // access at ws://[esp ip]/ws
 DNSServer *dns = new DNSServer();
 AsyncWiFiManager *wifiManager = new AsyncWiFiManager(server, dns);
 TimeSync *timeSync;
-#ifndef HARDWARE_SI_HAI_CLOCK
+#ifndef DS1302
 RTCTimeSync *rtcTimeSync;
+#else
+DS1302TimeSync *rtcTimeSync;
 #endif
 MQTTBroker *mqttBroker;
 
@@ -218,17 +222,13 @@ EEPROMConfig config(rootConfig);
 void asyncTimeSetCallback(String time) {
 	DEBUG(time);
 	tfts->setStatus("NTP time received...");
-#ifndef HARDWARE_SI_HAI_CLOCK
 	rtcTimeSync->enabled(false);
-	rtcTimeSync->setDS3231();
-#endif
+	rtcTimeSync->setDevice();
 }
 
 void asyncTimeErrorCallback(String msg) {
 	DEBUG(msg);
-#ifndef HARDWARE_SI_HAI_CLOCK
 	rtcTimeSync->enabled(true);
-#endif
 }
 
 template<class T>
@@ -426,11 +426,7 @@ void clockTaskFn(void *pArg) {
 					break;
 				default:
 					tfts->setShowDigits(true);
-#ifndef HARDWARE_SI_HAI_CLOCK
 					if (timeSync->initialized() || rtcTimeSync->initialized()) {
-#else
-					if (timeSync->initialized()) {
-#endif
 						ipsClock->loop();
 						if (ipsClock->getFourDigitDisplay() == 2 && IPSClock::getTimeOrDate().value == 0) {
 							weather->drawSingleDay(ipsClock->getBrightness(), 0, 0);
@@ -714,9 +710,7 @@ void timeHandler(AsyncWebServerRequest *request) {
 	DEBUG(String("Setting time from wifi manager") + wifiTime);
 
 	timeSync->setTime(wifiTime);
-#ifndef HARDWARE_SI_HAI_CLOCK
 	rtcTimeSync->setTime(wifiTime);
-#endif
 
 	request->send(LittleFS, "/time.html");
 }
@@ -1055,11 +1049,13 @@ void setup() {
 	timeSync = new EspSNTPTimeSync(IPSClock::getTimeZone().value, asyncTimeSetCallback, asyncTimeErrorCallback);
 	timeSync->init();
 
-#ifndef HARDWARE_SI_HAI_CLOCK
+#ifndef DS1302
 	rtcTimeSync = new EspRTCTimeSync(RTC_SDA_PIN, RTC_SCL_PIN);
+#else
+	rtcTimeSync = new EspDS1302TimeSync(DS1302_IO, DS1302_SCLK, DS1302_CE);
+#endif
 	rtcTimeSync->init();
 	rtcTimeSync->enabled(true);
-#endif
 
 	IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 
