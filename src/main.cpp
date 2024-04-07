@@ -6,7 +6,9 @@
 #include <ESPmDNS.h>
 #include <AsyncWiFiManager.h>
 #include <EspSNTPTimeSync.h>
+#ifndef HARDWARE_SI_HAI_CLOCK
 #include <EspRTCTimeSync.h>
+#endif
 #include <ConfigItem.h>
 #include <EEPROMConfig.h>
 #include <ImprovWiFi.h>
@@ -88,7 +90,9 @@ AsyncWebSocket *ws = new AsyncWebSocket("/ws"); // access at ws://[esp ip]/ws
 DNSServer *dns = new DNSServer();
 AsyncWiFiManager *wifiManager = new AsyncWiFiManager(server, dns);
 TimeSync *timeSync;
+#ifndef HARDWARE_SI_HAI_CLOCK
 RTCTimeSync *rtcTimeSync;
+#endif
 MQTTBroker *mqttBroker;
 
 TaskHandle_t wifiManagerTask;
@@ -105,9 +109,6 @@ QueueHandle_t weatherQueue;
 AsyncWiFiManagerParameter *hostnameParam;
 String ssid("EleksTubeIPS");
 String chipId = getChipId();
-
-#define SCLpin (22)
-#define SDApin (21)
 
 // Persistent Configuration
 StringConfigItem hostName("hostname", 63, "elekstubeips");
@@ -217,14 +218,17 @@ EEPROMConfig config(rootConfig);
 void asyncTimeSetCallback(String time) {
 	DEBUG(time);
 	tfts->setStatus("NTP time received...");
-
+#ifndef HARDWARE_SI_HAI_CLOCK
 	rtcTimeSync->enabled(false);
 	rtcTimeSync->setDS3231();
+#endif
 }
 
 void asyncTimeErrorCallback(String msg) {
 	DEBUG(msg);
+#ifndef HARDWARE_SI_HAI_CLOCK
 	rtcTimeSync->enabled(true);
+#endif
 }
 
 template<class T>
@@ -422,7 +426,11 @@ void clockTaskFn(void *pArg) {
 					break;
 				default:
 					tfts->setShowDigits(true);
+#ifndef HARDWARE_SI_HAI_CLOCK
 					if (timeSync->initialized() || rtcTimeSync->initialized()) {
+#else
+					if (timeSync->initialized()) {
+#endif
 						ipsClock->loop();
 						if (ipsClock->getFourDigitDisplay() == 2 && IPSClock::getTimeOrDate().value == 0) {
 							weather->drawSingleDay(ipsClock->getBrightness(), 0, 0);
@@ -706,7 +714,9 @@ void timeHandler(AsyncWebServerRequest *request) {
 	DEBUG(String("Setting time from wifi manager") + wifiTime);
 
 	timeSync->setTime(wifiTime);
+#ifndef HARDWARE_SI_HAI_CLOCK
 	rtcTimeSync->setTime(wifiTime);
+#endif
 
 	request->send(LittleFS, "/time.html");
 }
@@ -1045,9 +1055,11 @@ void setup() {
 	timeSync = new EspSNTPTimeSync(IPSClock::getTimeZone().value, asyncTimeSetCallback, asyncTimeErrorCallback);
 	timeSync->init();
 
-	rtcTimeSync = new EspRTCTimeSync(SDApin, SCLpin);
+#ifndef HARDWARE_SI_HAI_CLOCK
+	rtcTimeSync = new EspRTCTimeSync(RTC_SDA_PIN, RTC_SCL_PIN);
 	rtcTimeSync->init();
 	rtcTimeSync->enabled(true);
+#endif
 
 	IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 
