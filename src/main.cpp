@@ -57,7 +57,7 @@ IRAMPtrArray<char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.5.1",
+	"1.5.2",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -372,6 +372,7 @@ void clockTaskFn(void *pArg) {
 
 	weather = new Weather(weatherService);
 	weather->setImageUnpacker(imageUnpacker);
+	weather->setTimeSync(timeSync);
 	Weather::getWeatherHue().setCallback(onWeatherColorChanged);
 	Weather::getWeatherSaturation().setCallback(onWeatherColorChanged);
 	Weather::getWeatherValue().setCallback(onWeatherColorChanged);

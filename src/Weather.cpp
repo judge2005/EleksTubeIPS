@@ -3,6 +3,8 @@
 #include "TFTs.h"
 #include "weather.h"
 #include "ColorConversion.h"
+#include "IPSClock.h"
+
 #include <math.h>
 
 Weather::Weather(WeatherService *weatherService) {
@@ -53,12 +55,12 @@ void Weather::drawDisplay(int index, int display, bool showDay) {
         } else {
             sprintf(txt, "%.0f", round(val));
         }
-        sprite.drawString(txt, sprite.width()/2, sprite.height()*3/4);
+        sprite.drawString(txt, sprite.width()/2, sprite.height()*3/4 - 2);
     }
 
     sprite.setTextFont(4);
 
-    int baseline = sprite.height()-28;
+    int baseline = sprite.height()-30;
     int arrowHeight = 10, arrowWidth = 10;
     int arrowPadding = 2;
     int tempInset=10;
@@ -116,6 +118,33 @@ void Weather::drawDisplay(int index, int display, bool showDay) {
                 sprite.drawString("Unknown", sprite.width()/2, sprite.height() + 2);
             }
         }
+    } else {
+        struct tm now;
+        suseconds_t uSec;
+        pTimeSync->getLocalTime(&now, &uSec);
+
+        uint8_t day = now.tm_mday;
+        uint8_t month = now.tm_mon;
+        uint8_t year = now.tm_year % 100;
+
+        switch (IPSClock::getDateFormat().value) {
+        case 0:	// DD-MM-YY
+            break;
+        case 1: // MM-DD-YY
+            day = now.tm_mon;
+            month = now.tm_mday;
+            break;
+        default: // YY-MM-DD
+            day = now.tm_year;
+            year = now.tm_mday;
+            break;
+        }
+
+        sprintf(txt, "%02d-%02d-%02d", day, month, year);
+
+        sprite.setTextDatum(BC_DATUM);
+
+        sprite.drawString(txt, sprite.width()/2, sprite.height()-4);
     }
 
     sprite.pushSprite(0, 0);

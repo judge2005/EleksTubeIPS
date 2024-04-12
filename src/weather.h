@@ -10,6 +10,7 @@
 #include <ESPAsyncHTTPClient.h>
 #endif
 #include <ConfigItem.h>
+#include <TimeSync.h>
 
 #include "ClockTimer.h"
 #include "WeatherService.h"
@@ -25,6 +26,7 @@ public:
     static ByteConfigItem& getWeatherValue() { static ByteConfigItem weather_value("weather_value", 250); return weather_value; }
 
     void setImageUnpacker(ImageUnpacker *imageUnpacker) { this->imageUnpacker = imageUnpacker; }
+    void setTimeSync(TimeSync *pTimeSync) { this->pTimeSync = pTimeSync; }
 
     void loop(uint8_t dimming);
     void drawSingleDay(uint8_t dimming, int day, int display);
@@ -59,5 +61,6 @@ private:
     ClockTimer::Timer displayTimer;
     ImageUnpacker *imageUnpacker;
     bool _redraw = false;
+	TimeSync *pTimeSync = 0;
 };
 #endif
