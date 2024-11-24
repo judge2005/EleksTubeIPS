@@ -6,7 +6,6 @@
 /*
  * `digit`s are as defined in Hardware.h, 0 == seconds ones, 5 == hours tens.
  */
-
 class ChipSelect {
 public:
   ChipSelect() : digits_map(all_off) {}
@@ -32,18 +31,14 @@ public:
   void setMinutesTens()                           { setDigit(MINUTES_TENS); }
   void setHoursOnes()                             { setDigit(HOURS_ONES); }
   void setHoursTens()                             { setDigit(HOURS_TENS); }
-  bool isSecondsOnes()                            { return (digits_map&SECONDS_ONES_MAP > 0); }
-  bool isSecondsTens()                            { return (digits_map&SECONDS_TENS_MAP > 0); }
-  bool isMinutesOnes()                            { return (digits_map&MINUTES_ONES_MAP > 0); }
-  bool isMinutesTens()                            { return (digits_map&MINUTES_TENS_MAP > 0); }
-  bool isHoursOnes()                              { return (digits_map&HOURS_ONES_MAP > 0); }
-  bool isHoursTens()                              { return (digits_map&HOURS_TENS_MAP > 0); }
 
 private:
+#ifdef HARDWARE_IPSTube_CLOCK
+  static const int lcdEnablePins[NUM_DIGITS];
+#endif
   uint8_t digits_map;
   const uint8_t all_on = 0x3F;
   const uint8_t all_off = 0x00;
 };
-
 
 #endif // CHIP_SELECT_H

@@ -40,6 +40,19 @@
 #define HOURS_ONES_MAP   (0x01 << HOURS_ONES)
 #define HOURS_TENS_MAP   (0x01 << HOURS_TENS)
 
+#ifdef HARDWARE_IPSTube_CLOCK  // IPSTube clock pinout XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  // WS2812 (or compatible) LEDs on the back of the display modules.
+  #define BACKLIGHTS_PIN (35)
+
+  // Buttons, active low, externally pulled up (with actual resistors!)
+  #define BUTTON_POWER_PIN (23)
+
+  // 3-wire to DS1302 RTC
+  #define DS1302_SCLK  (39)
+  #define DS1302_IO    (38)
+  #define DS1302_CE    (42)
+#endif
+  
 #ifdef HARDWARE_SI_HAI_CLOCK  // fake chinese clock pinout XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   // WS2812 (or compatible) LEDs on the back of the display modules.
   #define BACKLIGHTS_PIN (32)
@@ -66,10 +79,6 @@
   #define BACKLIGHTS_PIN (12)
 
   // No Buttons on SE verion -- gesture sensor not included in code 
-  #define BUTTON_LEFT_PIN (33)
-  #define BUTTON_MODE_PIN (32)
-  #define BUTTON_RIGHT_PIN (35)
-  #define BUTTON_POWER_PIN (34)
 
   // I2C to DS3231 RTC.
   #define RTC_SCL_PIN (22)

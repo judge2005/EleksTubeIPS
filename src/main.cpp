@@ -9,7 +9,7 @@
 #ifndef DS1302
 #include <EspRTCTimeSync.h>
 #else
-// The SiHai clock uses a DS1302(?), but code for this seems to cause issues, so comment out for now.
+// The SiHai clock and IPSTube clock use a DS1302(?), but code for this seems to cause issues, so comment out for now.
 //#include <EspDS1302TimeSync.h>
 #endif
 #include <ConfigItem.h>
@@ -53,11 +53,13 @@ IRAMPtrArray<char*> manifest {
 	"NovelLife SE Replacement Firmware",
 #elif defined(HARDWARE_SI_HAI_CLOCK)
 	"Si Hai Clock Replacement Firmware",
+#elif defined(HARDWARE_IPSTube_CLOCK)
+	"IPSTube Clock Replacement Firmware",
 #else
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.5.2",
+	"1.6.0",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -83,10 +85,19 @@ ImageUnpacker *imageUnpacker = NULL;
 byte brightness = 255;
 
 ScreenSaver screenSaver;
+
+#if defined(BUTTON_MODE_PIN) && defined(BUTTON_RIGHT_PIN) && defined(BUTTON_LEFT_PIN)
+#define BUTTON_MENU_PINS
+#endif
+
+#ifdef BUTTON_MENU_PINS
 GPIOButton modeButton(BUTTON_MODE_PIN, false);	// open == high, closed == low
 GPIOButton rightButton(BUTTON_RIGHT_PIN, false);	// open == high, closed == low
 GPIOButton leftButton(BUTTON_LEFT_PIN, false);	// open == high, closed == low
+#endif
+#ifdef BUTTON_POWER_PIN
 GPIOButton powerButton(BUTTON_POWER_PIN, false);	// open == high, closed == low
+#endif
 
 AsyncWebServer *server = new AsyncWebServer(80);
 AsyncWebSocket *ws = new AsyncWebSocket("/ws"); // access at ws://[esp ip]/ws
@@ -288,6 +299,7 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 	// Any event will reset the screensaver timer, which will turn it off if it was visible
 	bool screenSaverWasOn = screenSaver.reset();
 
+#ifdef BUTTON_POWER_PIN
 	if (screenSaverWasOn && ipsClock->clockOn()) {
 		// If the screen saver was running (and visible), any button any event cancels it and that is all
 		return;
@@ -304,10 +316,11 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 		ipsClock->setOnOverride();
 		return;
 	}
-
+#endif
 	// Now we know the clock is on so we can do more interactive stuff...
 
 	// ... like the menu
+#ifdef BUTTON_MENU_PINS
 	if (button == &rightButton && evt == Button::button_clicked && menuDrawn) {
 		menu->down();
 		tfts->getSprite().pushSprite(0, 0);
@@ -352,13 +365,16 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 			}
 		}
 	}
+#endif
 
+#ifdef BUTTON_POWER_PIN
 	// If we got here, the screen saver wasn't on, clicking the power button turns it on
 	if (button == &powerButton) {
 		if (!screenSaverWasOn) {
 			screenSaver.start();
 		}
 	}
+#endif
 }
 
 void clockTaskFn(void *pArg) {
@@ -387,21 +403,28 @@ void clockTaskFn(void *pArg) {
 	ipsClock->setTimeSync(timeSync);
 	ipsClock->getTimeOrDate().setCallback(onDisplayChanged);
 
+#ifdef BUTTON_MENU_PINS
 	leftButton.setCallback(onButtonEvent);
 	modeButton.setCallback(onButtonEvent);
 	rightButton.setCallback(onButtonEvent);
+#endif
+#ifdef BUTTON_POWER_PIN
 	powerButton.setCallback(onButtonEvent);
+#endif
 
 	screenSaver.reset();
 
 	while (true) {
 		delay(1);
 
+#ifdef BUTTON_MENU_PINS
 		leftButton.getEvent();
 		rightButton.getEvent();
 		modeButton.getEvent();
+#endif
+#ifdef BUTTON_POWER_PIN
 		powerButton.getEvent();
-		
+#endif
 		tfts->checkStatus();
 
 		if (menuDrawn) {

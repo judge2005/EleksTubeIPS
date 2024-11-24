@@ -1,5 +1,6 @@
 #include "ChipSelect.h"
 
+#ifndef HARDWARE_IPSTube_CLOCK
 void ChipSelect::begin() {
   pinMode(CSSR_LATCH_PIN, OUTPUT);
   pinMode(CSSR_DATA_PIN, OUTPUT);
@@ -23,3 +24,23 @@ void ChipSelect::update() {
   shiftOut(CSSR_DATA_PIN, CSSR_CLOCK_PIN, LSBFIRST, to_shift);
   digitalWrite(CSSR_LATCH_PIN, HIGH);
 }
+#else
+const int ChipSelect::lcdEnablePins[NUM_DIGITS] = {GPIO_NUM_15, GPIO_NUM_2, GPIO_NUM_27, GPIO_NUM_14, GPIO_NUM_12, GPIO_NUM_13};
+
+void ChipSelect::begin() {
+  // Initialize all six different pins for the CS of each LCD as OUTPUT and set it to HIGH (disabled)
+  for (int i = 0; i < NUM_DIGITS; ++i)
+  {
+    pinMode(lcdEnablePins[i], OUTPUT);
+  }
+
+  update();
+}
+
+void ChipSelect::update() {
+  for (int i = 0; i < NUM_DIGITS; i++)
+  {
+    digitalWrite(lcdEnablePins[i], (digits_map & (1 << i)) ? LOW : HIGH);
+  }
+}
+#endif
