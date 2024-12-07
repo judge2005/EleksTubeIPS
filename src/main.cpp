@@ -59,7 +59,7 @@ IRAMPtrArray<char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.6.0",
+	"1.6.1",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -127,7 +127,21 @@ String ssid("EleksTubeIPS");
 String chipId = getChipId();
 
 // Persistent Configuration
+#if defined(HARDWARE_PunkCyber_CLOCK)
+StringConfigItem hostName("hostname", 63, "punkcyber");
+#elif defined(HARDWARE_Elekstube_CLOCK)
 StringConfigItem hostName("hostname", 63, "elekstubeips");
+#elif defined(HARDWARE_Elekstube_CLOCK_V2)
+StringConfigItem hostName("hostname", 63, "elekstubeipsv2");
+#elif defined(HARDWARE_NovelLife_SE_CLOCK)
+StringConfigItem hostName("hostname", 63, "novellifese");
+#elif defined(HARDWARE_SI_HAI_CLOCK)
+StringConfigItem hostName("hostname", 63, "sihai");
+#elif defined(HARDWARE_IPSTube_CLOCK)
+StringConfigItem hostName("hostname", 63, "ipstube");
+#else
+StringConfigItem hostName("hostname", 63, "ipsclock");
+#endif
 
 // Clock config
 
