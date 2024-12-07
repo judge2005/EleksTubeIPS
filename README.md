@@ -28,7 +28,7 @@ This firmware uses the WiFi support that your clock already has to sync the time
   * The [Si Hai](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-3/) clock
   * The [NovelLife SE](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-2/) clock
   * The [PCBWay 'Punkcyber'](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-4/) clock
-  * The [IPSTube] (https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-2-2/) clock
+  * The [IPSTube](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-2-2/) clock
 
 This image shows the clock running in 4 digit mode with weather forecast
 
