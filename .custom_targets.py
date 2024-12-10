@@ -1,6 +1,7 @@
 import os
 import shutil
 import re
+import json
 from version import *
 
 Import("env")
@@ -28,18 +29,41 @@ def copy_manifests_to_release(*args, **kwargs):
     copy_and_replace(src, dst)
 
 def copy_firmware_to_release(*args, **kwargs):
+    # Open and read the manifest
+    manifest_path = os.path.join(env["PROJECT_DIR"], 'releases', "esp-web-tools-manifest-" + env["PIOENV"] + ".json")
+    with open(manifest_path, 'r') as file:
+        manifest = json.load(file)
+
+    #bootloader
+    src = os.path.join(env["PROJECT_DIR"], env.GetBuildPath("$BUILD_DIR"), env.GetBuildPath("bootloader.bin"))
+    dst = os.path.join(env["PROJECT_DIR"], 'releases', manifest["builds"][0]["parts"][0]["path"])
+    print(src + " " + dst)
+    shutil.copy(src, dst)
+
+    #partitions
+    src = os.path.join(env["PROJECT_DIR"], env.GetBuildPath("$BUILD_DIR"), env.GetBuildPath("partitions.bin"))
+    dst = os.path.join(env["PROJECT_DIR"], 'releases', manifest["builds"][0]["parts"][1]["path"])
+    print(src + " " + dst)
+    shutil.copy(src, dst)
+
+    # firmware
     src = os.path.join(env["PROJECT_DIR"], env.GetBuildPath("$BUILD_DIR"), env.GetBuildPath("${PROGNAME}.bin"))
-    dst = os.path.join(env["PROJECT_DIR"], 'releases', "firmware-" + env["PIOENV"] + "-" + version + ".bin")
-    #print(src + " " + dst)
+    dst = os.path.join(env["PROJECT_DIR"], 'releases', manifest["builds"][0]["parts"][3]["path"])
+    print(src + " " + dst)
     shutil.copy(src, dst)
 
 def copy_fs_to_release(*args, **kwargs):
+    # Open and read the manifest
+    manifest_path = os.path.join(env["PROJECT_DIR"], 'releases', "esp-web-tools-manifest-" + env["PIOENV"] + ".json")
+    with open(manifest_path, 'r') as file:
+        manifest = json.load(file)
+
     src = os.path.join(env["PROJECT_DIR"], env.GetBuildPath("$BUILD_DIR"), env.GetBuildPath("${ESP32_FS_IMAGE_NAME}.bin"))
-    dst = os.path.join(env["PROJECT_DIR"], 'releases', env.GetBuildPath("$ESP32_FS_IMAGE_NAME") + "-" + version + ".bin")
-    #print(src + " " + dst)
+    dst = os.path.join(env["PROJECT_DIR"], 'releases', manifest["builds"][0]["parts"][4]["path"])
+    print(src + " " + dst)
     shutil.copy(src, dst)
 
-env.AddCustomTarget("release", [os.path.join("$BUILD_DIR", "${PROGNAME}.bin"), os.path.join("$BUILD_DIR", "${ESP32_FS_IMAGE_NAME}.bin")], [copy_firmware_to_release, copy_fs_to_release, copy_manifests_to_release])
+env.AddCustomTarget("release", [os.path.join("$BUILD_DIR", "${PROGNAME}.bin"), os.path.join("$BUILD_DIR", "${ESP32_FS_IMAGE_NAME}.bin")], [copy_manifests_to_release, copy_fs_to_release, copy_firmware_to_release])
 
 env.AddCustomTarget(
     name="release_prologue",
