@@ -27,9 +27,9 @@ public:
     virtual float           getNowTemp();
 
 private:
-    bool sendRequest(WiFiClientSecure &client, const char *request);
+    bool sendRequest(WiFiClientSecure &client, const char *request, int count);
     bool getCurrentWeatherInfo(WiFiClientSecure &client);
-    bool getForecastWeatherInfo(WiFiClientSecure &client);
+    bool getForecastWeatherInfo(WiFiClientSecure &client, int count);
 
     JsonDocument todayFilter;
     JsonDocument forecastFilter;

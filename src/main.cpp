@@ -492,7 +492,7 @@ void clockTaskFn(void *pArg) {
 	}
 }
 
-#define DEFAULT_WEATHER_SLEEP (pdMS_TO_TICKS(4 * 60 * 1000))
+#define DEFAULT_WEATHER_SLEEP (pdMS_TO_TICKS(15 * 60 * 1000))
 void weatherTaskFn(void *pArg) {
 	TickType_t toSleep = DEFAULT_WEATHER_SLEEP;
 	while (true) {
@@ -1165,7 +1165,7 @@ void setup() {
 	wifiManager->addParameter(hostnameParam);
 	wifiManager->setSaveConfigCallback(SetupServer);
 	wifiManager->setConnectedCallback(connectedHandler);
-	wifiManager->setConnectTimeout(2000);	// milliseconds
+	wifiManager->setConnectTimeout(5000);	// milliseconds
 	wifiManager->setAPCallback(apChange);
 	wifiManager->setAPCredentials(ssid.c_str(), "secretsauce");
 	wifiManager->start();

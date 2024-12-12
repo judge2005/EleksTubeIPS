@@ -88,7 +88,7 @@ float OpenWeatherMapWeatherService::getNowTemp() {
     return temp;
 }
 
-bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const char *request) {
+bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const char *request, int count) {
     const char *token = getWeatherToken().value.c_str();
 
     if (strlen(token) == 0)
@@ -100,7 +100,7 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
     }
 
     char url[255];
-    sprintf(url, "GET /data/2.5/%s?lat=%s&lon=%s&appid=%s&units=%s HTTP/1.1", request, getLatitude().value, getLongitude().value, token, getUnits().value);
+    sprintf(url, "GET /data/2.5/%s?lat=%s&lon=%s&appid=%s&units=%s&cnt=%d HTTP/1.1", request, getLatitude().value, getLongitude().value, token, getUnits().value, count);
 
 #ifdef DEBUG_WEATHER_HTTP
     Serial.print("requesting URL: ");
@@ -143,8 +143,11 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
         // Either we failed to read a byte (so we want to try again), or we read '\n'
         if (n != 1) {
             delayMs += 10;
-            if (millis() - StartTime > 2 * 1000)
+            if (millis() - StartTime > 10 * 1000)
             {
+#ifdef DEBUG_WEATHER_HTTP
+                Serial.println("Gave up waiting for header after 10s");
+#endif
                 response_ok = false;
                 break;
             }
@@ -162,6 +165,8 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
     if (!response_ok)
     {
 #ifdef DEBUG_WEATHER_HTTP
+        Serial.print("Total bytes read = ");
+        Serial.println(totalRead);
         Serial.println("Error reading header data from server.");
 #endif
         return false;
@@ -177,7 +182,7 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
 
 bool OpenWeatherMapWeatherService::getCurrentWeatherInfo(WiFiClientSecure &client)
 {
-    if (!sendRequest(client, "weather")) {
+    if (!sendRequest(client, "weather", 0)) {
         return false;
     }
 
@@ -215,7 +220,7 @@ bool OpenWeatherMapWeatherService::getCurrentWeatherInfo(WiFiClientSecure &clien
     return !parsingError;
 }
 
-bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &client) {
+bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &client, int count) {
     DeserializationError deserializeError;
     bool parsingError = false;
 
@@ -227,7 +232,7 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
 #endif
 
     {
-        if (!sendRequest(client, "forecast")) {
+        if (!sendRequest(client, "forecast", count)) {
             return false;
         }
 
@@ -422,7 +427,7 @@ bool OpenWeatherMapWeatherService::getWeatherInfo() {
     {
         Serial.println("Failed to connect");
     } else {
-        ret = getCurrentWeatherInfo(client) && getForecastWeatherInfo(client);
+        ret = getCurrentWeatherInfo(client) && getForecastWeatherInfo(client, 8) && getForecastWeatherInfo(client, 40);
     }
 
     return ret;
