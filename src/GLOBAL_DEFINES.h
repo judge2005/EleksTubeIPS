@@ -42,15 +42,15 @@
 
 #ifdef HARDWARE_IPSTube_CLOCK  // IPSTube clock pinout XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   // WS2812 (or compatible) LEDs on the back of the display modules.
-  #define BACKLIGHTS_PIN (35)
+  #define BACKLIGHTS_PIN (5)
 
   // Buttons, active low, externally pulled up (with actual resistors!)
-  #define BUTTON_POWER_PIN (23)
+  #define BUTTON_POWER_PIN (0)
 
   // 3-wire to DS1302 RTC
-  #define DS1302_SCLK  (39)
-  #define DS1302_IO    (38)
-  #define DS1302_CE    (42)
+  #define DS1302_SCLK  (22)
+  #define DS1302_IO    (19)
+  #define DS1302_CE    (21)
 #endif
   
 #ifdef HARDWARE_SI_HAI_CLOCK  // fake chinese clock pinout XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
