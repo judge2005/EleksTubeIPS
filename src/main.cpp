@@ -9,8 +9,7 @@
 #ifndef DS1302
 #include <EspRTCTimeSync.h>
 #else
-// The SiHai clock and IPSTube clock use a DS1302(?), but code for this seems to cause issues, so comment out for now.
-//#include <EspDS1302TimeSync.h>
+#include <EspDS1302TimeSync.h>
 #endif
 #include <ConfigItem.h>
 #include <EEPROMConfig.h>
@@ -59,7 +58,7 @@ IRAMPtrArray<char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.6.1",
+	"1.6.3",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -107,7 +106,7 @@ TimeSync *timeSync;
 #ifndef DS1302
 RTCTimeSync *rtcTimeSync;
 #else
-//DS1302TimeSync *rtcTimeSync;
+DS1302TimeSync *rtcTimeSync;
 #endif
 MQTTBroker *mqttBroker;
 
@@ -252,8 +251,8 @@ void asyncTimeSetCallback(String time) {
 	rtcTimeSync->enabled(false);
 	rtcTimeSync->setDevice();
 #else
-//	rtcTimeSync->enabled(false);
-//	rtcTimeSync->setDevice();
+	rtcTimeSync->enabled(false);
+	rtcTimeSync->setDevice();
 #endif
 }
 
@@ -262,7 +261,7 @@ void asyncTimeErrorCallback(String msg) {
 #ifndef DS1302
 	rtcTimeSync->enabled(true);
 #else
-//	rtcTimeSync->enabled(true);
+	rtcTimeSync->enabled(true);
 #endif
 }
 
@@ -477,7 +476,7 @@ void clockTaskFn(void *pArg) {
 #ifndef DS1302
 					if (timeSync->initialized() || rtcTimeSync->initialized()) {
 #else
-					if (timeSync->initialized() /*|| rtcTimeSync->initialized()*/) {
+					if (timeSync->initialized() || rtcTimeSync->initialized()) {
 #endif
 						ipsClock->loop();
 						if (ipsClock->getFourDigitDisplay() == 2 && IPSClock::getTimeOrDate().value == 0) {
@@ -765,7 +764,7 @@ void timeHandler(AsyncWebServerRequest *request) {
 #ifndef DS1302
 	rtcTimeSync->setTime(wifiTime);
 #else
-//	rtcTimeSync->setTime(wifiTime);
+	rtcTimeSync->setTime(wifiTime);
 #endif
 
 	request->send(LittleFS, "/time.html");
@@ -1110,9 +1109,9 @@ void setup() {
 	rtcTimeSync->init();
 	rtcTimeSync->enabled(true);
 #else
-//	rtcTimeSync = new EspDS1302TimeSync(DS1302_IO, DS1302_SCLK, DS1302_CE);
-//	rtcTimeSync->init();
-//	rtcTimeSync->enabled(true);
+	rtcTimeSync = new EspDS1302TimeSync(DS1302_IO, DS1302_SCLK, DS1302_CE);
+	rtcTimeSync->init();
+	rtcTimeSync->enabled(true);
 #endif
 
 	IPSClock::getTimeZone().setCallback(onTimezoneChanged);

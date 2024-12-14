@@ -17,9 +17,13 @@
 #include <ConfigItem.h>
 #include <NeoPixelBus.h>
 
+#ifndef NUM_LEDS
+#define NUM_LEDS NUM_DIGITS
+#endif
+
 class Backlights {
 public:
-  Backlights() : pixels(NUM_DIGITS, BACKLIGHTS_PIN)
+  Backlights() : pixels(NUM_LEDS, BACKLIGHTS_PIN)
     {}
 
   enum patterns { dark, test, constant, rainbow, pulse, breath, num_patterns };

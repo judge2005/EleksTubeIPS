@@ -47,8 +47,8 @@ public:
   void setImageJustification(image_justification_t value) { imageJustification = value; }
   void setBox(uint16_t w, uint16_t h) { boxWidth = w; boxHeight = h; }
   // Controls the power to all displays
-  void enableAllDisplays()           { digitalWrite(TFT_ENABLE_PIN, HIGH); enabled = true; }
-  void disableAllDisplays()          { digitalWrite(TFT_ENABLE_PIN, LOW); enabled = false; }
+  void enableAllDisplays()           { digitalWrite(TFT_ENABLE_PIN, TFT_ENABLE_VALUE); enabled = true; }
+  void disableAllDisplays()          { digitalWrite(TFT_ENABLE_PIN, TFT_DISABLE_VALUE); enabled = false; }
   void toggleAllDisplays()           { if (enabled) disableAllDisplays(); else enableAllDisplays(); }
   bool isEnabled()                   { return enabled; }
   void setDimming(uint8_t dimming);

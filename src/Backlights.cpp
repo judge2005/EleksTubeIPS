@@ -70,7 +70,7 @@ void Backlights::rainbowPattern() {
 
   val = val * brightness / 255;
 
-  for (uint8_t digit=0; digit < NUM_DIGITS; digit++) {
+  for (uint8_t digit=0; digit < NUM_LEDS; digit++) {
     // Shift the hue for this LED.
     uint16_t digitHue = (hue + digit*hue_per_digit) % 256;
  		setPixelColor(digit, digitHue, getLEDSaturation(), val);
@@ -81,7 +81,7 @@ void Backlights::rainbowPattern() {
 void Backlights::fill(byte hue, byte sat, byte val) {
 	RgbColor color = HsbColor((byte)(hue)/256.0, (byte)(sat)/256.0, val/256.0);
 
-  for (uint8_t digit=0; digit < NUM_DIGITS; digit++) {
+  for (uint8_t digit=0; digit < NUM_LEDS; digit++) {
 		pixels.SetPixelColor(digit, colorGamma.Correct(color));
   }
 }
