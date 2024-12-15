@@ -261,24 +261,26 @@ void TFTs::animateRain() {
   DigitalRainAnimation& animator = getMatrixAnimator();
 #endif
 
-  claim();
+  if (animator.loop()) {
+    claim();
 
-  uint8_t saved = chip_select.getDigitMap();
-  chip_select.setAll();
+    uint8_t saved = chip_select.getDigitMap();
+    chip_select.setAll();
 
-#ifndef SMOOTH_FONT
-  TFT_eSprite& sprite = getSprite();
-  sprite.setFreeFont(MATRIX_FONT);                   // Select the font
-#endif
-  animator.loop();
-#ifndef SMOOTH_FONT
-  sprite.pushSprite(0,0);
-#endif
-  drawStatus();
+  #ifndef SMOOTH_FONT
+    TFT_eSprite& sprite = getSprite();
+    sprite.setFreeFont(MATRIX_FONT);                   // Select the font
+  #endif
+    animator.animate();
+  #ifndef SMOOTH_FONT
+    sprite.pushSprite(0,0);
+  #endif
+    drawStatus();
 
-  chip_select.setDigitMap(saved, true);
+    chip_select.setDigitMap(saved, true);
 
-  release();
+    release();
+  }
 }
 
 void TFTs::drawMeter(int val, bool first, const char *legend) {
@@ -371,10 +373,6 @@ void TFTs::begin(fs::FS& fs) {
   chip_select.begin();
   chip_select.setAll();
   writecommand(1);
-  // Turn power on to displays.
-  pinMode(TFT_ENABLE_PIN, OUTPUT);
-  enableAllDisplays();
-  invalidateAllDigits();
 
   // Initialize the super class.
   init();
@@ -382,6 +380,15 @@ void TFTs::begin(fs::FS& fs) {
 #ifdef USE_DMA
   initDMA();
 #endif
+  
+  // Clear all displays
+  fillScreen(TFT_BLACK);
+
+  invalidateAllDigits();
+
+  // Turn power on to displays.
+  pinMode(TFT_ENABLE_PIN, OUTPUT);
+  enableAllDisplays();
 }
 
 void TFTs::clear() {

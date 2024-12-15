@@ -31,7 +31,7 @@ public:
     void setOnOverride() { onOverride = millis(); };
     void overrideUntilNextChange() { prevScheduleOn = clockOn(); temporaryOverride = true; }
     void setBrightness(byte brightness) { this->brightness = brightness; }
-    uint8_t getBrightness() { return getDimming() == 1 && brightness == 255 ? 40 : brightness; }
+    uint8_t getBrightness() { return getDimming() == 1 && brightness == 255 && !clockOn() ? 40 : brightness; }
 private:
     static char* digitToName[10];
 

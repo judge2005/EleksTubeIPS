@@ -58,7 +58,7 @@ IRAMPtrArray<char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.6.3",
+	"1.6.4",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -381,11 +381,22 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 #endif
 
 #ifdef BUTTON_POWER_PIN
-	// If we got here, the screen saver wasn't on, clicking the power button turns it on
 	if (button == &powerButton) {
+#ifdef BUTTON_MENU_PINS
+		// If we got here, the screen saver wasn't on, clicking the power button turns it on
 		if (!screenSaverWasOn) {
 			screenSaver.start();
 		}
+#else
+		// If we only have the power button, it is more useful to cycle through the display modes
+		IntConfigItem &dateOrTime = IPSClock::getTimeOrDate();
+
+		dateOrTime.value = (dateOrTime.value + 1) % 3;
+		dateOrTime.put();
+		broadcastUpdate(dateOrTime);
+		dateOrTime.notify();
+		tfts->invalidateAllDigits();
+#endif
 	}
 #endif
 }

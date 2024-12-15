@@ -182,11 +182,11 @@ void DigitalRainAnimation::init(TFT_eSPI *gfx, bool biggerText, bool alphabetOnl
   prepareAnim();
 }
 
-// updating screen
-void DigitalRainAnimation::loop()
+// update state, return true if should draw next frame
+boolean DigitalRainAnimation::loop()
 {
   if (_gfx == NULL)
-    return;
+    return false;
 
   uint32_t currentTime = millis();
 
@@ -207,16 +207,25 @@ void DigitalRainAnimation::loop()
 
   if (((currentTime - lastDrawTime) < getMsDelay()))
   {
-    return;
+    return false;
   }
 
+  if (!isPlaying) {
+    return false;
+  }
+
+  return true;
+}
+
+// draw next frame
+void DigitalRainAnimation::animate() {
   if (isPlaying)
   {
     for (int i = 0; i < numOfline; i++)
       lineAnimation(i);
   }
 
-  lastDrawTime = currentTime;
+  lastDrawTime = millis();
 }
 
 // a function to stop animation.

@@ -24,8 +24,10 @@ public:
   void init(TFT_eSPI* gfx ,bool biggerText = false, bool alphabetOnly = false);
   //setup for Matrix
   void setup(int new_line_len_min, int new_line_len_max, int matrix_timeFrame);
-  //updating screen
-  void loop();
+  // update state, return true if a redraw is necessary
+  boolean loop();
+  // draw next frame
+  void animate();
   //a function to stop animation.
   void pause();
   //a function to resume animation.
