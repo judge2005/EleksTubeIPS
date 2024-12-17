@@ -271,7 +271,7 @@ void TFTs::animateRain() {
     TFT_eSprite& sprite = getSprite();
     sprite.setFreeFont(MATRIX_FONT);                   // Select the font
   #endif
-    animator.animate();
+    animator.animate(dimming);
   #ifndef SMOOTH_FONT
     sprite.pushSprite(0,0);
   #endif
@@ -667,10 +667,11 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
           case 1:
             pixel = (*inputPtr >> (7 - (col & 0x07))) & 0x01;
             if ((col & 0x07) == 0x07) inputPtr++;
-            if (monochromeColor >= 0 && pixel == 1) {
-              r = (monochromeColor >> 8) & 0xF8;
-              b = (monochromeColor << 3) & 0xF8;
-              g = (monochromeColor >> 3) & 0xFC;
+            int oneBitColor = dimColor(monochromeColor);
+            if (oneBitColor >= 0 && pixel == 1) {
+              r = (oneBitColor >> 8) & 0xF8;
+              b = (oneBitColor << 3) & 0xF8;
+              g = (oneBitColor >> 3) & 0xFC;
             } else {
               c = palette[pixel];
               b = c; g = c >> 8; r = c >> 16;
@@ -678,7 +679,7 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
             break;
         }
         
-        if (dimming != 255) {
+        if (dimming != 255 && bitDepth != 1) {
           r *= dimming;
           g *= dimming;
           b *= dimming;

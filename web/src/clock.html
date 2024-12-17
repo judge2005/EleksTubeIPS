@@ -92,6 +92,10 @@
 				</fieldset>
 			</div>
 			<div data-role="fieldcontain">
+				<label for="brightness_config">Brightness</label>
+				<input onchange="elementChange(this)" type="range" name="brightness_config" id="brightness_config" min="10" max="255" value="255">
+			</div>
+			<div data-role="fieldcontain">
 				<label for="time_zone">Timezone Definition</label> <input maxlength="80"
 					onblur="elementBlur(this);return false;" type="text" id="time_zone"
 					data-mini="true" />

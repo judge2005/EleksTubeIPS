@@ -21,6 +21,7 @@ public:
     static StringConfigItem& getClockFace() { static StringConfigItem clock_face("clock_face", 25, "original"); return clock_face; }	// <clock_face>.tar.gz, max length is 31
     static StringConfigItem& getTimeZone() { static StringConfigItem time_zone("time_zone", 63, "EST5EDT,M3.2.0,M11.1.0"); return time_zone; }	// POSIX timezone format
     static IntConfigItem& getDimming() { static IntConfigItem dimming("dimming", 2); return dimming; }
+    static ByteConfigItem& getBrightnessConfig() { static ByteConfigItem brightness_config("brightness_config", 255); return brightness_config; }
 
     void init();
     void loop();

@@ -50,8 +50,8 @@
 				<input onclick="elementChange(this, true)" data-mini="true" id="get_weather" type="button" value="Get Weather"/>
 			</div>
 			<div class="clearFloats"></div>
-			<fieldset id="weather_colors" class="ui-fieldset ui-corner-all ui-shadow">
-				<legend class="ui-legend ui-corner-all ">Foreground Color</legend>
+			<fieldset id="weather_colors" data-collapsed="false" data-role="collapsible" data-iconpos="right" data-collapsed-icon="carat-d" data-expanded-icon="carat-u">
+				<legend>Foreground Color</legend>
 				<label for="weather_hue">Hue</label>
 				<input data-wrapper-class="hue" onchange="elementChange(this)" type="range" name="weather_hue" id="weather_hue" min="0" max="255" value="85">
 				<div class="clearFloats"></div>

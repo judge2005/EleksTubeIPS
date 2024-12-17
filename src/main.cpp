@@ -58,7 +58,7 @@ IRAMPtrArray<char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.6.4",
+	"1.6.5",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -81,21 +81,20 @@ IPSClock *ipsClock = NULL;
 Weather *weather = NULL;
 WeatherService *weatherService = NULL;
 ImageUnpacker *imageUnpacker = NULL;
-byte brightness = 255;
 
-ScreenSaver screenSaver;
+ScreenSaver *screenSaver;
 
 #if defined(BUTTON_MODE_PIN) && defined(BUTTON_RIGHT_PIN) && defined(BUTTON_LEFT_PIN)
 #define BUTTON_MENU_PINS
 #endif
 
 #ifdef BUTTON_MENU_PINS
-GPIOButton modeButton(BUTTON_MODE_PIN, false);	// open == high, closed == low
-GPIOButton rightButton(BUTTON_RIGHT_PIN, false);	// open == high, closed == low
-GPIOButton leftButton(BUTTON_LEFT_PIN, false);	// open == high, closed == low
+GPIOButton *modeButton;	// open == high, closed == low
+GPIOButton *rightButton;	// open == high, closed == low
+GPIOButton *leftButton;	// open == high, closed == low
 #endif
 #ifdef BUTTON_POWER_PIN
-GPIOButton powerButton(BUTTON_POWER_PIN, false);	// open == high, closed == low
+GPIOButton *powerButton;	// open == high, closed == low
 #endif
 
 AsyncWebServer *server = new AsyncWebServer(80);
@@ -155,6 +154,7 @@ IRAMPtrArray<BaseConfigItem*> clockSet {
 	&IPSClock::getDisplayOff(),
 	&IPSClock::getClockFace(),
 	&IPSClock::getDimming(),
+	&IPSClock::getBrightnessConfig(),
 	&IPSClock::getTimeZone(),
 	0
 };
@@ -301,6 +301,10 @@ void onDisplayChanged(ConfigItem<int> &item) {
 	weather->redraw();
 }
 
+void onBrightnessChanged(ConfigItem<byte> &item) {
+	weather->redraw();
+}
+
 template <class T>
 void onWeatherColorChanged(ConfigItem<T> &item) {
 	weather->redraw();
@@ -310,7 +314,7 @@ bool menuDrawn = false;
 
 void onButtonEvent(const Button *button, Button::Event evt) {
 	// Any event will reset the screensaver timer, which will turn it off if it was visible
-	bool screenSaverWasOn = screenSaver.reset();
+	bool screenSaverWasOn = screenSaver->reset();
 
 #ifdef BUTTON_POWER_PIN
 	if (screenSaverWasOn && ipsClock->clockOn()) {
@@ -318,7 +322,7 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 		return;
 	}
 
-	if (button == &powerButton && evt == Button::long_press) {
+	if (button == powerButton && evt == Button::long_press) {
 		// Screensaver isn't running or clock is off, set on/off override and exit
 		ipsClock->overrideUntilNextChange();
 		return;
@@ -334,17 +338,17 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 
 	// ... like the menu
 #ifdef BUTTON_MENU_PINS
-	if (button == &rightButton && evt == Button::button_clicked && menuDrawn) {
+	if (button == rightButton && evt == Button::button_clicked && menuDrawn) {
 		menu->down();
 		tfts->getSprite().pushSprite(0, 0);
 	}
 
-	if (button == &leftButton && evt == Button::button_clicked  && menuDrawn) {
+	if (button == leftButton && evt == Button::button_clicked  && menuDrawn) {
 		menu->up();
 		tfts->getSprite().pushSprite(0, 0);
 	}
 
-	if (button == &modeButton) {
+	if (button == modeButton) {
 		if (evt == Button::long_press) {
 			if (!menuDrawn) {
 				tfts->clear();
@@ -381,11 +385,11 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 #endif
 
 #ifdef BUTTON_POWER_PIN
-	if (button == &powerButton) {
+	if (button == powerButton) {
 #ifdef BUTTON_MENU_PINS
 		// If we got here, the screen saver wasn't on, clicking the power button turns it on
 		if (!screenSaverWasOn) {
-			screenSaver.start();
+			screenSaver->start();
 		}
 #else
 		// If we only have the power button, it is more useful to cycle through the display modes
@@ -426,28 +430,37 @@ void clockTaskFn(void *pArg) {
 	ipsClock->setImageUnpacker(imageUnpacker);
 	ipsClock->setTimeSync(timeSync);
 	ipsClock->getTimeOrDate().setCallback(onDisplayChanged);
+	ipsClock->getBrightnessConfig().setCallback(onBrightnessChanged);
+
+	screenSaver = new ScreenSaver();
 
 #ifdef BUTTON_MENU_PINS
-	leftButton.setCallback(onButtonEvent);
-	modeButton.setCallback(onButtonEvent);
-	rightButton.setCallback(onButtonEvent);
+	modeButton = new GPIOButton(BUTTON_MODE_PIN, false);
+	rightButton = new GPIOButton(BUTTON_RIGHT_PIN, false);
+	leftButton = new GPIOButton(BUTTON_LEFT_PIN, false);
+
+	leftButton->setCallback(onButtonEvent);
+	modeButton->setCallback(onButtonEvent);
+	rightButton->setCallback(onButtonEvent);
 #endif
 #ifdef BUTTON_POWER_PIN
-	powerButton.setCallback(onButtonEvent);
+	powerButton = new GPIOButton(BUTTON_POWER_PIN, false);
+
+	powerButton->setCallback(onButtonEvent);
 #endif
 
-	screenSaver.reset();
+	screenSaver->reset();
 
 	while (true) {
 		delay(1);
 
 #ifdef BUTTON_MENU_PINS
-		leftButton.getEvent();
-		rightButton.getEvent();
-		modeButton.getEvent();
+		leftButton->getEvent();
+		rightButton->getEvent();
+		modeButton->getEvent();
 #endif
 #ifdef BUTTON_POWER_PIN
-		powerButton.getEvent();
+		powerButton->getEvent();
 #endif
 		tfts->checkStatus();
 
@@ -461,7 +474,7 @@ void clockTaskFn(void *pArg) {
 			tfts->invalidateAllDigits();
 		}
 		
-		if (ipsClock->clockOn() && screenSaver.isOn()) {
+		if (ipsClock->clockOn() && screenSaver->isOn()) {
 			switch(ScreenSaver::getScreenSaver()) {
 				case 0:
 					tfts->disableAllDisplays();
@@ -477,7 +490,7 @@ void clockTaskFn(void *pArg) {
 			// and the weather task decides to retrieve the forecast at the same time
 			xSemaphoreTake(memMutex, portMAX_DELAY);
 
-			ipsClock->setBrightness(brightness);
+			ipsClock->setBrightness(ipsClock->getBrightnessConfig());
 			switch (IPSClock::getTimeOrDate().value) {
 				case 2:
 					weather->loop(ipsClock->getBrightness());
@@ -612,17 +625,6 @@ void infoCallback() {
 	wsInfoHandler.setLastFailedMessage(syncStats.lastFailedMessage);
 	wsInfoHandler.setLastUpdateTime(syncStats.lastUpdateTime);
 	wsInfoHandler.setHostname(hostName);
-
-	// wsInfoHandler.setClockOn(nixieDriver.getDisplayOn() ? "on" : "off");
-	// wsInfoHandler.setBrightness(String(ldr.getNormalizedBrightness(true)));
-	// if (lastMoved == 0) {
-	// 	wsInfoHandler.setTriggered("never");	// Probably
-	// } else {
-	// 	unsigned long diff = (millis() - lastMoved) / 1000;
-	// 	String value;
-	// 	value = value + (diff / 3600) + "h " + ((diff / 60) % 60) + "m " + (diff % 60) + "s ago";
-	// 	wsInfoHandler.setTriggered(value);
-	// }
 }
 
 void broadcastUpdate(String msg) {
@@ -636,8 +638,7 @@ void broadcastUpdate(String msg) {
 void broadcastUpdate(const BaseConfigItem& item) {
 	xSemaphoreTake(wsMutex, portMAX_DELAY);
 
-	const size_t bufferSize = JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(20);	// 20 should be plenty
-	DynamicJsonDocument doc(bufferSize);
+	JsonDocument doc;
 	JsonObject root = doc.to<JsonObject>();
 
 	root["type"] = "sv.update";
@@ -660,7 +661,7 @@ void broadcastUpdate(const BaseConfigItem& item) {
 
 void updateValue(int screen, String pair) {
 	if (screen != 8) {
-		screenSaver.reset();
+		screenSaver->reset();
 	}
 
 	int index = pair.indexOf(':');
@@ -973,7 +974,7 @@ void ledTaskFn(void *pArg) {
 					backlights->setOn(false);
 				}
 			}
-			backlights->setBrightness(brightness);
+			backlights->setBrightness(ipsClock->getBrightnessConfig());
 			backlights->loop();
 		}
 		delay(16);

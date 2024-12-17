@@ -23,8 +23,8 @@
 						<label for="breath_per_min">Cycles per Minute</label>
 						<input onchange="elementChange(this)" type="range" name="breath_per_min" id="breath_per_min" min="1" max="20" value="20">
 					</div>
-					<fieldset id="led_colors" class="ui-fieldset ui-corner-all ui-shadow">
-						<legend class="ui-legend ui-corner-all ">Colors</legend>
+					<fieldset id="led_colors" data-collapsed="false" data-role="collapsible" data-iconpos="right" data-collapsed-icon="carat-d" data-expanded-icon="carat-u">
+						<legend>Colors</legend>
 						<div id="hue_container" style="display: none;">
 							<div class="clearFloats"></div>
 							<label for="led_hue">Hue</label>

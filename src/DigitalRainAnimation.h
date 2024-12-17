@@ -27,7 +27,7 @@ public:
   // update state, return true if a redraw is necessary
   boolean loop();
   // draw next frame
-  void animate();
+  void animate(uint8_t brightness);
   //a function to stop animation.
   void pause();
   //a function to resume animation.
@@ -43,6 +43,7 @@ private:
   uint8_t fontSize;              //default font size 1
   uint8_t lineWidth;             //default line width
   uint8_t letterHeight;          //default letter height
+  uint8_t brightness = 255;
   bool isPlaying;                //boolean for play or pause
   bool isAlphabetOnly;           //boolean for showing Alphabet only
   uint32_t lastDrawTime;         //checking last drawing time

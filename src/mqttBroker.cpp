@@ -7,13 +7,13 @@
 #include "ScreenSaver.h"
 #include "mqttBroker.h"
 #include "IRAMPtrArray.h"
+#include "IPSClock.h"
 
 extern AsyncWiFiManager *wifiManager;
 extern CompositeConfigItem rootConfig;
 extern ScreenSaver screenSaver;
 extern void broadcastUpdate(const BaseConfigItem&);
 extern IRAMPtrArray<char*> manifest;
-extern byte brightness;
 extern SemaphoreHandle_t memMutex;
 
 void MQTTBroker::onConnect(bool sessionPresent)
@@ -58,7 +58,7 @@ void MQTTBroker::onMessage(char* topic, char* payload, AsyncMqttClientMessagePro
             ScreenSaver::getScreenSaverDelay() = atoi((const char*)mqttMessageBuffer);
             broadcastUpdate(ScreenSaver::getScreenSaverDelay());
         } else if (strcmp(topic, brightnessTopic) == 0) {
-            brightness = atoi((const char*)mqttMessageBuffer);
+            IPSClock::getBrightnessConfig() = atoi((const char*)mqttMessageBuffer);
             publishState();
         } else {
             Serial.print("Unknown topic: ");
@@ -117,7 +117,7 @@ void MQTTBroker::publishState() {
         {
             JsonDocument volatileState;
             volatileState["screen_saver_on"] = screenSaver.isOn() ? "ON" : "OFF";
-            volatileState["brightness"] = brightness;
+            volatileState["brightness"] = IPSClock::getBrightnessConfig().value;
             char buffer[256];
             size_t n = serializeJson(volatileState, buffer);
 

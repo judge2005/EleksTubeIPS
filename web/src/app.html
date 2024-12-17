@@ -17,6 +17,7 @@
 	</script>
 	<script src="/jquery/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
 	<script src="/jquery/jquery.roundslider/1.3/roundslider.min.js"></script>
+	<script src="/jquery/js.cookie.min.js"></script>
 	<script src="/jquery/spectrum/spectrum.js"></script>
 	<!-- endbuild -->
 
@@ -504,28 +505,35 @@
 		function initializeMenu(values) {
 			var htmlString = '<ul id="menuList" data-role="listview" data-inset="true">';
 			pageMap = {};
+			var activePageTitle = Cookies.get('activePageTitle');
+			var activeURL;
 
 			for (var i = 0; i < values.length; i++) {
 				var obj = values[i];
 				var key = Object.keys(obj)[0];
+				if (i == 0) {
+					activeURL = obj[key].url;
+				}
 				if (!obj[key].noNav) {
 					htmlString += '<li><a data-rel="close" href="' + obj[key].url + '" pageId="' + obj[key].title + '">' + obj[key].title + '</a></li>';
 				}
 				pageMap[obj[key].title] = key;
+				if (obj[key].title == activePageTitle) {
+					activeURL = obj[key].url;
+				}
 			}
 
 			htmlString += '</ul>';
 			$("#menuList").replaceWith(htmlString);
 			$("div[data-role='panel']").panel().enhanceWithin();
 			if (values.length > 0) {
-				var obj = values[0];
-				var key = Object.keys(obj)[0];
-				$.mobile.changePage(obj[key].url);
+				$.mobile.changePage(activeURL);
 			}
 		}
 
 		function pageRefresh(activePage) {
 			if (typeof activePage != 'undefined') {
+				Cookies.set('activePageTitle', activePage);
 				safeSend(getPageId(activePage) + ':');
 			}
 		};
