@@ -377,6 +377,22 @@
 				css = "linear-gradient(to right, black, hwb(" + Math.round(val * 360 / 255) + " 0% 0%))";
 				track.css({"background-image": css});
 
+				track = fieldset.find(".hue + .ui-slider-track");
+				var handle = track.find(".ui-slider-handle");
+				//css = "rgba(255, 255, 255, 0.5)";
+				css = "hwb(" + Math.round(val * 360 / 255) + " 0% 0%)";
+				handle.css({"background-color": css});
+
+				track = fieldset.find(".saturation + .ui-slider-track");
+				handle = track.find(".ui-slider-handle");
+				css = "hwb(" + Math.round(val * 360 / 255) + " " + Math.round((255-clockColors[fieldsetId].s) * 100 /255) + "% 0%)";
+				handle.css({"background-color": css});
+
+				track = fieldset.find(".value + .ui-slider-track");
+				handle = track.find(".ui-slider-handle");
+				css = "hwb(" + Math.round(val * 360 / 255) + " 0% " + Math.round((255-clockColors[fieldsetId].v) * 100 /255) + "%)";
+				handle.css({"background-color": css});
+
 				if (typeof cp != 'undefined') {
 					try {
 						var spectrumLedColor = pickerColors[fieldsetId];
@@ -397,6 +413,11 @@
 						clockColors[fieldsetId].s = val;
 						spectrumLedColor.s = val/255;
 						cp.spectrum("set", tinycolor(spectrumLedColor));
+
+						var track = fieldset.find(".saturation + .ui-slider-track");
+						var handle = track.find(".ui-slider-handle");
+						css = "hwb(" + Math.round(clockColors[fieldsetId].h * 360 / 255) + " " + Math.round((255-val) * 100 /255) + "% 0%)";
+						handle.css({"background-color": css});
 					} catch(ex) {
 						// console.log("Bad call to color picker");
 						// console.log(ex);
@@ -411,6 +432,11 @@
 						clockColors[fieldsetId].v = val;
 						spectrumLedColor.v = val/255;
 						cp.spectrum("set", tinycolor(spectrumLedColor));
+
+						var track = fieldset.find(".value + .ui-slider-track");
+						var handle = track.find(".ui-slider-handle");
+						css = "hwb(" + Math.round(clockColors[fieldsetId].h * 360 / 255) + " 0% " + Math.round((255-val) * 100 /255) + "%)";
+						handle.css({"background-color": css});
 					} catch(ex) {
 						// console.log("Bad call to color picker");
 						// console.log(ex);

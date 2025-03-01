@@ -11,7 +11,7 @@
 
 extern AsyncWiFiManager *wifiManager;
 extern CompositeConfigItem rootConfig;
-extern ScreenSaver screenSaver;
+extern ScreenSaver *screenSaver;
 extern void broadcastUpdate(const BaseConfigItem&);
 extern IRAMPtrArray<char*> manifest;
 extern SemaphoreHandle_t memMutex;
@@ -49,9 +49,9 @@ void MQTTBroker::onMessage(char* topic, char* payload, AsyncMqttClientMessagePro
 
         if (strcmp(topic, screenSaverTopic) == 0) {
             if (strcmp((const char*)mqttMessageBuffer, "OFF") == 0) {
-                screenSaver.reset();
+                screenSaver->reset();
             } else {
-                screenSaver.start();
+                screenSaver->start();
             }
             publishState();
         } else if (strcmp(topic, screenSaverDelayTopic) == 0) {
@@ -89,7 +89,7 @@ bool MQTTBroker::init(const String& id) {
         client.onMessage([this](char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t length, size_t index, size_t total_length) {
             this->onMessage(topic, payload, properties, length, index, total_length); });
         
-        screenSaver.setChangeCallback([this](bool isOff) { this->publishState(); });
+        screenSaver->setChangeCallback([this](bool isOff) { this->publishState(); });
         
         reconnect = true;
     }
@@ -106,6 +106,7 @@ void MQTTBroker::connect() {
 
 void MQTTBroker::checkConnection() {
     if (reconnect && (millis() - lastReconnect >= 2000)) {
+        lastReconnect = millis();
         connect();
     }
 }
@@ -116,7 +117,7 @@ void MQTTBroker::publishState() {
         if (xSemaphoreTake(memMutex, pdMS_TO_TICKS(100)) == pdTRUE)
         {
             JsonDocument volatileState;
-            volatileState["screen_saver_on"] = screenSaver.isOn() ? "ON" : "OFF";
+            volatileState["screen_saver_on"] = screenSaver->isOn() ? "ON" : "OFF";
             volatileState["brightness"] = IPSClock::getBrightnessConfig().value;
             char buffer[256];
             size_t n = serializeJson(volatileState, buffer);

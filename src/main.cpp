@@ -58,7 +58,7 @@ IRAMPtrArray<char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.6.5",
+	"1.6.6",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -451,6 +451,8 @@ void clockTaskFn(void *pArg) {
 
 	screenSaver->reset();
 
+	mqttBroker->init(ssid);
+
 	while (true) {
 		delay(1);
 
@@ -512,6 +514,8 @@ void clockTaskFn(void *pArg) {
 
 			xSemaphoreGive(memMutex);
 		}
+
+		mqttBroker->checkConnection();
 	}
 }
 
@@ -519,8 +523,6 @@ void clockTaskFn(void *pArg) {
 void weatherTaskFn(void *pArg) {
 	TickType_t toSleep = DEFAULT_WEATHER_SLEEP;
 	while (true) {
-		mqttBroker->checkConnection();
-		
 		// Read from weatherQueue. Wait at most 'toSleep' ticks.
 		uint32_t value;
 		BaseType_t result = xQueueReceive(weatherQueue, &value, toSleep);
@@ -1126,7 +1128,13 @@ void setup() {
 	rtcTimeSync->enabled(true);
 #endif
 
-	IPSClock::getTimeZone().setCallback(onTimezoneChanged);
+	mqttBroker = new MQTTBroker();
+	MQTTBroker::getHost().setCallback(onMqttParamsChanged);
+	MQTTBroker::getPort().setCallback(onMqttParamsChanged);
+	MQTTBroker::getUser().setCallback(onMqttParamsChanged);
+	MQTTBroker::getPassword().setCallback(onMqttParamsChanged);
+
+IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 
     xTaskCreatePinnedToCore(
           commitEEPROMTaskFn, /* Function to implement the task */
@@ -1215,13 +1223,6 @@ void setup() {
 		&weatherTask,  /* Task handle. */
 		xPortGetCoreID()
 	);
-
-	mqttBroker = new MQTTBroker();
-	MQTTBroker::getHost().setCallback(onMqttParamsChanged);
-	MQTTBroker::getPort().setCallback(onMqttParamsChanged);
-	MQTTBroker::getUser().setCallback(onMqttParamsChanged);
-	MQTTBroker::getPassword().setCallback(onMqttParamsChanged);
-	mqttBroker->init(ssid);
 
     Serial.print("setup() running on core ");
     Serial.println(xPortGetCoreID());
