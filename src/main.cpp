@@ -58,7 +58,7 @@ IRAMPtrArray<char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.6.6",
+	"1.6.7",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -68,6 +68,7 @@ IRAMPtrArray<char*> manifest {
 String getChipId(void);
 void setWiFiAP(bool on);
 void infoCallback();
+String wifiCallback();
 String clockFacesCallback();
 void broadcastUpdate(String msg);
 void broadcastUpdate(const BaseConfigItem& item);
@@ -495,7 +496,11 @@ void clockTaskFn(void *pArg) {
 			ipsClock->setBrightness(ipsClock->getBrightnessConfig());
 			switch (IPSClock::getTimeOrDate().value) {
 				case 2:
-					weather->loop(ipsClock->getBrightness());
+					if (ipsClock->clockOn() || (ipsClock->getDimming() == 1)) {
+						weather->loop(ipsClock->getBrightness());
+					} else {
+						tfts->disableAllDisplays();
+					}
 					break;
 				default:
 					tfts->setShowDigits(true);
@@ -584,8 +589,8 @@ IRAMPtrArray<String*> items {
 	&WSMenuHandler::weatherMenu,
 	&WSMenuHandler::matrixMenu,
 	&WSMenuHandler::mqttMenu,
+	&WSMenuHandler::networkMenu,
 	&WSMenuHandler::infoMenu,
-	// &WSMenuHandler::presetNamesMenu,
 	0
 };
 
@@ -596,6 +601,7 @@ WSConfigHandler wsFacesHandler(rootConfig, "faces", clockFacesCallback);
 WSConfigHandler wsWeatherHandler(rootConfig, "weather");
 WSConfigHandler wsMatrixHandler(rootConfig, "matrix");
 WSConfigHandler wsMqttHandler(rootConfig, "mqtt");
+WSConfigHandler wsNetworkHandler(rootConfig, "network", wifiCallback);
 WSInfoHandler wsInfoHandler(infoCallback);
 
 // Order of this needs to match the numbers in WSMenuHandler.cpp
@@ -606,8 +612,7 @@ IRAMPtrArray<WSHandler*> wsHandlers {
 	&wsFacesHandler,
 	&wsMqttHandler,
 	&wsInfoHandler,
-	// &wsPresetNamesHandler,
-	NULL,
+	&wsNetworkHandler,
 	&wsWeatherHandler,
 	&wsMatrixHandler,
 	NULL
@@ -672,32 +677,22 @@ void updateValue(int screen, String pair) {
 	String _key = pair.substring(0, index);
 	const char* key = _key.c_str();
 	String value = pair.substring(index+1);
-	if (screen == 6) {
-		BaseConfigItem *item = rootConfig.get(key);
-		if (item != 0) {
-			item->fromString(value);
-			item->put();
-			broadcastUpdate(*item);
-		}
-	} else {
-		BaseConfigItem *item = rootConfig.get(key);
-		if (item != 0) {
-			item->fromString(value);
-			item->put();
-			// Order of below is important to maintain external consistency
-			broadcastUpdate(*item);
-			item->notify();
-		} else if (_key == "get_weather") {
-			uint32_t value = 1;
-			xQueueSend(weatherQueue, &value, 0);
-		} else if (_key == "wifi_ap") {
-			setWiFiAP(value == "true" ? true : false);
-		} else if (_key == "hostname") {
-			hostName = value;
-			hostName.put();
+	BaseConfigItem *item = rootConfig.get(key);
+	if (item != 0) {
+		item->fromString(value);
+		item->put();
+		// Order of below is important to maintain external consistency
+		broadcastUpdate(*item);
+		item->notify();
+		if (_key == "hostname") {
 			config.commit();
 			ESP.restart();
 		}
+	} else if (_key == "get_weather") {
+		uint32_t value = 1;
+		xQueueSend(weatherQueue, &value, 0);
+	} else if (_key == "wifi_ap") {
+		setWiFiAP(value == "true" ? true : false);
 	}
 }
 
@@ -932,6 +927,23 @@ void initFacesMenu() {
 	tfts->fillScreen(MENU_ITEM_BACKGROUND);
 }
 
+String wifiCallback() {
+	String wifiStatus = "\"wifi_ap\":";
+
+	if ((WiFi.getMode() & WIFI_MODE_AP) != 0) {
+		wifiStatus += "true";
+	} else {
+		wifiStatus += "false";
+	}
+
+	wifiStatus += ",";
+	wifiStatus += "\"hostname\":\"";
+	wifiStatus += hostName.value;
+	wifiStatus += "\"";
+
+	return wifiStatus;
+}
+
 String clockFacesCallback() {
 	const String postfix(".tar.gz");
 	const String quote("\"");
@@ -976,7 +988,7 @@ void ledTaskFn(void *pArg) {
 					backlights->setOn(false);
 				}
 			}
-			backlights->setBrightness(ipsClock->getBrightnessConfig());
+			backlights->setBrightness(ipsClock->getBrightness());
 			backlights->loop();
 		}
 		delay(16);

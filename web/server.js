@@ -78,8 +78,8 @@ var pages = {
 			{"7": { "url" : "weather.html", "title" : "Weather" }},
 			{"8": { "url" : "matrix.html", "title" : "Screen Saver" }},
 			{"4": { "url" : "mqtt.html", "title" : "MQTT" }},
-			{"5": { "url" : "info.html", "title" : "Info" }},
-			{"6": { "url" : "preset_names.html", "title" : "Preset Names", "noNav" : true}}
+			{"6": { "url" : "network.html", "title" : "Network"}},
+			{"5": { "url" : "info.html", "title" : "Info" }}
 		]
 	}
 
@@ -125,14 +125,6 @@ var sendWeatherValues = function(conn) {
 	conn.send(json);
 }
 
-var sendPresetValues = function(conn) {
-	var json = '{"type":"sv.init.mqtt","value":';
-	json += JSON.stringify(state[4]);
-	json += '}';
-	console.log(json);
-	conn.send(json);
-}
-
 var sendInfoValues = function(conn) {
 	var json = '{"type":"sv.init.info","value":';
 	json += JSON.stringify(state[5]);
@@ -141,8 +133,16 @@ var sendInfoValues = function(conn) {
 	conn.send(json);
 }
 
-var sendPresetNames = function(conn) {
-	var json = '{"type":"sv.init.preset_names","value":';
+var sendMQTTValues = function(conn) {
+	var json = '{"type":"sv.init.mqtt","value":';
+	json += JSON.stringify(state[4]);
+	json += '}';
+	console.log(json);
+	conn.send(json);
+}
+
+var sendNetwork = function(conn) {
+	var json = '{"type":"sv.init.network","value":';
 	json += JSON.stringify(state[6]);
 	json += '}';
 	console.log(json);
@@ -209,11 +209,7 @@ var state = {
 		'wifi_ssid' : "STC-Wonderful"
 	},
 	"6": {
-		'set1_name' : 'Clock 1',
-		'set2_name' : 'Clock 2',
-		'set3_name' : 'Clock 3',
-		'set4_name' : 'Conditioner',
-		'set5_name' : 'Manual'
+		'hostname' : 'localhost'
 	},
 	"7": {
 		"weather_token":"462cf98d57c30f4cc3698a70a63bd3bb",
@@ -304,13 +300,13 @@ wss.on('connection', function(conn) {
     		sendFacesValues(conn);
     		break;
     	case 4:
-    		sendPresetValues(conn);
+    		sendMQTTValues(conn);
     		break;
     	case 5:
     		sendInfoValues(conn);
     		break;
     	case 6:
-    		sendPresetNames(conn);
+    		sendNetwork(conn);
     		break;
     	case 7:
     		sendWeatherValues(conn);
