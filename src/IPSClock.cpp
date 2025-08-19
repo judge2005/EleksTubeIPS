@@ -101,6 +101,10 @@ void IPSClock::loop() {
                             strcpy(name, "space");
                         } else if (value == ':') {
                             strcpy(name, "colon");
+                        } else if (value == 'a') {
+                            strcpy(name, "am");
+                        } else if (value == 'p') {
+                            strcpy(name, "pm"); 
                         } else if (value == '0' || value == '1' || value == '2' || value == '3' || value == '4' || 
                                    value == '5' || value == '6' || value == '7' || value == '8' || value == '9') {
                             name[0] = value;
