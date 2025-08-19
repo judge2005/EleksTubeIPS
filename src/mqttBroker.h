@@ -28,6 +28,7 @@ private:
     char volatileStateTopic[64];
     char screenSaverTopic[64];
     char brightnessTopic[64];
+    char customDataTopic[64];
     char screenSaverDelayTopic[64];
 
     bool reconnect = false;
