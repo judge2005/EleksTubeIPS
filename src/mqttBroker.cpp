@@ -233,7 +233,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
     doc["cmd_t"] = customDataTopic;
     doc["min"] = 0;
     doc["max"] = 6;
-    doc["val_tpl"] = "{{ value_json.customData }}";
+    doc["val_tpl"] = "{{ value_json.custom }}";
     doc["device"]["configuration_url"] = "http://" + WiFi.localIP().toString() + "/";
     doc["device"]["name"] = manifest[3];
     doc["device"]["identifiers"][0] = WiFi.macAddress();
