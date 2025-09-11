@@ -65,6 +65,7 @@ void IPSClock::loop() {
     
     unsigned long nowMs = millis();
 
+    // display refresh
     if (displayTimer.expired(nowMs)) {
         struct tm now;
         suseconds_t uSec;
@@ -84,7 +85,50 @@ void IPSClock::loop() {
             tfts->enableAllDisplays();
             // tfts->invalidateAllDigits();
 
-            if (getTimeOrDate().value == 0) {
+            // Display custom data if available: 
+            uint8_t customDataLength = getCustomData().value.length();
+            if (customDataLength > 0) {
+                for (uint8_t i = 0; i < NUM_DIGITS; i++) {
+                    char name[10];
+                    // no letter found for this digit -> use space
+                    if (i >= customDataLength) {
+                        strcpy(name, "space");
+                    }
+                    else 
+                    {
+                        char value = getCustomData().value[i];
+                        if (value == '_' or value == ' ') {
+                            strcpy(name, "space");
+                        } else if (value == ':') {
+                            strcpy(name, "colon");
+                        } else if (value == 'a') {
+                            strcpy(name, "am");
+                        } else if (value == 'p') {
+                            strcpy(name, "pm"); 
+                        } else if (value == '0' || value == '1' || value == '2' || value == '3' || value == '4' || 
+                                   value == '5' || value == '6' || value == '7' || value == '8' || value == '9') {
+                            name[0] = value;
+                            name[1] = 0;
+                        } 
+                        // not a digit colon or space -> show as space
+                        else {
+                            strcpy(name, "space");
+                        }
+
+                    }
+                    uint8_t DIGITS[NUM_DIGITS] = {
+                        HOURS_TENS,
+                        HOURS_ONES,
+                        MINUTES_TENS,
+                        MINUTES_ONES,
+                        SECONDS_TENS,
+                        SECONDS_ONES
+                    };
+                    tfts->setDigit(DIGITS[i], name, TFTs::yes);
+                }
+            }
+            // Display time: 
+            else if (getTimeOrDate().value == 0) {
                 uint8_t hour = now.tm_hour;
 
                 // refresh starting on seconds
@@ -125,7 +169,9 @@ void IPSClock::loop() {
                 } else {
                     tfts->setDigit(HOURS_TENS, digitToName[hour / 10], TFTs::yes);
                 }
-            } else if (getTimeOrDate().value == 1) {
+            } 
+            // Display Date: 
+            else if (getTimeOrDate().value == 1) {
                 uint8_t day = now.tm_mday;
                 uint8_t month = now.tm_mon;
                 uint8_t year = now.tm_year;

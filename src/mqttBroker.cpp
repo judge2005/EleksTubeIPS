@@ -60,6 +60,22 @@ void MQTTBroker::onMessage(char* topic, char* payload, AsyncMqttClientMessagePro
         } else if (strcmp(topic, brightnessTopic) == 0) {
             IPSClock::getBrightnessConfig() = atoi((const char*)mqttMessageBuffer);
             publishState();
+        } else if (strcmp(topic, customDataTopic) == 0) {
+            // TODO: get the max data from somewhere
+            if (length <= 6){
+                // empty string or clear/CLEAR will clear the custom data
+                if (strcmp((const char*)mqttMessageBuffer, "CLEAR") == 0
+                    || strcmp((const char*)mqttMessageBuffer, "clear") == 0){
+                    IPSClock::getCustomData() = "";
+                }
+                else{
+                    IPSClock::getCustomData() = (const char*)mqttMessageBuffer;
+                }
+                publishState();
+            }
+            else{
+                Serial.println("Custom data too long, ignoring");
+            }
         } else {
             Serial.print("Unknown topic: ");
             Serial.print(topic);
@@ -80,6 +96,7 @@ bool MQTTBroker::init(const String& id) {
         sprintf(persistentStateTopic, "clock/%s/persistent/state", id.c_str());
         sprintf(screenSaverTopic, "clock/%s/screen_saver/set", id.c_str());
         sprintf(brightnessTopic, "clock/%s/brightness/set", id.c_str());
+        sprintf(customDataTopic, "clock/%s/custom/set", id.c_str());
         sprintf(screenSaverDelayTopic, "clock/%s/screen_saver_delay/set", id.c_str());
 
         client.setServer(getHost().value.c_str(), getPort());
@@ -119,6 +136,7 @@ void MQTTBroker::publishState() {
             JsonDocument volatileState;
             volatileState["screen_saver_on"] = screenSaver->isOn() ? "ON" : "OFF";
             volatileState["brightness"] = IPSClock::getBrightnessConfig().value;
+            volatileState["custom"] = IPSClock::getCustomData().value;
             char buffer[256];
             size_t n = serializeJson(volatileState, buffer);
 
@@ -135,6 +153,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
     client.subscribe(screenSaverTopic, 0);
     client.subscribe(screenSaverDelayTopic, 0);
     client.subscribe(brightnessTopic, 0);
+    client.subscribe(customDataTopic, 0);
 
     // This is the discovery topic for the 'screensaver' switch
     char discoveryTopic[128];
@@ -193,6 +212,28 @@ void MQTTBroker::sendHADiscoveryMessage() {
     doc["min"] = 10;
     doc["max"] = 255;
     doc["val_tpl"] = "{{ value_json.brightness }}";
+    doc["device"]["configuration_url"] = "http://" + WiFi.localIP().toString() + "/";
+    doc["device"]["name"] = manifest[3];
+    doc["device"]["identifiers"][0] = WiFi.macAddress();
+    doc["device"]["model"] = manifest[0];
+    doc["device"]["sw_version"] = manifest[1];
+
+    n = serializeJson(doc, buffer);
+
+    client.publish(discoveryTopic, 0, true, buffer, n);
+
+    sprintf(discoveryTopic, "homeassistant/text/%s/custom/config", id.c_str());
+
+    doc.clear();
+
+    doc["name"] = "Custom Data";
+    doc["icon"] = "mdi:clock-edit";
+    doc["unique_id"] = "custom-data" + id;
+    doc["stat_t"] = volatileStateTopic;
+    doc["cmd_t"] = customDataTopic;
+    doc["min"] = 0;
+    doc["max"] = 6;
+    doc["val_tpl"] = "{{ value_json.custom }}";
     doc["device"]["configuration_url"] = "http://" + WiFi.localIP().toString() + "/";
     doc["device"]["name"] = manifest[3];
     doc["device"]["identifiers"][0] = WiFi.macAddress();

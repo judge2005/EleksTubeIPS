@@ -1,6 +1,6 @@
 # A Custom Firmware for the EleksTube IPS V1 clock
 
-# Features of This Firmware
+## Features of This Firmware
 
 This firmware uses the WiFi support that your clock already has to sync the time with the internet and to provide an easy way to configure the clock and change the display:
 
@@ -23,6 +23,13 @@ This firmware uses the WiFi support that your clock already has to sync the time
 * It has a screen saver.
 * There is also a tool to convert images in to a format that can be displayed on the clock
 * It can connect to a MQTT broker, primarily to allow use of movement and luminance sensors. The full state of the clock is published too.
+* The displayed number can be overwritten via MQTT or Homeassistant, e.g. to implement automated counters
+  * Custom format:
+    * numbers 0-9,
+    * ':' for colon
+    * ' ' and '_' for space
+    * 'a' and 'p' for AM and PM
+    * send 'clear' or empty string to stop displaying custom data
 * There are specific variants for:
   * The [EleksTube v1 clock](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1/)
   * The [Si Hai](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-3/) clock
@@ -42,7 +49,7 @@ This shows the digital rain screen saver:
 
 ![Captive Portal](docs/matrix.jpg)
 
-# Documentation
+## Documentation
 
 See [the wiki](https://github.com/judge2005/EleksTubeIPS/wiki "wiki") for detailed information on how to build, install and use this firmware.
 
@@ -52,7 +59,7 @@ See [the wiki](https://github.com/judge2005/EleksTubeIPS/wiki "wiki") for detail
 * [Image Collections](https://github.com/judge2005/EleksTubeIPS/wiki/Image-Collections) tells you how to prepare new clock faces and weather icon sets so that they can be uploaded to the clock and used.
 * [Hardware Modification](https://github.com/judge2005/EleksTubeIPS/wiki/Hardware-Modification) details a mod that you might want to make to your clock, but only if you are comfortable wielding a soldering iron.
 
-# Credits
+## Credits
 
 [Original documentation and software from EleksMaker.](https://wiki.eleksmaker.com/doku.php?id=ips)
 
