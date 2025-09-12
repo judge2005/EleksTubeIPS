@@ -8,6 +8,10 @@
 #include "ChipSelect.h"
 #include "DigitalRainAnimation.h"
 
+#define TFT_PWM_CHANNEL 0
+#define TFT_PWM_FREQ 20000   // PWM frequency for TFT dimming (Hz)
+#define TFT_PWM_RESOLUTION 8 // PWM resolution for TFT dimming (bits)
+
 class StaticSprite : public TFT_eSprite {
 public:
   StaticSprite(TFT_eSPI *tft) : TFT_eSprite(tft) {}
@@ -47,8 +51,8 @@ public:
   void setImageJustification(image_justification_t value) { imageJustification = value; }
   void setBox(uint16_t w, uint16_t h) { boxWidth = w; boxHeight = h; }
   // Controls the power to all displays
-  void enableAllDisplays()           { digitalWrite(TFT_ENABLE_PIN, TFT_ENABLE_VALUE); enabled = true; }
-  void disableAllDisplays()          { digitalWrite(TFT_ENABLE_PIN, TFT_DISABLE_VALUE); enabled = false; }
+  void enableAllDisplays();
+  void disableAllDisplays();
   void toggleAllDisplays()           { if (enabled) disableAllDisplays(); else enableAllDisplays(); }
   bool isEnabled()                   { return enabled; }
   void setDimming(uint8_t dimming);

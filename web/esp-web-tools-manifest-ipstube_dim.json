@@ -1,0 +1,19 @@
+{
+    "name": "IPSTube With Hardware Dimming Replacement Firmware",
+    "version": "$version$",
+    "new_install_prompt_erase": true,
+    "new_install_improv_wait_time": 30,
+    "builds": [
+      {
+        "chipFamily": "ESP32",
+        "improv": false,
+        "parts": [
+          { "path": "bootloader8MB.bin", "offset": 4096 },
+          { "path": "partitions8MB.bin", "offset": 32768 },
+          { "path": "boot_app0.bin", "offset": 57344 },
+          { "path": "firmware-ipstube_dim-$version$.bin", "offset": 65536 },
+          { "path": "littlefs8MB-$version$.bin", "offset": 1572864 }
+        ]
+      }
+    ]
+  }

@@ -33,7 +33,7 @@ public:
   void setHoursTens()                             { setDigit(HOURS_TENS); }
 
 private:
-#ifdef HARDWARE_IPSTube_CLOCK
+#if defined(HARDWARE_IPSTube_CLOCK) || defined(HARDWARE_IPSTube_DIM_CLOCK)
   static const int lcdEnablePins[NUM_DIGITS];
 #endif
   uint8_t digits_map;

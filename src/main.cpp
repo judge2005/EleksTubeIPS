@@ -54,11 +54,13 @@ IRAMPtrArray<char*> manifest {
 	"Si Hai Clock Replacement Firmware",
 #elif defined(HARDWARE_IPSTube_CLOCK)
 	"IPSTube Clock Replacement Firmware",
+#elif defined(HARDWARE_IPSTube_DIM_CLOCK)
+	"IPSTube Clock With Hardware Dimming, Replacement Firmware",
 #else
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.6.7",
+	"1.7.0",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -136,7 +138,7 @@ StringConfigItem hostName("hostname", 63, "elekstubeipsv2");
 StringConfigItem hostName("hostname", 63, "novellifese");
 #elif defined(HARDWARE_SI_HAI_CLOCK)
 StringConfigItem hostName("hostname", 63, "sihai");
-#elif defined(HARDWARE_IPSTube_CLOCK)
+#elif defined(HARDWARE_IPSTube_CLOCK) || defined (HARDWARE_IPSTube_DIM_CLOCK)
 StringConfigItem hostName("hostname", 63, "ipstube");
 #else
 StringConfigItem hostName("hostname", 63, "ipsclock");
@@ -950,7 +952,7 @@ String clockFacesCallback() {
 	const String quoteColonQuote("\":\"");
 	const String comma_quote(",\"");
 
-	String options = ",\"face_files\":{";
+	String options = "\"face_files\":{";
 	String sep = quote;
 	String dirName = "/ips/" + fileSet.value;
 	fs::File dir = LittleFS.open(dirName);

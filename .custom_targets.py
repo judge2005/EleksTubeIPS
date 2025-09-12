@@ -65,6 +65,27 @@ def copy_fs_to_release(*args, **kwargs):
 
 env.AddCustomTarget("release", [os.path.join("$BUILD_DIR", "${PROGNAME}.bin"), os.path.join("$BUILD_DIR", "${ESP32_FS_IMAGE_NAME}.bin")], [copy_manifests_to_release, copy_fs_to_release, copy_firmware_to_release])
 
+def list_fs_contents(*args, **kwargs):
+    # Open and read the manifest
+    src = os.path.join(env["PROJECT_DIR"], env.GetBuildPath("$BUILD_DIR"), env.GetBuildPath("${ESP32_FS_IMAGE_NAME}.bin"))
+
+    # Run esptool to merge images into a single binary
+    env.Execute(
+        " ".join(
+            [
+                "/Users/Nemesis/.platformio/packages/tool-mklittlefs/mklittlefs",
+                "-l",
+                src
+            ]
+        )
+    )
+
+env.AddCustomTarget(
+    "listfs",
+    None,
+    list_fs_contents
+)
+
 env.AddCustomTarget(
     name="release_prologue",
     dependencies=None,

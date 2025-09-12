@@ -350,7 +350,15 @@ void TFTs::setShowDigits(bool show) {
 
 void TFTs::setDimming(uint8_t dimming) {
   if (dimming != this->dimming) {
+#ifdef DIM_WITH_ENABLE_PIN_PWM
+#if (TFT_ENABLE_VALUE == 1)
+  ledcWrite(TFT_PWM_CHANNEL, dimming);
+#else
+  ledcWrite(TFT_PWM_CHANNEL, 255 - dimming);
+#endif
+#else
     invalidateAllDigits();
+#endif
     this->dimming = dimming;
   }
 }
@@ -387,8 +395,40 @@ void TFTs::begin(fs::FS& fs) {
   invalidateAllDigits();
 
   // Turn power on to displays.
-  pinMode(TFT_ENABLE_PIN, OUTPUT);
+#ifdef DIM_WITH_ENABLE_PIN_PWM
+  // If hardware dimming is used, init ledc, set the pin and channel for PWM and set frequency and resolution
+  ledcSetup(TFT_ENABLE_PIN, TFT_PWM_FREQ, TFT_PWM_RESOLUTION);            // PWM, globally defined
+  ledcAttachPin(TFT_ENABLE_PIN, TFT_PWM_CHANNEL);                         // Attach the pin to the PWM channel
+  ledcChangeFrequency(TFT_PWM_CHANNEL, TFT_PWM_FREQ, TFT_PWM_RESOLUTION); // need to set the frequency and resolution again to have the hardware dimming working properly
+#else
+  pinMode(TFT_ENABLE_PIN, OUTPUT); // Set pin for turning display power on and off.
+#endif
   enableAllDisplays();
+}
+
+void TFTs::enableAllDisplays() {
+#ifdef DIM_WITH_ENABLE_PIN_PWM
+#if (TFT_ENABLE_VALUE == 1)
+  ledcWrite(TFT_PWM_CHANNEL, dimming);
+#else
+  ledcWrite(TFT_PWM_CHANNEL, 255 - dimming);
+#endif
+  digitalWrite(TFT_ENABLE_PIN, TFT_ENABLE_VALUE);
+#endif
+  enabled = true;
+}
+
+void TFTs::disableAllDisplays() {
+#ifdef DIM_WITH_ENABLE_PIN_PWM
+#if (TFT_ENABLE_VALUE == 1)
+  ledcWrite(TFT_PWM_CHANNEL, 0);
+#else
+  ledcWrite(TFT_PWM_CHANNEL, 255);
+#endif
+#else
+  digitalWrite(TFT_ENABLE_PIN, TFT_DISABLE_VALUE);
+#endif
+  enabled = false;
 }
 
 void TFTs::clear() {
@@ -513,6 +553,9 @@ bool TFTs::LoadCLKImageIntoBuffer(fs::File &clkFile) {
 }
 
 uint16_t TFTs::dimColor(uint16_t color) {
+#ifdef DIM_WITH_ENABLE_PIN_PWM
+  return color;
+#else
   if (dimming == 255) {
     return color;
   }
@@ -535,6 +578,7 @@ uint16_t TFTs::dimColor(uint16_t color) {
   b = b >> 8;
 
   return (r << 11) | (g << 5) | b;
+#endif
 }
 
 void TFTs::setMonochromeColor(int color) {
@@ -621,7 +665,11 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
     }
     
     // Colors are already in 16-bit R5, G6, B5 format
+#ifdef DIM_WITH_ENABLE_PIN_PWM
+    if (bitDepth != 16) {
+#else
     if (dimming != 255 || bitDepth != 16) {
+#endif
       uint8_t*  inputPtr = inputBuffer;
 
       for (int col = 0; col < w; col++)
@@ -678,7 +726,7 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
             }
             break;
         }
-        
+#ifndef DIM_WITH_ENABLE_PIN_PWM        
         if (dimming != 255 && bitDepth != 1) {
           r *= dimming;
           g *= dimming;
@@ -687,7 +735,7 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
           g = g >> 8;
           b = b >> 8;
         }
-
+#endif
         outputBuffer[col*2+1] = (r & 0xF8) | ((g & 0xFC) >> 5);
         outputBuffer[col*2] = ((g & 0x1C) << 3) | ((b & 0xF8) >> 3);
       }

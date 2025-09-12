@@ -1,6 +1,6 @@
 #include "ChipSelect.h"
 
-#ifndef HARDWARE_IPSTube_CLOCK
+#if !defined(HARDWARE_IPSTube_CLOCK) && !defined(HARDWARE_IPSTube_DIM_CLOCK)
 void ChipSelect::begin() {
   pinMode(CSSR_LATCH_PIN, OUTPUT);
   pinMode(CSSR_DATA_PIN, OUTPUT);
