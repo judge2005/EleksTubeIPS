@@ -22,14 +22,7 @@ This firmware uses the WiFi support that your clock already has to sync the time
 * You can switch between time, date and weather using the buttons.
 * It has a screen saver.
 * There is also a tool to convert images in to a format that can be displayed on the clock
-* It can connect to a MQTT broker, primarily to allow use of movement and luminance sensors. The full state of the clock is published too.
-* The displayed number can be overwritten via MQTT or Homeassistant, e.g. to implement automated counters
-  * Custom format:
-    * numbers 0-9,
-    * ':' for colon
-    * ' ' and '_' for space
-    * 'a' and 'p' for AM and PM
-    * send 'clear' or empty string to stop displaying custom data
+* It can connect to a MQTT broker, primarily to allow use of movement and luminance sensors and setting a custom display value. The full state of the clock is published too. See the [User Guide](https://github.com/judge2005/EleksTubeIPS/wiki/User-Guide#mqtthome-assistant) for details.
 * There are specific variants for:
   * The [EleksTube v1 clock](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1/)
   * The [Si Hai](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-3/) clock
