@@ -19,13 +19,13 @@ extern SemaphoreHandle_t memMutex;
 void MQTTBroker::onConnect(bool sessionPresent)
 {
 	reconnect = false;
-	Serial.println("Connected to MQTT");
+//	Serial.println("Connected to MQTT");
     sendHADiscoveryMessage();
 }
 
 void MQTTBroker::onDisconnect(AsyncMqttClientDisconnectReason reason)
 {
-	Serial.printf("Disconnected from MQTT: %u\n", static_cast<uint8_t>(reason));
+//	Serial.printf("Disconnected from MQTT: %u\n", static_cast<uint8_t>(reason));
 
     reconnect = true;
     lastReconnect = millis();
@@ -74,13 +74,13 @@ void MQTTBroker::onMessage(char* topic, char* payload, AsyncMqttClientMessagePro
                 publishState();
             }
             else{
-                Serial.println("Custom data too long, ignoring");
+//                Serial.println("Custom data too long, ignoring");
             }
         } else {
-            Serial.print("Unknown topic: ");
-            Serial.print(topic);
-            Serial.print(", value: ");
-            Serial.println((char*)mqttMessageBuffer);
+            // Serial.print("Unknown topic: ");
+            // Serial.print(topic);
+            // Serial.print(", value: ");
+            // Serial.println((char*)mqttMessageBuffer);
         }
 	}
 }
@@ -116,7 +116,7 @@ bool MQTTBroker::init(const String& id) {
 
 void MQTTBroker::connect() {
     if (WiFi.isConnected() && !wifiManager->isAP()) {
-        Serial.println("Connecting to MQTT...");
+//        Serial.println("Connecting to MQTT...");
         client.connect();
     }
 }

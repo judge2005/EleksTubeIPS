@@ -413,6 +413,7 @@ void TFTs::enableAllDisplays() {
 #else
   ledcWrite(TFT_PWM_CHANNEL, 255 - dimming);
 #endif
+#else
   digitalWrite(TFT_ENABLE_PIN, TFT_ENABLE_VALUE);
 #endif
   enabled = true;

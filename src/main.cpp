@@ -60,7 +60,7 @@ IRAMPtrArray<char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.7.0",
+	"1.7.1",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -477,9 +477,7 @@ void clockTaskFn(void *pArg) {
 			tfts->enableAllDisplays();
 			tfts->animateRain();
 			tfts->invalidateAllDigits();
-		}
-		
-		if (ipsClock->clockOn() && screenSaver->isOn()) {
+		} else if (ipsClock->clockOn() && screenSaver->isOn()) {
 			switch(ScreenSaver::getScreenSaver()) {
 				case 0:
 					tfts->disableAllDisplays();
@@ -1104,7 +1102,7 @@ void setup() {
 	* setup() runs on core 1
 	*/
 	Serial.begin(115200);
-	Serial.setDebugOutput(true);
+	Serial.setDebugOutput(false);
 
 	DEBUG("Setup...");
 
@@ -1240,6 +1238,8 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 
     Serial.print("setup() running on core ");
     Serial.println(xPortGetCoreID());
+
+	Serial.println(getCpuFrequencyMhz());
 
     vTaskDelete(NULL);	// Delete this task (so loop() won't be called)
 }
