@@ -808,9 +808,12 @@ bool TFTs::LoadImageIntoBuffer(const char* filename) {
 }
 
 TFT_eSprite& TFTs::drawImage(uint8_t digit) {
+#ifdef DEBUG_OUTPUT
   uint32_t StartTime = millis();
-
+#endif
   char filename[255];
+
+  yield();
 
 #ifdef USE_DMA
   while(dmaBusy()) {
