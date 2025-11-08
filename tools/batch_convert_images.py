@@ -11,6 +11,8 @@ def create_header(width, height):
     total_header_size = 14 + 40 # V3 len = 40 bytes
     palette_size = 0
     match args.bpp:
+        case 16:
+            total_header_size = 14 + 40 + 12 # V3 len = 52 bytes
         case 4:
             palette_size = 64
         case 2:
@@ -18,7 +20,6 @@ def create_header(width, height):
         case 1:
             palette_size = 8
             
-    # total_header_size = 14 + 40 + 12 # V3 len = 40 bytes
     bitmap_size = ((args.bpp * width + 31) >> 5) * 4 * height
 
     file_size = total_header_size + palette_size + bitmap_size
@@ -32,20 +33,23 @@ def create_header(width, height):
     # DIB V3 header: header size, px width, px height, num of color planes, bpp, compression method,
     # bitmap data size, horizontal resolution, vertical resolution, number of colors in palette, number of important colors used
     # Few of these matter, so there are a bunch of default/"magic" numbers here...
-    header += struct.pack('<I 2i H H I I 2i', 40, width, height, 1, args.bpp, 0, file_size, 0x0B13, 0x0B13)
+    dib_header = struct.pack('<I 2i H H I I 2i', 40, width, height, 1, args.bpp, 0, file_size, 0x0B13, 0x0B13)
 
     match args.bpp:
         case 16:
+            dib_header = struct.pack('<I 2i H H I I 2i', 52, width, height, 1, args.bpp, 3, file_size, 0x0B13, 0x0B13)
             # Zero size palette, zero important colors
-            header += struct.pack('<2I', 0, 0)
+            dib_header += struct.pack('<2I', 0, 0)
             # RGB565 masks
-            # header += struct.pack('<3I', 0x0000f800, 0x000007e0, 0x0000001f)
+            dib_header += struct.pack('<3i', 0xf800, 0x07e0, 0x001f)
         case 4:
-            header += struct.pack('<2I', 16, 16)
+            dib_header += struct.pack('<2I', 16, 16)
         case 2:
-            header += struct.pack('<2I', 4, 4)
+            dib_header += struct.pack('<2I', 4, 4)
         case 1:
-            header += struct.pack('<2I', 2, 2)
+            dib_header += struct.pack('<2I', 2, 2)
+
+    header += dib_header
 
     return header
 
@@ -53,7 +57,7 @@ def scale_pixel(p, factor):
     if args.dither:
         val = int(math.floor(float(p) * (256.0 - factor) / 255.0 / float(factor) + random.random()))
     else:
-        val = math.floor(p/factor)
+        val = p // factor
 
     return val
 
@@ -64,11 +68,14 @@ def write_bin(f, image, width, height):
         case 16:
             for row in range(height-1, -1, -1):
                 for col in range(0, width, 1) :
+                    #print(hex(pixel_list[row*width + col][0]) + "," + hex(pixel_list[row*width + col][1]) + "," + hex(pixel_list[row*width + col][2]))
                     r = scale_pixel(pixel_list[row*width + col][0], 8)
                     g = scale_pixel(pixel_list[row*width + col][1], 4)
                     b = scale_pixel(pixel_list[row*width + col][2], 8)
-                    c = (r << 11) | (g << 5) | b
+                    #print(hex(r) + "," + hex(g) + "," + hex(b))
+                    c = (r * 32 * 64) | (g * 32) | b
                     f.write(struct.pack('<H', c))
+                    #print(hex(c))
                 if (width % 2) == 1:
                     f.write(struct.pack('<H', 0))
 
