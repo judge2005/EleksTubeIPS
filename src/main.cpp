@@ -60,7 +60,7 @@ IRAMPtrArray<char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.7.2",
+	"1.7.3",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -289,7 +289,7 @@ void onFileSetChanged(ConfigItem<String> &item) {
 		 + "\""
 		 + ",\"weather_icons\":\""
 		 + Weather::getIconPack()
-		 + "\""
+		 + "\","
 		 + clockFacesCallback()
 		 + "}}";
 
