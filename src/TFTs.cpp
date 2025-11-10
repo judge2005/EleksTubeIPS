@@ -614,7 +614,7 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
       maskData.rMask = read32(bmpFile);
       maskData.rShift = (calc_shift(maskData.rMask) - (5 - __builtin_popcount(maskData.rMask))) % 16;
       maskData.gMask = read32(bmpFile);
-      maskData.gShift = (calc_shift(maskData.gMask) - (6 - __builtin_popcount(maskData.rMask))) % 16;
+      maskData.gShift = (calc_shift(maskData.gMask) - (6 - __builtin_popcount(maskData.gMask))) % 16;
       maskData.bMask = read32(bmpFile);
       maskData.bShift = (calc_shift(maskData.bMask) - (5 - __builtin_popcount(maskData.rMask))) % 16;
       if (maskData.gMask != 0x07e0) {  // 0x07e0 is the green mask for RGB565
@@ -775,7 +775,7 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
 #ifdef DIM_WITH_ENABLE_PIN_PWM
     if (bitDepth != 16 || pMaskData->aMask != 0) {
 #else
-    if (dimming != 255 || bitDepth != 16) {
+    if (dimming != 255 || bitDepth != 16 || pMaskData->aMask != 0) {
 #endif
       uint8_t*  inputPtr = inputBuffer;
 
@@ -803,7 +803,9 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
               r = rotate_right((pix & pMaskData->rMask), pMaskData->rShift);
               g = rotate_right((pix & pMaskData->gMask), pMaskData->gShift);
               b = rotate_right((pix & pMaskData->bMask), pMaskData->bShift);
-              alphaBuffer[col] = rotate_right((pix & pMaskData->aMask), pMaskData->aShift) * 255 / opaque;
+              if (opaque != 0) {
+                alphaBuffer[col] = rotate_right((pix & pMaskData->aMask), pMaskData->aShift) * 255 / opaque;
+              }
             }
             break;
           case 8:
