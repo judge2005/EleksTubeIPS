@@ -16,9 +16,21 @@ class StaticSprite : public TFT_eSprite {
 public:
   StaticSprite(TFT_eSPI *tft) : TFT_eSprite(tft) {}
   void pushImageWithTransparency(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t *data, uint16_t transparentColor = 0);
+  void pushImageWithAlpha(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t *data, uint8_t *alpha, uint8_t opaque);
   void init();
 
   static uint8_t output_buffer[];
+};
+
+struct MaskData {
+  uint16_t rMask = 0xf800;
+  uint16_t gMask = 0x07e0;
+  uint16_t bMask = 0x001f;
+  uint16_t aMask = 0;
+  uint8_t rShift = 11;
+  uint8_t gShift = 5;
+  uint8_t bShift = 0;
+  uint8_t aShift = 0;
 };
 
 class TFTs : public TFT_eSPI {
@@ -104,7 +116,7 @@ private:
   bool LoadImageIntoBuffer(const char* filename);
   bool LoadBMPImageIntoBuffer(fs::File &file);
   bool LoadCLKImageIntoBuffer(fs::File &file);
-  bool LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bpp, int16_t rowSize, bool reversed, uint32_t *palette, fs::File &file);
+  bool LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bpp, int16_t rowSize, bool reversed, MaskData *pMaskData, uint32_t *palette, fs::File &file);
 
   uint16_t read16(fs::File &f);
   uint32_t read32(fs::File &f);

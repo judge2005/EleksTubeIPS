@@ -12,7 +12,10 @@ def create_header(width, height):
     palette_size = 0
     match args.bpp:
         case 16:
-            total_header_size = 14 + 40 + 12 # V3 len = 52 bytes
+            if args.alpha == "none" :
+                total_header_size = 14 + 40 + 12 # V3 len = 52 bytes
+            else:
+                total_header_size = 14 + 40 + 16 # V3 len + alpha = 56 bytes
         case 4:
             palette_size = 64
         case 2:
@@ -37,11 +40,27 @@ def create_header(width, height):
 
     match args.bpp:
         case 16:
-            dib_header = struct.pack('<I 2i H H I I 2i', 52, width, height, 1, args.bpp, 3, file_size, 0x0B13, 0x0B13)
-            # Zero size palette, zero important colors
-            dib_header += struct.pack('<2I', 0, 0)
-            # RGB565 masks
-            dib_header += struct.pack('<3i', 0xf800, 0x07e0, 0x001f)
+            if args.alpha == "none" :
+                print("rgb565")
+                dib_header = struct.pack('<I 2i H H I I 2i', 52, width, height, 1, args.bpp, 3, file_size, 0x0B13, 0x0B13)
+                # Zero size palette, zero important colors
+                dib_header += struct.pack('<2I', 0, 0)
+                # RGB565 masks
+                dib_header += struct.pack('<3i', 0xf800, 0x07e0, 0x001f)
+            elif args.alpha == "argb1555" :
+                print("argb1555")
+                dib_header = struct.pack('<I 2i H H I I 2i', 56, width, height, 1, args.bpp, 3, file_size, 0x0B13, 0x0B13)
+                # Zero size palette, zero important colors
+                dib_header += struct.pack('<2I', 0, 0)
+                # RGB565 masks
+                dib_header += struct.pack('<4i', 0x7c00, 0x03e0, 0x001f, 0x8000)
+            else:
+                print("argb4444")
+                dib_header = struct.pack('<I 2i H H I I 2i', 56, width, height, 1, args.bpp, 3, file_size, 0x0B13, 0x0B13)
+                # Zero size palette, zero important colors
+                dib_header += struct.pack('<2I', 0, 0)
+                # RGB565 masks
+                dib_header += struct.pack('<4i', 0x0f00, 0x00f0, 0x000f, 0xf000)
         case 4:
             dib_header += struct.pack('<2I', 16, 16)
         case 2:
@@ -53,9 +72,25 @@ def create_header(width, height):
 
     return header
 
-def scale_pixel(p, factor):
-    if args.dither:
-        val = int(math.floor(float(p) * (256.0 - factor) / 255.0 / float(factor) + random.random()))
+max_pixel = {
+    2: 0x7f,
+    4: 0x3f,
+    8: 0x1f,
+    16: 0x0f,
+    32: 0x07,
+    64: 0x03,
+    128: 0x01
+}
+
+def scale_pixel(p, factor, dither = True):
+    if args.dither and dither :
+        val = p // factor
+        if val != max_pixel[factor] :
+            rem = p % factor
+            prob = rem / factor
+            if random.random() < prob :
+                val = val + 1
+        # val = int(math.floor(float(p) * (256.0 - factor) / 255.0 / float(factor) + random.random()))
     else:
         val = p // factor
 
@@ -68,14 +103,32 @@ def write_bin(f, image, width, height):
         case 16:
             for row in range(height-1, -1, -1):
                 for col in range(0, width, 1) :
-                    #print(hex(pixel_list[row*width + col][0]) + "," + hex(pixel_list[row*width + col][1]) + "," + hex(pixel_list[row*width + col][2]))
-                    r = scale_pixel(pixel_list[row*width + col][0], 8)
-                    g = scale_pixel(pixel_list[row*width + col][1], 4)
-                    b = scale_pixel(pixel_list[row*width + col][2], 8)
-                    #print(hex(r) + "," + hex(g) + "," + hex(b))
-                    c = (r * 32 * 64) | (g * 32) | b
-                    f.write(struct.pack('<H', c))
-                    #print(hex(c))
+                    if args.alpha == "none" :
+                        r = scale_pixel(pixel_list[row*width + col][0], 8)
+                        g = scale_pixel(pixel_list[row*width + col][1], 4)
+                        b = scale_pixel(pixel_list[row*width + col][2], 8)
+                        c = (r << 11) | (g << 5) | b
+                        f.write(struct.pack('<H', c))
+                    elif args.alpha == "argb1555" :
+                        r = scale_pixel(pixel_list[row*width + col][0], 8)
+                        g = scale_pixel(pixel_list[row*width + col][1], 8)
+                        b = scale_pixel(pixel_list[row*width + col][2], 8)
+                        if len(pixel_list[row*width + col]) == 4 :
+                            a = scale_pixel(pixel_list[row*width + col][3], 128)
+                        else:
+                            a = 1
+                        c = (a << 15) | (r << 10) | (g << 5) | b
+                        f.write(struct.pack('<H', c))
+                    else:
+                        r = scale_pixel(pixel_list[row*width + col][0], 16)
+                        g = scale_pixel(pixel_list[row*width + col][1], 16)
+                        b = scale_pixel(pixel_list[row*width + col][2], 16)
+                        if len(pixel_list[row*width + col]) == 4 :
+                            a = scale_pixel(pixel_list[row*width + col][3], 16)
+                        else:
+                            a = 0x0f
+                        c = (a << 12) | (r << 8) | (g << 4) | b
+                        f.write(struct.pack('<H', c))
                 if (width % 2) == 1:
                     f.write(struct.pack('<H', 0))
 
@@ -200,13 +253,17 @@ def invert_image(img):
     return ImageChops.invert(img)
 
 def process(image, output_file):
+    # if not image.has_transparency_data :
+    #     print ("No transparency: " + image.has_transparency_data)
+    #     args.alpha = "none"
+
     if args.scale:
         image = resize(image, 135, 240)
     if args.scale_icon != -1:
         image = resize(image, args.scale_icon, args.scale_icon)
     if args.trim:
         image = trim(image)
-    if image.has_transparency_data:
+    if image.has_transparency_data and args.alpha == "none":
         new_image = Image.new("RGBA", image.size, args.background_color)
         new_image.paste(image, (0, 0), image)
         image = new_image.convert('RGB')
@@ -406,6 +463,14 @@ parser.add_argument(
     help="scale the input/tile to valxval maintaining aspect ratio. Default is to not scale"
 )
 
+parser.add_argument(
+    "--alpha",
+    dest="alpha",
+    type=str.lower,
+    default="none",
+    help="one of none, argb1555 or argb4444"
+)
+
 parser.add_argument('file',nargs='+')
 
 args = parser.parse_args()
@@ -416,6 +481,7 @@ if len(args.file) > 0:
         exit(1)
 
     for file in args.file:
+        print("input file=" + file)
         fileType = pathlib.Path(file).suffix
         if fileType == '.bin':
             with open(file, 'rb') as inf:

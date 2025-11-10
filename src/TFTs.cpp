@@ -74,6 +74,57 @@ void StaticSprite::pushImageWithTransparency(int32_t x, int32_t y, int32_t w, in
   }
 }
 
+void StaticSprite::pushImageWithAlpha(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t *data, uint8_t *alpha, uint8_t opaque)
+{
+  if (data == nullptr) return;
+
+  PI_CLIP;
+
+  // Pointer within original image
+  uint16_t *ptro = data + dx + dy * w;
+  uint8_t *ptra = alpha + dx + dy * w;
+  // Pointer within sprite image
+  uint16_t *ptrs = _img + x + y * _iwidth;
+
+  uint16_t oPixel;
+  uint8_t alphaValue;
+
+  if(_swapBytes)
+  {
+    while (dh--)
+    {
+      for (int pixelX = 0; pixelX < dw; pixelX++) {
+        oPixel = ptro[pixelX];
+        alphaValue = ptra[pixelX];
+        if (alphaValue == opaque) {
+          ptrs[pixelX] = __bswap_16(oPixel);
+        } else if (alphaValue != 0) {
+          fastBlend(alphaValue, __bswap_16(oPixel), ptrs[pixelX]);
+        }
+      }
+      ptro += w;
+      ptrs += _iwidth;
+    }
+  }
+  else
+  {
+    while (dh--)
+    {
+      for (int pixelX = 0; pixelX < dw; pixelX++) {
+        oPixel = ptro[pixelX];
+        alphaValue = ptra[pixelX];
+        if (alphaValue == opaque) {
+          ptrs[pixelX] = oPixel;
+        } else if (alphaValue != 0) {
+          fastBlend(alphaValue, oPixel, ptrs[pixelX]);
+        }
+      }
+      ptro += w;
+      ptrs += _iwidth;
+    }
+  }
+}
+
 void StaticSprite::init() {
   _iwidth  = _dwidth  = _bitwidth = TFT_WIDTH;
   _iheight = _dheight = TFT_HEIGHT;
@@ -471,18 +522,45 @@ void TFTs::showDigit(uint8_t digit) {
   }
 }
 
+uint8_t calc_shift(uint16_t mask) {
+    uint8_t count = 0;
+    if ((mask & 0xFFFF) == 0) {
+        count += 16;
+        mask >>= 16;
+    }
+    if ((mask & 0xFF) == 0) {
+        count += 8;
+        mask >>= 8;
+    }
+    if ((mask & 0xF) == 0) {
+        count += 4;
+        mask >>= 4;
+    }
+    if ((mask & 0x3) == 0) {
+        count += 2;
+        mask >>= 2;
+    }
+    if ((mask & 0x1) == 0) {
+        count += 1;
+    }
+    return count;
+}
+
+uint16_t rotate_right(uint16_t value, int count) {
+  return (value >> count) | (value << (16 - count));
+}
+
 // These BMP functions are stolen directly from the TFT_SPIFFS_BMP example in the TFT_eSPI library.
 // Unfortunately, they aren't part of the library itself, so I had to copy them.
 // I've modified DrawImage to buffer the whole image at once instead of doing it line-by-line.
 bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
-  uint32_t seekOffset, headerSize, paletteSize = 0;
+  uint32_t bmpStart, headerSize, paletteSize = 0;
   int16_t w, h, row, col;
   uint16_t  r, g, b, bitDepth;
   
   // First two bytes should already have been read
-  read32(bmpFile); // filesize in bytes
-  read32(bmpFile); // reserved
-  seekOffset = read32(bmpFile); // start of bitmap
+  bmpFile.seek(8, fs::SeekCur); // Skip file size and a reserved word
+  bmpStart = read32(bmpFile); // start of bitmap
   headerSize = read32(bmpFile); // header size
   w = read32(bmpFile); // width
   h = read32(bmpFile); // height
@@ -513,6 +591,7 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
   Serial.println(dimming);
 #endif
   uint32_t palette[256];
+  MaskData maskData;
   if (bitDepth <= 8) // 1,2,4,8 bit bitmap: read color palette
   {
     read32(bmpFile); read32(bmpFile); read32(bmpFile); // size, w resolution, h resolution
@@ -528,11 +607,30 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
     for (uint16_t i = 0; i < paletteSize; i++) {
       palette[i] = read32(bmpFile);
     }
+  } else if (bitDepth == 16) {
+    // Seek past some data
+    bmpFile.seek(20, fs::SeekCur);
+    if (bmpFile.position() != bmpStart) {
+      maskData.rMask = read32(bmpFile);
+      maskData.rShift = (calc_shift(maskData.rMask) - (5 - __builtin_popcount(maskData.rMask))) % 16;
+      maskData.gMask = read32(bmpFile);
+      maskData.gShift = (calc_shift(maskData.gMask) - (6 - __builtin_popcount(maskData.rMask))) % 16;
+      maskData.bMask = read32(bmpFile);
+      maskData.bShift = (calc_shift(maskData.bMask) - (5 - __builtin_popcount(maskData.rMask))) % 16;
+      if (maskData.gMask != 0x07e0) {  // 0x07e0 is the green mask for RGB565
+        // We have either ARGB4444 or ARGB1555
+        maskData.aMask = read32(bmpFile);
+        maskData.aShift = calc_shift(maskData.aMask);
+      }
+      Serial.printf("rMask=%d, rShift=%d, gMask=%d, gShift=%d, bMask=%d, bShift=%d, aMask=%d, aShift=%d\n",
+        maskData.rMask, maskData.rShift, maskData.gMask, maskData.gShift, maskData.bMask, maskData.bShift, maskData.aMask, maskData.aShift
+      );
+    }
   }
 
-  bmpFile.seek(seekOffset);
+  bmpFile.seek(bmpStart);
 
-  return LoadImageBytesIntoSprite(w, abs(h), bitDepth, ((bitDepth * w +31) >> 5) * 4, h > 0, palette, bmpFile);
+  return LoadImageBytesIntoSprite(w, abs(h), bitDepth, ((bitDepth * w +31) >> 5) * 4, h > 0, &maskData, palette, bmpFile);
 }
 
 bool TFTs::LoadCLKImageIntoBuffer(fs::File &clkFile) {
@@ -550,7 +648,9 @@ bool TFTs::LoadCLKImageIntoBuffer(fs::File &clkFile) {
   Serial.println(dimming);
 #endif
 
-  return LoadImageBytesIntoSprite(w, h, 16, w * 2, false, 0, clkFile);
+  MaskData maskData;
+
+  return LoadImageBytesIntoSprite(w, h, 16, w * 2, false, &maskData, 0, clkFile);
 }
 
 uint16_t TFTs::dimColor(uint16_t color) {
@@ -586,7 +686,7 @@ void TFTs::setMonochromeColor(int color) {
   monochromeColor = color;
 }
 
-bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int16_t rowSize, bool reversed, uint32_t *palette, fs::File &file) {
+bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int16_t rowSize, bool reversed, MaskData *pMaskData, uint32_t *palette, fs::File &file) {
   // Calculate top left coords of box - default to MIDDLE_CENTER
   int16_t x = (TFT_WIDTH - boxWidth) / 2;
   int16_t y = (TFT_HEIGHT - boxHeight) / 2;
@@ -614,6 +714,7 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
     outputBufferSize = rowSize; // So that input and output buffer can be the same. Basically for bitDepth >= 16
   }
   uint8_t outputBuffer[outputBufferSize];
+  uint8_t alphaBuffer[w];
 
   uint32_t inputBufferSize = rowSize;
   uint8_t *inputBuffer = outputBuffer;
@@ -634,9 +735,14 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
   Serial.print(", "); 
   Serial.println(outputBufferSize);
 #endif
-
+  uint8_t opaque = rotate_right(pMaskData->aMask, pMaskData->aShift);
+  if (bitDepth == 1 && monochromeColor >= 0) {
+    opaque = 1;
+  }
   StaticSprite& sprite = getSprite();
-  if (!(bitDepth == 1 && monochromeColor >= 0)) {
+  bool leaveBackground = opaque != 0;
+  leaveBackground = leaveBackground || (w == TFT_WIDTH && h == TFT_HEIGHT);
+  if (!leaveBackground) {
     sprite.fillSprite(0);
   }
   
@@ -667,7 +773,7 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
     
     // Colors are already in 16-bit R5, G6, B5 format
 #ifdef DIM_WITH_ENABLE_PIN_PWM
-    if (bitDepth != 16) {
+    if (bitDepth != 16 || pMaskData->aMask != 0) {
 #else
     if (dimming != 255 || bitDepth != 16) {
 #endif
@@ -689,41 +795,48 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
             break;
           case 16:
             {
-              // 16 BPP pixel format: R5, G6, B5 ; bin: RRRR RGGG GGGB BBBB
-              uint8_t PixM = inputBuffer[col*2+1];
-              uint8_t PixL = inputBuffer[col*2];
+              uint16_t pix;
+              ((uint8_t *)&pix)[0] = inputBuffer[col*2]; // LSB
+              ((uint8_t *)&pix)[1] = inputBuffer[col*2+1]; // MSB
+
               // align to 8-bit value (MSB left aligned)
-              r = (PixM) & 0xF8;
-              g = ((PixM << 5) | (PixL >> 3)) & 0xFC;
-              b = (PixL << 3) & 0xF8;
+              r = rotate_right((pix & pMaskData->rMask), pMaskData->rShift);
+              g = rotate_right((pix & pMaskData->gMask), pMaskData->gShift);
+              b = rotate_right((pix & pMaskData->bMask), pMaskData->bShift);
+              alphaBuffer[col] = rotate_right((pix & pMaskData->aMask), pMaskData->aShift) * 255 / opaque;
             }
             break;
           case 8:
             c = palette[*inputPtr++];
-            b = c & 0xff; g = (c >> 8) & 0xff; r = (c >> 16) & 0xff;
+            b = (c >> 3) & 0x1f; g = (c >> 10) & 0x3f; r = (c >> 19) & 0x1f;
+            // b = c & 0xff; g = (c >> 8) & 0xff; r = (c >> 16) & 0xff;
             break;
           case 4:
             c = palette[(*inputPtr >> ((col & 0x01)?0:4)) & 0x0F];
             if (col & 0x01) inputPtr++;
-            b = c; g = c >> 8; r = c >> 16;
+            b = (c >> 3) & 0x1f; g = (c >> 10) & 0x3f; r = (c >> 19) & 0x1f;
             break;
           case 2:
             pixel = (*inputPtr >> ((3 - (col & 0x03))<< 1)) & 0x03;
             if ((col & 0x03) == 0x03) inputPtr++;
             c = palette[pixel];
-            b = c; g = c >> 8; r = c >> 16;
+            b = (c >> 3) & 0x1f; g = (c >> 10) & 0x3f; r = (c >> 19) & 0x1f;
             break;
           case 1:
             pixel = (*inputPtr >> (7 - (col & 0x07))) & 0x01;
             if ((col & 0x07) == 0x07) inputPtr++;
             int oneBitColor = dimColor(monochromeColor);
+            alphaBuffer[col] = 255;
             if (oneBitColor >= 0 && pixel == 1) {
-              r = (oneBitColor >> 8) & 0xF8;
-              b = (oneBitColor << 3) & 0xF8;
-              g = (oneBitColor >> 3) & 0xFC;
+              r = (oneBitColor >> 11) & 0x1f;
+              b = (oneBitColor) & 0x1f;
+              g = (oneBitColor >> 5) & 0x3f;
             } else {
               c = palette[pixel];
-              b = c; g = c >> 8; r = c >> 16;
+              if (c == 0) {
+                alphaBuffer[col] = 0;
+              }
+              b = (c >> 3) & 0x1f; g = (c >> 10) & 0x3f; r = (c >> 19) & 0x1f;
             }
             break;
         }
@@ -737,14 +850,16 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
           b = b >> 8;
         }
 #endif
-        outputBuffer[col*2+1] = (r & 0xF8) | ((g & 0xFC) >> 5);
-        outputBuffer[col*2] = ((g & 0x1C) << 3) | ((b & 0xF8) >> 3);
+        // convert to RGB565
+        uint16_t finalPixel = (r << 11) | (g << 5) | b;
+        outputBuffer[col*2+1] = finalPixel >> 8;
+        outputBuffer[col*2] = finalPixel & 0xff;
       }
     }
 
     int spriteRow = reversed ? (h-row-1) + y : row + y;
-    if (bitDepth == 1 && monochromeColor >= 0) {
-      sprite.pushImageWithTransparency(x, spriteRow, w, 1, (uint16_t*)outputBuffer);
+    if (opaque != 0) {
+      sprite.pushImageWithAlpha(x, spriteRow, w, 1, (uint16_t*)outputBuffer, alphaBuffer, 255);
     } else {
       sprite.pushImage(x, spriteRow, w, 1, (uint16_t*)outputBuffer);
     }
