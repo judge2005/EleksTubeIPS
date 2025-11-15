@@ -60,7 +60,7 @@ IRAMPtrArray<char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.7.3",
+	"1.8.0",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -622,6 +622,7 @@ IRAMPtrArray<WSHandler*> wsHandlers {
 void infoCallback() {
 	wsInfoHandler.setSsid(ssid);
 	// wsInfoHandler.setBlankingMonitor(&blankingMonitor);
+	wsInfoHandler.setDescription(manifest[0]);
 	wsInfoHandler.setRevision(manifest[1]);
 
 	wsInfoHandler.setFSSize(String(LittleFS.totalBytes()));

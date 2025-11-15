@@ -24,12 +24,23 @@ private:
     void sendHADiscoveryMessage();
 
     String id;
+    char home[40];
     char persistentStateTopic[64];
     char volatileStateTopic[64];
-    char screenSaverTopic[64];
-    char brightnessTopic[64];
-    char customDataTopic[64];
-    char screenSaverDelayTopic[64];
+
+    const char* screenSaverTopic = "~/screen_saver/set";
+    const char* brightnessTopic = "~/brightness/set";
+    const char* screenSaverDelayTopic = "~/screen_saver_delay/set";
+
+    const char* customDataTopic = "~/custom/set";
+
+    const char* backlightHSTopic = "~/backlight_hs/set";
+    const char* backlightStateTopic = "~/backlight_state/set";
+    const char* backlightBrightnessTopic = "~/backlight_brightness/set";
+
+    const char* underlightHSTopic = "~/underlight_hs/set";
+    const char* underlightStateTopic = "~/underlight_state/set";
+    const char* underlightBrightnessTopic = "~/underlight_brightness/set";
 
     bool reconnect = false;
     uint32_t lastReconnect = 0;

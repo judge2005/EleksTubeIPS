@@ -35,6 +35,15 @@ public:
   static ByteConfigItem& getLEDSaturation() { static ByteConfigItem led_saturation("led_saturation", 255); return led_saturation; }
   static ByteConfigItem& getBreathPerMin() { static ByteConfigItem breath_per_min("breath_per_min", 10); return breath_per_min; }
 
+  static boolean backlightState;
+  static byte backlightHue;
+  static byte backlightSaturation;
+  static byte backlightBrightness;
+#if (NUM_LEDS > 6)
+  static byte underlightHue;
+  static byte underlightSaturation;
+  static byte underlightBrightness;
+#endif
   void begin();
   void loop();
 
@@ -56,7 +65,7 @@ private:
   void pulsePattern();
   void breathPattern();
 
-  void fill(uint8_t hue, uint8_t val, uint8_t sat);
+  void fill(uint8_t hue, uint8_t val, uint8_t sat, uint8_t start, uint8_t end);
   void show();
   void clear();
   void setPixelColor(uint8_t digit, uint8_t hue, uint8_t val, uint8_t sat);

@@ -622,9 +622,11 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
         maskData.aMask = read32(bmpFile);
         maskData.aShift = calc_shift(maskData.aMask);
       }
+#ifdef notdef
       Serial.printf("rMask=%d, rShift=%d, gMask=%d, gShift=%d, bMask=%d, bShift=%d, aMask=%d, aShift=%d\n",
         maskData.rMask, maskData.rShift, maskData.gMask, maskData.gShift, maskData.bMask, maskData.bShift, maskData.aMask, maskData.aShift
       );
+#endif
     }
   }
 
@@ -835,10 +837,10 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
               g = (oneBitColor >> 5) & 0x3f;
             } else {
               c = palette[pixel];
-              if (c == 0) {
+              b = (c >> 3) & 0x1f; g = (c >> 10) & 0x3f; r = (c >> 19) & 0x1f;
+              if (b == 0 && g == 0 && r == 0) {
                 alphaBuffer[col] = 0;
               }
-              b = (c >> 3) & 0x1f; g = (c >> 10) & 0x3f; r = (c >> 19) & 0x1f;
             }
             break;
         }

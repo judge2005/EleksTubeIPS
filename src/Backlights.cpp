@@ -1,6 +1,16 @@
 #include "Backlights.h"
 #include <math.h>
 
+boolean Backlights::backlightState = false;
+byte Backlights::backlightHue = 128;
+byte Backlights::backlightSaturation = 255;
+byte Backlights::backlightBrightness = 255;
+#if (NUM_LEDS > 6)
+byte Backlights::underlightHue = 128;
+byte Backlights::underlightSaturation = 128;
+byte Backlights::underlightBrightness = 128;
+#endif
+
 void Backlights::begin()  {
 	pixels.Begin(); // This initializes the NeoPixel library.
 	pixels.Show();
@@ -10,7 +20,15 @@ void Backlights::loop() {
   //   enum patterns { dark, constant, rainbow, pulse, breath, num_patterns };
   uint8_t current_pattern = getLEDPattern();
 
-  if (off || current_pattern == dark) {
+  if (backlightState) {
+#if (NUM_LEDS > 6)
+    fill(backlightHue, backlightSaturation, backlightBrightness, 0, 6);
+    fill(underlightHue, underlightSaturation, underlightBrightness, 6, NUM_LEDS);
+#else
+    fill(backlightHue, backlightSaturation, backlightBrightness, 0, NUM_LEDS);
+#endif
+    show();
+  } else if (off || current_pattern == dark) {
     clear();
     show();
   }
@@ -19,7 +37,7 @@ void Backlights::loop() {
 
     val = val * brightness / 255;
     
-    fill(getLEDHue(), getLEDSaturation(), val);
+    fill(getLEDHue(), getLEDSaturation(), val, 0, NUM_LEDS);
     show();
   }
   else if (current_pattern == rainbow) {
@@ -39,7 +57,7 @@ void Backlights::pulsePattern() {
   uint16_t val = valAdjust * getLEDValue().value / 256;
   val = val * brightness / 255;
 
-  fill(getLEDHue(), getLEDSaturation(), val);
+  fill(getLEDHue(), getLEDSaturation(), val, 0, NUM_LEDS);
 
   show();
 }
@@ -52,19 +70,15 @@ void Backlights::breathPattern() {
   val = val * getLEDValue().value / 256;
   val = val * brightness / 255;
 
-  fill(getLEDHue(), getLEDSaturation(), val);
+  fill(getLEDHue(), getLEDSaturation(), val, 0, NUM_LEDS);
 
   show();
 }
 
 void Backlights::rainbowPattern() {
-  // Divide by 3 to spread it out some, so the whole rainbow isn't displayed at once.
-  // TODO Make this /3 a parameter
   const uint16_t hue_per_digit = (256/NUM_DIGITS)/2;
 
-  // Divide by 10 to slow down the rainbow rotation rate.
-  // TODO Make this /10 a parameter
-  uint16_t hue = millis()/100 % 256;  
+  uint16_t hue = millis()/((21-getBreathPerMin().value) * 10) % 256;  
   
   uint16_t val = getLEDValue();
 
@@ -78,16 +92,16 @@ void Backlights::rainbowPattern() {
   show();
 }
 
-void Backlights::fill(byte hue, byte sat, byte val) {
+void Backlights::fill(byte hue, byte sat, byte val, byte start, byte end) {
 	RgbColor color = HsbColor((byte)(hue)/256.0, (byte)(sat)/256.0, val/256.0);
 
-  for (uint8_t digit=0; digit < NUM_LEDS; digit++) {
+  for (uint8_t digit=start; digit < end; digit++) {
 		pixels.SetPixelColor(digit, colorGamma.Correct(color));
   }
 }
 
 void Backlights::clear() {
-  fill(0, 0, 0);
+  fill(0, 0, 0, 0, NUM_LEDS);
 }
 
 void Backlights::show() {

@@ -54,6 +54,7 @@ void WSInfoHandler::handle(AsyncWebSocketClient *client, char *data) {
 	value["wifi_ap_ssid"] = ssid;
 	value["hostname"] = hostname;
 	value["software_revision"] = revision;
+	value["description"] = description;
 
     value["fs_size"] = fsSize;
     value["fs_free"] = fsFree;

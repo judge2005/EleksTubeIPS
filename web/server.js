@@ -198,6 +198,7 @@ var state = {
 		'mqtt_password' : ""
 	},
 	"5": {
+		'description' : "IPSTube Clock With Hardware Dimming, Replacement Firmware",
 		'esp_boot_version' : "1234",
 		'esp_free_heap' : "5678",
 		'esp_sketch_size' : "90123",

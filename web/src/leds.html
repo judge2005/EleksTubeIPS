@@ -9,7 +9,7 @@
 						<label for="led_pattern">Backlight Pattern</label>
 					</div>
 					<div class="dispInline">
-						<select onchange="setVisibility('bpm_container', this, ['4','5']);setVisibility('hue_container', this, ['2','4','5']);setVisibility('saturation_container', this, ['2','3','4','5']);elementChange(this)"  type="picklist"
+						<select onchange="setVisibility('bpm_container', this, ['3','4','5']);setVisibility('hue_container', this, ['2','4','5']);setVisibility('saturation_container', this, ['2','3','4','5']);elementChange(this)"  type="picklist"
 							id="led_pattern" data-mini="true">
 							<option value="0">Dark</option>
 							<option value="2">Constant</option>
@@ -20,7 +20,7 @@
 					</div>
 					<div id="bpm_container" style="display: none;">
 						<div class="clearFloats"></div>
-						<label for="breath_per_min">Cycles per Minute</label>
+						<label for="breath_per_min">Speed</label>
 						<input onchange="elementChange(this)" type="range" name="breath_per_min" id="breath_per_min" min="1" max="20" value="20">
 					</div>
 					<fieldset id="led_colors" data-collapsed="false" data-role="collapsible" data-iconpos="right" data-collapsed-icon="carat-d" data-expanded-icon="carat-u">

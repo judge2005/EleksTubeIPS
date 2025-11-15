@@ -62,6 +62,10 @@ public:
 		this->revision = revision;
 	}
 
+	void setDescription(const String& description) {
+		this->description = description;
+	}
+
 private:
 	CbFunc cbFunc;
 
@@ -77,6 +81,7 @@ private:
 	String failedCount;
 	String hostname;
 	String revision;
+	String description;
 };
 
 
