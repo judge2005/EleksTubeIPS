@@ -473,6 +473,9 @@ void TFTs::enableAllDisplays() {
   ledcWrite(TFT_PWM_CHANNEL, 255 - dimming);
 #endif
 #else
+#if defined(HARDWARE_IPSTube_CLOCK)
+  invalidateAllDigits();
+#endif
   digitalWrite(TFT_ENABLE_PIN, TFT_ENABLE_VALUE);
 #endif
   enabled = true;
