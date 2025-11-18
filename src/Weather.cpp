@@ -20,6 +20,10 @@ void drawCross(int x, int y, unsigned int color)
 const int tzOffset = -18000;
 
 void Weather::drawDisplay(int index, int display, bool showDay) {
+    if (!tfts->isEnabled()) {
+        return;
+    }
+    
     char txt[10];
 
     // Load 'space' glyph if any

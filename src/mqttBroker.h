@@ -27,20 +27,21 @@ private:
     char home[40];
     char persistentStateTopic[64];
     char volatileStateTopic[64];
+    char availabilityTopic[64];
 
-    const char* screenSaverTopic = "~/screen_saver/set";
-    const char* brightnessTopic = "~/brightness/set";
-    const char* screenSaverDelayTopic = "~/screen_saver_delay/set";
+    const char* screenSaverTopic = "~/set/screen_saver";
+    const char* brightnessTopic = "~/set/brightness";
+    const char* screenSaverDelayTopic = "~/set/screen_saver_delay";
 
-    const char* customDataTopic = "~/custom/set";
+    const char* customDataTopic = "~/set/custom";
 
-    const char* backlightHSTopic = "~/backlight_hs/set";
-    const char* backlightStateTopic = "~/backlight_state/set";
-    const char* backlightBrightnessTopic = "~/backlight_brightness/set";
+    const char* backlightHSTopic = "~/set/backlight_hs";
+    const char* backlightStateTopic = "~/set/backlight_state";
+    const char* backlightBrightnessTopic = "~/set/backlight_brightness";
 
-    const char* underlightHSTopic = "~/underlight_hs/set";
-    const char* underlightStateTopic = "~/underlight_state/set";
-    const char* underlightBrightnessTopic = "~/underlight_brightness/set";
+    const char* underlightHSTopic = "~/set/underlight_hs";
+    const char* underlightStateTopic = "~/set/underlight_state";
+    const char* underlightBrightnessTopic = "~/set/underlight_brightness";
 
     bool reconnect = false;
     uint32_t lastReconnect = 0;

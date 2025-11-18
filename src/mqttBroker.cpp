@@ -23,6 +23,7 @@ void MQTTBroker::onConnect(bool sessionPresent)
 {
 	reconnect = false;
 //	Serial.println("Connected to MQTT");
+    client.subscribe("homeassistant/status", 2);
     sendHADiscoveryMessage();
 }
 
@@ -40,7 +41,7 @@ void MQTTBroker::onMessage(char* topic, char* payload, AsyncMqttClientMessagePro
 
 		// payload is bigger then max: return chunked
 	if (total_length >= sizeof(mqttMessageBuffer)) {
-		Serial.println("MQTT message too large");
+		Serial.printf("MQTT message too large (%d): topic=%s, payload=%s\n", total_length, topic, payload);
 		return;
 	}
 
@@ -56,8 +57,13 @@ void MQTTBroker::onMessage(char* topic, char* payload, AsyncMqttClientMessagePro
          topicIndex = 5
          */
         int topicIndex = strlen(home);
-        if (strcmp(topic + topicIndex, screenSaverTopic + 1) == 0) {
-            if (strcmp((const char*)mqttMessageBuffer, "OFF") == 0) {
+        if (strcmp(topic, "homeassistant/status") == 0) {
+            if (strcmp("online", (const char*)mqttMessageBuffer)) {
+                Serial.println("HA online");
+                sendHADiscoveryMessage();
+            }
+        } else if (strcmp(topic + topicIndex, screenSaverTopic + 1) == 0) {
+            if (strcmp((const char*)mqttMessageBuffer, "OFF") == 0) { 
                 screenSaver->reset();
             } else {
                 screenSaver->start();
@@ -143,9 +149,11 @@ bool MQTTBroker::init(const String& id) {
         sprintf(home, "clock/%s", id.c_str());
         sprintf(volatileStateTopic, "clock/%s/volatile/state", id.c_str());
         sprintf(persistentStateTopic, "clock/%s/persistent/state", id.c_str());
+        sprintf(availabilityTopic, "clock/%s/availability", id.c_str());
 
         client.setServer(getHost().value.c_str(), getPort());
         client.setCredentials(getUser().value.c_str(),getPassword().value.c_str());
+        client.setWill(availabilityTopic, 2, true, "offline");
         client.onConnect([this](bool sessionPresent) { this->onConnect(sessionPresent); });
         client.onDisconnect([this](AsyncMqttClientDisconnectReason reason) { this->onDisconnect(reason); });
         client.onMessage([this](char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t length, size_t index, size_t total_length) {
@@ -198,8 +206,8 @@ void MQTTBroker::publishState() {
             char buffer[384];
             size_t n = serializeJson(volatileState, buffer);
 
-            client.publish(volatileStateTopic, 0, true, buffer);
-            client.publish(persistentStateTopic, 0, true, rootConfig.toJSON().c_str());
+            client.publish(volatileStateTopic, 1, false, buffer);
+            client.publish(persistentStateTopic, 1, false, rootConfig.toJSON().c_str());
             xSemaphoreGive(memMutex);
         } else {
             // Serial.println("Gave up waiting for memory semaphore");
@@ -210,7 +218,7 @@ void MQTTBroker::publishState() {
 void MQTTBroker::sendHADiscoveryMessage() {
     char buffer[1024];
     strcpy(buffer, home);
-    strcat(buffer, "/#");
+    strcat(buffer, "/set/#");
     client.subscribe(buffer, 0);
 
     // This is the discovery topic for the 'screensaver' switch
@@ -225,6 +233,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
     doc["unique_id"] = "screen_saver_" + id;
     doc["stat_t"] = volatileStateTopic;
     doc["cmd_t"] = screenSaverTopic;
+    doc["avty_t"] = availabilityTopic;
     doc["val_tpl"] = "{{value_json.screen_saver_on}}";
     doc["dev"]["configuration_url"] = "http://" + WiFi.localIP().toString() + "/";
     doc["dev"]["name"] = manifest[3];
@@ -234,7 +243,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
 
     size_t n = serializeJson(doc, buffer);
 
-    client.publish(discoveryTopic, 0, true, buffer, n);
+    client.publish(discoveryTopic, 1, false, buffer, n);
 
     sprintf(discoveryTopic, "homeassistant/number/%s/screen_saver_delay/config", id.c_str());
 
@@ -246,6 +255,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
     doc["unique_id"] = "screen_saver_delay" + id;
     doc["stat_t"] = "~/persistent/state";
     doc["cmd_t"] = screenSaverDelayTopic;
+    doc["avty_t"] = availabilityTopic;
     doc["min"] = 0;
     doc["max"] = 120;
     doc["val_tpl"] = "{{value_json.matrix.screen_saver_delay}}";
@@ -257,7 +267,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
 
     n = serializeJson(doc, buffer);
 
-    client.publish(discoveryTopic, 0, true, buffer, n);
+    client.publish(discoveryTopic, 1, false, buffer, n);
 
     sprintf(discoveryTopic, "homeassistant/number/%s/brightness/config", id.c_str());
 
@@ -269,6 +279,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
     doc["unique_id"] = "brightness" + id;
     doc["stat_t"] = volatileStateTopic;
     doc["cmd_t"] = brightnessTopic;
+    doc["avty_t"] = availabilityTopic;
     doc["min"] = 10;
     doc["max"] = 255;
     doc["val_tpl"] = "{{value_json.brightness}}";
@@ -280,7 +291,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
 
     n = serializeJson(doc, buffer);
 
-    client.publish(discoveryTopic, 0, true, buffer, n);
+    client.publish(discoveryTopic, 1, false, buffer, n);
 
     sprintf(discoveryTopic, "homeassistant/text/%s/custom/config", id.c_str());
 
@@ -292,6 +303,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
     doc["unique_id"] = "custom-data" + id;
     doc["stat_t"] = volatileStateTopic;
     doc["cmd_t"] = customDataTopic;
+    doc["avty_t"] = availabilityTopic;
     doc["val_tpl"] = "{{value_json.custom}}";
     doc["dev"]["configuration_url"] = "http://" + WiFi.localIP().toString() + "/";
     doc["dev"]["name"] = manifest[3];
@@ -301,7 +313,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
 
     n = serializeJson(doc, buffer);
 
-    client.publish(discoveryTopic, 0, true, buffer, n);
+    client.publish(discoveryTopic, 1, false, buffer, n);
 
     sprintf(discoveryTopic, "homeassistant/light/%s/backlight/config", id.c_str());
 
@@ -313,6 +325,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
     doc["unique_id"] = "backlight" + id;
 
     doc["cmd_t"] = backlightStateTopic;
+    doc["avty_t"] = availabilityTopic;
     doc["stat_t"] = volatileStateTopic;
     doc["stat_val_tpl"] = "{{value_json.backlight_state}}";
 
@@ -333,7 +346,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
 
     n = serializeJson(doc, buffer);
 
-    client.publish(discoveryTopic, 0, true, buffer, n);
+    client.publish(discoveryTopic, 1, false, buffer, n);
 
 #if (NUM_LEDS > 6)
     sprintf(discoveryTopic, "homeassistant/light/%s/underlight/config", id.c_str());
@@ -346,6 +359,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
     doc["unique_id"] = "underlight" + id;
 
     doc["cmd_t"] = underlightStateTopic;
+    doc["avty_t"] = availabilityTopic;
     doc["stat_t"] = volatileStateTopic;
     doc["stat_val_tpl"] = "{{value_json.underlight_state}}";
 
@@ -366,8 +380,10 @@ void MQTTBroker::sendHADiscoveryMessage() {
 
     n = serializeJson(doc, buffer);
 
-    client.publish(discoveryTopic, 0, true, buffer, n);
+    client.publish(discoveryTopic, 1, false, buffer, n);
 #endif
+    client.publish(availabilityTopic, 2, true, "online");
+
     delay(1000);
 
     publishState();

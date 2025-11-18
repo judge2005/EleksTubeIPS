@@ -294,6 +294,10 @@ void TFTs::printAll(const char* s) {
 }
 
 void TFTs::drawStatus() {
+  if (!enabled) {
+    return;
+  }
+  
   if (statusSet) {
 #ifdef USE_DMA
   while(dmaBusy()) {
@@ -335,6 +339,10 @@ void TFTs::animateRain() {
 }
 
 void TFTs::drawMeter(int val, bool first, const char *legend) {
+  if (!enabled) {
+    return;
+  }
+
   static uint16_t last_angle = 30;
 
   int x = width() / 2;
@@ -471,7 +479,7 @@ void TFTs::enableAllDisplays() {
 }
 
 void TFTs::disableAllDisplays() {
-#ifdef DIM_WITH_ENABLE_PIN_PWM
+#if defined(DIM_WITH_ENABLE_PIN_PWM)
 #if (TFT_ENABLE_VALUE == 1)
   ledcWrite(TFT_PWM_CHANNEL, 0);
 #else
@@ -479,6 +487,11 @@ void TFTs::disableAllDisplays() {
 #endif
 #else
   digitalWrite(TFT_ENABLE_PIN, TFT_DISABLE_VALUE);
+#if defined(HARDWARE_IPSTube_CLOCK)
+// On some models of IPSTube clock the display can't be turned off
+  chip_select.setAll();
+  fillScreen(TFT_BLACK);
+#endif
 #endif
   enabled = false;
 }
@@ -502,6 +515,10 @@ void TFTs::setDigit(uint8_t digit, const char *name, show_t show) {
  * Displays the bitmap for the value to the given digit. 
  */
 void TFTs::showDigit(uint8_t digit) {
+  if (!enabled) {
+    return;
+  }
+
   if (*icons[digit] == 0) {
 #ifdef USE_DMA
     while(dmaBusy()) {
