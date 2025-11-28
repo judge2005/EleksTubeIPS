@@ -249,6 +249,14 @@
 				delete values["weather_icons"];
 			}
 
+			var val = values["slide_show"];
+			if (typeof val != 'undefined') {
+				if (fileSet == 'slides') {
+					setFace(val);
+				}
+				delete values["slide_show"];
+			}
+
 			Object.keys(values).forEach(function (key, index) {
 				var container = $('#' + key + "_container");
 				container.show();
@@ -465,8 +473,10 @@
 
 			var fileSet = $('input[name=file_set]:checked').val();
 			var configName = ':clock_face:';
-			if (fileSet != 'faces') {
+			if (fileSet == 'weather') {
 				configName = ':weather_icons:';
+			} else if (fileSet == "slides") {
+				configName = ':slide_show:';
 			}
 			var msg = '9:' + pageId + configName + key;
 			safeSend(msg);

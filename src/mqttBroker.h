@@ -1,7 +1,12 @@
 #ifndef ELEKSTUBE_MQTT_H
 #define ELEKSTUBE_MQTT_H
 #include <ConfigItem.h>
+#ifdef ASYNC_MQTT_HA_CLIENT
 #include <AsyncMqttClient.h>
+#else
+#include <espMqttClient.h>
+#endif
+#include "IRAMPtrArray.h"
 
 class MQTTBroker
 {
@@ -18,8 +23,13 @@ public:
 
 private:
     void onConnect(bool sessionPresent);
+#ifdef ASYNC_MQTT_HA_CLIENT
     void onDisconnect(AsyncMqttClientDisconnectReason reason);
     void onMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t length, size_t index, size_t total_length);
+#else
+    void onDisconnect(espMqttClientTypes::DisconnectReason reason);
+    void onMessage(const espMqttClientTypes::MessageProperties& properties, const char* topic, const uint8_t*  payload, size_t length, size_t index, size_t total_length);
+#endif
 
     void sendHADiscoveryMessage();
 
@@ -32,6 +42,7 @@ private:
     const char* screenSaverTopic = "~/set/screen_saver";
     const char* brightnessTopic = "~/set/brightness";
     const char* screenSaverDelayTopic = "~/set/screen_saver_delay";
+    const char* displayTopic = "~/set/display";
 
     const char* customDataTopic = "~/set/custom";
 
@@ -43,9 +54,15 @@ private:
     const char* underlightStateTopic = "~/set/underlight_state";
     const char* underlightBrightnessTopic = "~/set/underlight_brightness";
 
+    static IRAMPtrArray<const char*> displayStates;
+
     bool reconnect = false;
     uint32_t lastReconnect = 0;
 
+#ifdef ASYNC_MQTT_HA_CLIENT
     AsyncMqttClient client;
+#else
+    espMqttClient client;
+#endif
 };
 #endif

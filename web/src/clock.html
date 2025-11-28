@@ -4,6 +4,7 @@
 		<h1>Clock</h1>
 		<a href="#mainMenu" data-rel="main-menu-panel"
 			class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
+		<a href="https://github.com/judge2005/EleksTubeIPS" target="_blank" class="ui-btn ui-btn-right ui-btn-icon-notext ui-icon-info ui-corner-all"></a>
 	</div>
 	<div data-role="content">
 		<form action="/set_clock" method="POST" id="clock_form">
@@ -18,6 +19,8 @@
 					<label for="display_date">Date</label>
 					<input onchange="elementChange(this);setVisibility('time_container', this, ['0']);setVisibility('date_container', this, ['1']);" type="radio" name="time_or_date" id="display_weather" value="2">
 					<label for="display_weather">Weather</label>
+					<input onchange="elementChange(this);setVisibility('time_container', this, ['0']);setVisibility('date_container', this, ['1']);" type="radio" name="time_or_date" id="display_slides" value="3">
+					<label for="display_slides">Slide Show</label>
 				</fieldset>
 			</div>
 			<div id="time_container" style="display: none;">
@@ -33,6 +36,8 @@
 						<label for="four_digits">Four AM/PM</label>
 						<input onchange="elementChange(this)" type="radio" name="four_digit_display" id="four_digits_plus_weather" value="2">
 						<label for="four_digits_plus_weather">Four + Weather</label>
+						<input onchange="elementChange(this)" type="radio" name="four_digit_display" id="four_digits_plus_picture" value="3">
+						<label for="four_digits_plus_picture">Four + Picture</label>
 					</fieldset>
 				</div>
 				<div class="clearFloats"></div>

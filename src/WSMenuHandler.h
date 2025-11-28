@@ -7,21 +7,21 @@
 
 class WSMenuHandler : public WSHandler {
 public:
-	WSMenuHandler(String **items) : items(items) { }
+	WSMenuHandler(const char **items) : items(items) { }
 	virtual void handle(AsyncWebSocketClient *client, char *data);
-	void setItems(String **items);
+	void setItems(const char **items);
 
-	static String clockMenu;
-	static String ledsMenu;
-	static String facesMenu;
-	static String weatherMenu;
-	static String matrixMenu;
-	static String mqttMenu;
-	static String networkMenu;
-	static String infoMenu;
+	static const char* clockMenu;
+	static const char* ledsMenu;
+	static const char* facesMenu;
+	static const char* weatherMenu;
+	static const char* matrixMenu;
+	static const char* mqttMenu;
+	static const char* networkMenu;
+	static const char* infoMenu;
 
 private:
-	String **items;
+	const char **items;
 };
 
 

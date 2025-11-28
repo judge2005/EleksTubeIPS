@@ -1,4 +1,5 @@
 #include "TFTs.h"
+#include "IPSClock.h"
 #include <WiFi.h>
 #include "matrix-code-14.h"
 #include <byteswap.h>
@@ -28,6 +29,7 @@
   if (dw < 1 || dh < 1) return;
 
 SemaphoreHandle_t TFTs::tftMutex = 0;
+const char *TFTs::INVALID_DIGIT = "nosuchfile";
 
 uint8_t StaticSprite::output_buffer[(TFT_HEIGHT * TFT_WIDTH + 1) * sizeof(uint16_t)];
 
@@ -403,7 +405,7 @@ void TFTs::drawMeter(int val, bool first, const char *legend) {
   release();
 }
 
-void TFTs::setShowDigits(bool show) {
+void TFTs::setShowDigits(byte show) {
   showDigits = show;
 }
 
@@ -425,7 +427,7 @@ void TFTs::setDimming(uint8_t dimming) {
 void TFTs::invalidateAllDigits() {
   loadedFilename[0] = 0;
   for (uint8_t digit=0; digit < NUM_DIGITS; digit++) {
-    setDigit(digit, "nosuchfile", TFTs::no);
+    setDigit(digit, INVALID_DIGIT, TFTs::no);
   }
 }
 
@@ -534,7 +536,9 @@ void TFTs::showDigit(uint8_t digit) {
   } else {
     unsigned long start = millis();
     TFT_eSprite& sprite = drawImage(digit);
-    // Serial.printf("Draw image took %d ms\n", millis() - start);
+#ifdef DEBUG_OUTPUT
+    Serial.printf("Draw image took %d ms\n", millis() - start);
+#endif
 #ifndef USE_DMA
     sprite.pushSprite(0,0);
 #endif
@@ -586,15 +590,19 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
   h = read32(bmpFile); // height
   uint16_t planes = read16(bmpFile); // color planes (must be 1)
   if (planes != 1) {
+#ifdef DEBUG_OUTPUT
     Serial.print("Bad color planes: ");
     Serial.println(planes);
+#endif
     return false;
   }
 
   bitDepth = read16(bmpFile);
   if (bitDepth != 24 && bitDepth != 16 && bitDepth != 1 && bitDepth != 4 && bitDepth != 2 && bitDepth != 8) {
+#ifdef DEBUG_OUTPUT
     Serial.print("Bad bit depth: ");
     Serial.println(bitDepth);
+#endif
     return false;
   }
 
@@ -642,7 +650,7 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
         maskData.aMask = read32(bmpFile);
         maskData.aShift = calc_shift(maskData.aMask);
       }
-#ifdef notdef
+#ifdef DEBUG_OUTPUT
       Serial.printf("rMask=%d, rShift=%d, gMask=%d, gShift=%d, bMask=%d, bShift=%d, aMask=%d, aShift=%d\n",
         maskData.rMask, maskData.rShift, maskData.gMask, maskData.gShift, maskData.bMask, maskData.bShift, maskData.aMask, maskData.aShift
       );
@@ -745,7 +753,7 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
     inputBuffer = (uint8_t*)malloc(inputBufferSize);
   }
 
-#ifdef notdef  
+#ifdef DEBUG_OUTPUT  
   Serial.print("image W, H: ");
   Serial.print(w); 
   Serial.print(", "); 
@@ -783,21 +791,32 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
       pushImageDMA(0, spriteRow, sprite.width(), sprite.height() - spriteRow, (uint16_t const*)(&StaticSprite::output_buffer[sprite.width() * spriteRow * 2]));
   }
 #endif
+  int oneBitColor = dimColor(monochromeColor);
+
   for (int row = 0; row < h; row++) {
     size_t read = file.read(inputBuffer, inputBufferSize);
     if (read != inputBufferSize) {
+#ifdef DEBUG_OUTPUT
       Serial.println("Bytes read, bytes asked for:");
       Serial.print(read);
       Serial.print(", ");
       Serial.println(inputBufferSize);
+#endif
       break;
     }
     
     // Colors are already in 16-bit R5, G6, B5 format
 #ifdef DIM_WITH_ENABLE_PIN_PWM
-    if (bitDepth != 16 || pMaskData->aMask != 0) {
+    if (bitDepth != 16 || pMaskData->aMask != 0 || IPSClock::getFx() != IPSClock::NONE) {
 #else
-    if (dimming != 255 || bitDepth != 16 || pMaskData->aMask != 0) {
+    if (
+      dimming != 255
+      || bitDepth != 16
+      || pMaskData->aMask != 0
+#ifdef TFTS_FX
+      || TFTs::getFx() != NONE
+#endif
+    ) {
 #endif
       uint8_t*  inputPtr = inputBuffer;
 
@@ -849,7 +868,6 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
           case 1:
             pixel = (*inputPtr >> (7 - (col & 0x07))) & 0x01;
             if ((col & 0x07) == 0x07) inputPtr++;
-            int oneBitColor = dimColor(monochromeColor);
             alphaBuffer[col] = 255;
             if (oneBitColor >= 0 && pixel == 1) {
               r = (oneBitColor >> 11) & 0x1f;
@@ -864,6 +882,19 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
             }
             break;
         }
+#ifdef TFTS_FX
+        if (TFTs::getFx() == IPSClock::GREYSCALE) {
+          // convert to greyscale
+          // if they were all 8 bit: uint8_t grey = r * 299 + g * 587 + b * 114 / 1000;
+          uint16_t grey = (((r * 598) + 299) + (g * 587) + ((b * 228) + 114)) / 1000;
+          r = grey >> 1;
+          g = grey;
+          b = grey >> 1;
+          r = (r * (oneBitColor >> 11)) / 31;
+          g = (g * ((oneBitColor >> 5) & 0x3f)) / 63;
+          b = (b * (oneBitColor & 0x1f)) / 31;
+        }
+#endif
 #ifndef DIM_WITH_ENABLE_PIN_PWM        
         if (dimming != 255 && bitDepth != 1) {
           r *= dimming;
@@ -961,17 +992,17 @@ TFT_eSprite& TFTs::drawImage(uint8_t digit) {
 #endif
   chip_select.setDigit(digit);
 
-  if (showDigits) {
-    strcpy(filename, "/ips/cache/");
-  } else {
+  if (showDigits == IPSClock::WEATHER) {
     strcpy(filename, "/ips/weather_cache/");
+  } else if (showDigits == IPSClock::SLIDE_SHOW) {
+    strcpy(filename, "/ips/slides_cache/");
+  } else {
+    strcpy(filename, "/ips/cache/");
   }
   strcat(filename, icons[digit]);
   strcat(filename, ".bmp");
   
-  // check if file is already loaded into buffer; skip loading if it is. Saves 50 to 150 msec of time.
-  // if (strcmp(loadedFilename, filename) != 0 || !showDigits) {
-    LoadImageIntoBuffer(filename);
+  LoadImageIntoBuffer(filename);
   // }
 #ifdef USE_DMA
   else {

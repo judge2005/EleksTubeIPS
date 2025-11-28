@@ -7,6 +7,9 @@
 
 #include <math.h>
 
+extern void broadcastUpdate(const BaseConfigItem& item);
+extern void broadcastFSChange();
+
 Weather::Weather(WeatherService *weatherService) {
     this->weatherService = weatherService;
     oldIcons = getIconPack().value;
@@ -20,18 +23,18 @@ void drawCross(int x, int y, unsigned int color)
 const int tzOffset = -18000;
 
 void Weather::drawDisplay(int index, int display, bool showDay) {
-    if (!tfts->isEnabled()) {
+    if (!tfts->isEnabled() || IPSClock::getCustomData().value.length() > 0) {
         return;
     }
     
     char txt[10];
 
     // Load 'space' glyph if any
-    tfts->setShowDigits(true);
+    tfts->setShowDigits(IPSClock::TIME);
     tfts->setImageJustification(TFTs::MIDDLE_CENTER);
     tfts->setDigit(SECONDS_ONES, "space", TFTs::no);
     TFT_eSprite &sprite = tfts->drawImage(SECONDS_ONES);
-    tfts->setShowDigits(false);
+    tfts->setShowDigits(IPSClock::WEATHER);
 
     tfts->setImageJustification(TFTs::TOP_CENTER);
     tfts->setBox(128, 128);
@@ -132,9 +135,9 @@ void Weather::drawDisplay(int index, int display, bool showDay) {
         uint8_t year = now.tm_year % 100;
 
         switch (IPSClock::getDateFormat().value) {
-        case 0:	// DD-MM-YY
+        case IPSClock::EURO:	// DD-MM-YY
             break;
-        case 1: // MM-DD-YY
+        case IPSClock::USA: // MM-DD-YY
             day = now.tm_mon;
             month = now.tm_mday;
             break;
@@ -155,7 +158,6 @@ void Weather::drawDisplay(int index, int display, bool showDay) {
 }
 
 void Weather::drawSingleDay(uint8_t dimming, int day, int display) {
-    checkIconPack();
     unsigned long nowMs = millis();
 
     if (preDraw(dimming)) {
@@ -168,8 +170,11 @@ void Weather::drawSingleDay(uint8_t dimming, int day, int display) {
 
 void Weather::checkIconPack() {
     if (getIconPack().value != oldIcons) {
-        oldIcons = getIconPack().value;
-        imageUnpacker->unpackImages("/ips/weather/" + getIconPack().value, "/ips/weather_cache");
+        getIconPack() = imageUnpacker->unpackImages("/ips/weather/", "/ips/weather_cache", getIconPack(), oldIcons);
+		getIconPack().put();
+		broadcastUpdate(getIconPack());
+        broadcastFSChange();
+        oldIcons = getIconPack();
         tfts->claim();
         tfts->invalidateAllDigits();
         tfts->release();
@@ -184,7 +189,7 @@ bool Weather::preDraw(uint8_t dimming) {
         _redraw = false;
 
         tfts->claim();
-    	tfts->setShowDigits(false);
+    	tfts->setShowDigits(IPSClock::WEATHER);
         // tfts->invalidateAllDigits();
         tfts->setDimming(dimming);
 
@@ -201,8 +206,6 @@ void Weather::postDraw() {
 }
 
 void Weather::loop(uint8_t dimming) {
-    checkIconPack();
-
     if (preDraw(dimming)) {
         tfts->checkStatus();
         tfts->enableAllDisplays();

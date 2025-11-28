@@ -4,9 +4,11 @@
 
 class ImageUnpacker {
 public:
-    void unpackImages(const String &faceName, const String &dest);
+    const String& unpackImages(const String &srcDir, const String &destDir, const String &newFaces, const String &oldFaces);
 
 protected:
+    bool unpackImages(const String &faceName, const String &dest);
+
     static bool newUnpack;
     static const char* unpackName;
 

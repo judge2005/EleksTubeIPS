@@ -7,17 +7,24 @@
 #include "ScreenSaver.h"
 #include "Backlights.h"
 #include "mqttBroker.h"
-#include "IRAMPtrArray.h"
 #include "IPSClock.h"
 
 extern AsyncWiFiManager *wifiManager;
 extern CompositeConfigItem rootConfig;
 extern ScreenSaver *screenSaver;
 extern void broadcastUpdate(const BaseConfigItem&);
-extern IRAMPtrArray<char*> manifest;
+extern IRAMPtrArray<const char*> manifest;
 extern SemaphoreHandle_t memMutex;
+extern QueueHandle_t mainQueue;
 
 static const char *device_s = "dev";
+IRAMPtrArray<const char*> MQTTBroker::displayStates {
+    "Time",
+    "Date",
+    "Weather",
+    "Slideshow",
+    0
+};
 
 void MQTTBroker::onConnect(bool sessionPresent)
 {
@@ -27,7 +34,11 @@ void MQTTBroker::onConnect(bool sessionPresent)
     sendHADiscoveryMessage();
 }
 
+#ifdef ASYNC_MQTT_HA_CLIENT
 void MQTTBroker::onDisconnect(AsyncMqttClientDisconnectReason reason)
+#else
+void MQTTBroker::onDisconnect(espMqttClientTypes::DisconnectReason reason)
+#endif
 {
 //	Serial.printf("Disconnected from MQTT: %u\n", static_cast<uint8_t>(reason));
 
@@ -35,7 +46,11 @@ void MQTTBroker::onDisconnect(AsyncMqttClientDisconnectReason reason)
     lastReconnect = millis();
 }
 
+#ifdef ASYNC_MQTT_HA_CLIENT
 void MQTTBroker::onMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t length, size_t index, size_t total_length)
+#else
+void MQTTBroker::onMessage(const espMqttClientTypes::MessageProperties& properties, const char* topic, const uint8_t*  payload, size_t length, size_t index, size_t total_length)
+#endif
 {
 	uint8_t mqttMessageBuffer[32];
 
@@ -74,6 +89,9 @@ void MQTTBroker::onMessage(char* topic, char* payload, AsyncMqttClientMessagePro
         } else if (strcmp(topic + topicIndex, brightnessTopic + 1) == 0) {
             IPSClock::getBrightnessConfig() = atoi((const char*)mqttMessageBuffer);
             broadcastUpdate(IPSClock::getBrightnessConfig());
+        } else if (strcmp(topic + topicIndex, displayTopic + 1) == 0) {
+            IPSClock::getTimeOrDate() = atoi((const char*)mqttMessageBuffer);
+            broadcastUpdate(IPSClock::getTimeOrDate());
         } else if (strcmp(topic + topicIndex, customDataTopic + 1) == 0) {
             // TODO: get the max data from somewhere
             if (length <= 6){
@@ -136,7 +154,9 @@ void MQTTBroker::onMessage(char* topic, char* payload, AsyncMqttClientMessagePro
             // Serial.println((char*)mqttMessageBuffer);
         }
 	}
-    publishState();
+
+    uint32_t msg = 1;
+	xQueueSend(mainQueue, &msg, pdMS_TO_TICKS(100));
 }
 
 bool MQTTBroker::init(const String& id) {
@@ -155,11 +175,19 @@ bool MQTTBroker::init(const String& id) {
         client.setCredentials(getUser().value.c_str(),getPassword().value.c_str());
         client.setWill(availabilityTopic, 2, true, "offline");
         client.onConnect([this](bool sessionPresent) { this->onConnect(sessionPresent); });
+#ifdef ASYNC_MQTT_HA_CLIENT
         client.onDisconnect([this](AsyncMqttClientDisconnectReason reason) { this->onDisconnect(reason); });
         client.onMessage([this](char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t length, size_t index, size_t total_length) {
             this->onMessage(topic, payload, properties, length, index, total_length); });
-        
-        screenSaver->setChangeCallback([this](bool isOff) { this->publishState(); });
+#else
+        client.onDisconnect([this](espMqttClientTypes::DisconnectReason reason) { this->onDisconnect(reason); });
+        client.onMessage([this](const espMqttClientTypes::MessageProperties& properties, const char* topic, const uint8_t*  payload, size_t length, size_t index, size_t total_length) {
+            this->onMessage(properties, topic, payload, length, index, total_length); });
+#endif
+        screenSaver->setChangeCallback([this](bool isOff) { 
+            uint32_t msg = 1;
+            xQueueSend(mainQueue, &msg, pdMS_TO_TICKS(100));
+        });
         
         reconnect = true;
     }
@@ -184,12 +212,13 @@ void MQTTBroker::checkConnection() {
 void MQTTBroker::publishState() {
     if (client.connected()) {
         // Takes a lot of memory
-        if (xSemaphoreTake(memMutex, pdMS_TO_TICKS(100)) == pdTRUE)
+        if (xSemaphoreTake(memMutex, pdMS_TO_TICKS(500)) == pdTRUE)
         {
             JsonDocument volatileState;
             volatileState["screen_saver_on"] = screenSaver->isOn() ? "ON" : "OFF";
             volatileState["brightness"] = IPSClock::getBrightnessConfig().value;
             volatileState["custom"] = IPSClock::getCustomData().value;
+            volatileState["display"] = IPSClock::getTimeOrDate().value;
 
             volatileState["backlight_state"] = Backlights::backlightState ? "ON" : "OFF";
             JsonArray blArray = volatileState["backlight_hs"].to<JsonArray>();
@@ -205,7 +234,6 @@ void MQTTBroker::publishState() {
 #endif
             char buffer[384];
             size_t n = serializeJson(volatileState, buffer);
-
             client.publish(volatileStateTopic, 1, false, buffer);
             client.publish(persistentStateTopic, 1, false, rootConfig.toJSON().c_str());
             xSemaphoreGive(memMutex);
@@ -217,6 +245,8 @@ void MQTTBroker::publishState() {
 
 void MQTTBroker::sendHADiscoveryMessage() {
     char buffer[1024];
+    delay(300);
+
     strcpy(buffer, home);
     strcat(buffer, "/set/#");
     client.subscribe(buffer, 0);
@@ -243,7 +273,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
 
     size_t n = serializeJson(doc, buffer);
 
-    client.publish(discoveryTopic, 1, false, buffer, n);
+    client.publish(discoveryTopic, 1, false, buffer);
 
     sprintf(discoveryTopic, "homeassistant/number/%s/screen_saver_delay/config", id.c_str());
 
@@ -267,7 +297,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
 
     n = serializeJson(doc, buffer);
 
-    client.publish(discoveryTopic, 1, false, buffer, n);
+    client.publish(discoveryTopic, 1, false, buffer);
 
     sprintf(discoveryTopic, "homeassistant/number/%s/brightness/config", id.c_str());
 
@@ -291,7 +321,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
 
     n = serializeJson(doc, buffer);
 
-    client.publish(discoveryTopic, 1, false, buffer, n);
+    client.publish(discoveryTopic, 1, false, buffer);
 
     sprintf(discoveryTopic, "homeassistant/text/%s/custom/config", id.c_str());
 
@@ -313,7 +343,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
 
     n = serializeJson(doc, buffer);
 
-    client.publish(discoveryTopic, 1, false, buffer, n);
+    client.publish(discoveryTopic, 1, false, buffer);
 
     sprintf(discoveryTopic, "homeassistant/light/%s/backlight/config", id.c_str());
 
@@ -346,7 +376,7 @@ void MQTTBroker::sendHADiscoveryMessage() {
 
     n = serializeJson(doc, buffer);
 
-    client.publish(discoveryTopic, 1, false, buffer, n);
+    client.publish(discoveryTopic, 1, false, buffer);
 
 #if (NUM_LEDS > 6)
     sprintf(discoveryTopic, "homeassistant/light/%s/underlight/config", id.c_str());
@@ -380,11 +410,41 @@ void MQTTBroker::sendHADiscoveryMessage() {
 
     n = serializeJson(doc, buffer);
 
-    client.publish(discoveryTopic, 1, false, buffer, n);
+    client.publish(discoveryTopic, 1, false, buffer);
 #endif
+
+    sprintf(discoveryTopic, "homeassistant/select/%s/display/config", id.c_str());
+
+    doc.clear();
+
+    doc["~"] = home;
+    doc["name"] = "Display";
+    doc["icon"] = "mdi:theater";
+    doc["unique_id"] = "display" + id;
+
+    doc["cmd_t"] = displayTopic;
+    doc["avty_t"] = availabilityTopic;
+    doc["stat_t"] = volatileStateTopic;
+    doc["val_tpl"] = "{% if value_json.display == 0 %}Time{% elif value_json.display == 1 %}Date{% elif value_json.display == 2 %}Weather{% elif value_json.display == 3 %}Slideshow{% endif %}";
+    doc["command_template"] = "{% if value == 'Time' %}0{% elif value == 'Date' %}1{% elif value == 'Weather' %}2{% elif value == 'Slideshow' %}3{% endif %}";
+
+    JsonArray optArray = doc["options"].to<JsonArray>();
+    for (int i = 0; displayStates[i] != 0; i++) {
+        optArray.add(displayStates[i]);
+    }
+
+    doc["dev"]["configuration_url"] = "http://" + WiFi.localIP().toString() + "/";
+    doc["dev"]["name"] = manifest[3];
+    doc["dev"]["identifiers"][0] = WiFi.macAddress();
+    doc["dev"]["model"] = manifest[0];
+    doc["dev"]["sw_version"] = manifest[1];
+
+    n = serializeJson(doc, buffer);
+
+    client.publish(discoveryTopic, 1, false, buffer);
+
     client.publish(availabilityTopic, 2, true, "online");
 
-    delay(1000);
-
-    publishState();
+    uint32_t msg = 1;
+	xQueueSend(mainQueue, &msg, pdMS_TO_TICKS(100));
 }

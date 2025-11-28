@@ -41,19 +41,30 @@ public:
   // no == Do not send to TFT. yes == Send to TFT if changed. force == Send to TFT.
   enum show_t { no, yes, force };
   enum image_justification_t { TOP_LEFT, TOP_CENTER, TOP_RIGHT, MIDDLE_LEFT, MIDDLE_CENTER, MIDDLE_RIGHT, BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT };
+#ifdef TFTS_FX
+  enum GRAPHICS_FX {
+    NONE = 0,
+    GREYSCALE,
+    TINT
+  };
+
+  static ByteConfigItem& getFx() { static ByteConfigItem fx("fx", TINT); return fx; }
+#endif
+  static const char* INVALID_DIGIT;
 
   void claim();
   void release();
 
   void begin(fs::FS& fs);
   void clear();
-  void setShowDigits(bool);
+  void setShowDigits(byte);
 
   void setDigit(uint8_t digit, const char* name, show_t show=yes);
+  const char* getDigitName(uint8_t index) { return icons[index]; }
 
   void invalidateAllDigits();
 
-  void showAllDigits()               { for (uint8_t digit=0; digit < NUM_DIGITS; digit++) showDigit(digit); }
+  void showAllDigits() { for (uint8_t digit=0; digit < NUM_DIGITS; digit++) showDigit(digit); }
   void showDigit(uint8_t digit);
   TFT_eSprite& drawImage(uint8_t digit);
   StaticSprite& getSprite();
@@ -94,7 +105,7 @@ private:
 #endif
   void drawStatus();
 
-  bool showDigits = true;
+  byte showDigits = 0;
   image_justification_t imageJustification = MIDDLE_CENTER;
   uint16_t boxWidth = TFT_WIDTH;
   uint16_t boxHeight = TFT_HEIGHT;

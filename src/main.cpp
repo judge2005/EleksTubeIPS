@@ -40,7 +40,7 @@
 #define TITLE_FONT  4        // font for all headings
 
 // Should match what is in the manifest files. Bump version for a release.
-IRAMPtrArray<char*> manifest {
+IRAMPtrArray<const char*> manifest {
 	// Firmware name
 #if defined(HARDWARE_PunkCyber_CLOCK)
 	"PCBWay RGB Glow Tube Clock Firmware",
@@ -60,7 +60,7 @@ IRAMPtrArray<char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.8.2",
+	"1.9.0",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -122,6 +122,7 @@ TaskHandle_t weatherTask;
 SemaphoreHandle_t wsMutex;
 SemaphoreHandle_t memMutex;
 QueueHandle_t weatherQueue;
+QueueHandle_t mainQueue;
 
 AsyncWiFiManagerParameter *hostnameParam;
 String ssid("EleksTubeIPS");
@@ -144,12 +145,21 @@ StringConfigItem hostName("hostname", 63, "ipstube");
 StringConfigItem hostName("hostname", 63, "ipsclock");
 #endif
 
-// Clock config
+enum WEATHER_MESSAGE {
+	WEATHER_UPDATE = 1,
+	COORDINATES_UPDATE = 2
+};
 
+enum MAIN_MESSAGE {
+	MQTT_PUBLISH = 1
+};
+
+// Clock config
 IRAMPtrArray<BaseConfigItem*> clockSet {
 	// Clock
 	&IPSClock::getDateFormat(),
 	&IPSClock::getTimeOrDate(),
+	&IPSClock::getSlideTransition(),
 	&IPSClock::getHourFormat(),
 	&IPSClock::getLeadingZero(),
 	&IPSClock::getFourDigitDisplay(),
@@ -174,12 +184,17 @@ IRAMPtrArray<BaseConfigItem*> ledSet {
 };
 CompositeConfigItem ledConfig("leds", 0, ledSet);
 
-StringConfigItem fileSet("file_set", 10, "faces");
+// Allocate these on the heap to save some dram space
+StringConfigItem *fileSet = new StringConfigItem("file_set", 10, "faces");
+StringConfigItem *slidesSet = new StringConfigItem("slide_show", 25, "anime_female");
+String *oldSlidesSet = new String("anime_female");
+
 IRAMPtrArray<BaseConfigItem*> faceSet {
 	// Faces
 	&IPSClock::getClockFace(),
 	&Weather::getIconPack(),
-	&fileSet,
+	slidesSet,
+	fileSet,
 	0
 };
 CompositeConfigItem facesConfig("faces", 0, faceSet);
@@ -279,8 +294,14 @@ void onTimezoneChanged(ConfigItem<String> &tzItem) {
 }
 
 void onWeatherConfigChanged(ConfigItem<String> &item) {
-	uint32_t value = 2;
+	uint32_t value = COORDINATES_UPDATE;
 	xQueueSend(weatherQueue, &value, 0);
+}
+
+void broadcastFSChange() {
+	String freeSpace = String(LittleFS.totalBytes() - LittleFS.usedBytes());
+	String msg = "{\"type\":\"sv.update\",\"value\":{\"fs_free\":" + freeSpace + ",\"fs_size\":" + String(LittleFS.totalBytes()) + "}}";
+	broadcastUpdate(msg);
 }
 
 void onFileSetChanged(ConfigItem<String> &item) {
@@ -289,6 +310,9 @@ void onFileSetChanged(ConfigItem<String> &item) {
 		 + "\""
 		 + ",\"weather_icons\":\""
 		 + Weather::getIconPack()
+		 + "\""
+		 + ",\"slide_show\":\""
+		 + slidesSet->value
 		 + "\","
 		 + clockFacesCallback()
 		 + "}}";
@@ -301,6 +325,8 @@ void onMatrixHueChanged(ConfigItem<int> &item) {
 }
 
 void onDisplayChanged(ConfigItem<int> &item) {
+	tfts->invalidateAllDigits();
+
 	weather->redraw();
 }
 
@@ -377,7 +403,7 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 				// ... or switching display modes. This *is* the mode button after all
 				IntConfigItem &dateOrTime = IPSClock::getTimeOrDate();
 
-				dateOrTime.value = (dateOrTime.value + 1) % 3;
+				dateOrTime.value = (dateOrTime.value + 1) % 4;
 				dateOrTime.put();
 				broadcastUpdate(dateOrTime);
 				dateOrTime.notify();
@@ -398,7 +424,7 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 		// If we only have the power button, it is more useful to cycle through the display modes
 		IntConfigItem &dateOrTime = IPSClock::getTimeOrDate();
 
-		dateOrTime.value = (dateOrTime.value + 1) % 3;
+		dateOrTime.value = (dateOrTime.value + 1) % 4;
 		dateOrTime.put();
 		broadcastUpdate(dateOrTime);
 		dateOrTime.notify();
@@ -408,7 +434,11 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 #endif
 }
 
+#define DEFAULT_MAIN_SLEEP (pdMS_TO_TICKS(1))
+
 void clockTaskFn(void *pArg) {
+	TickType_t toSleep = DEFAULT_MAIN_SLEEP;
+
 	imageUnpacker = new ImageUnpacker();
 
 	weatherService = new OpenWeatherMapWeatherService();
@@ -424,7 +454,7 @@ void clockTaskFn(void *pArg) {
 	Weather::getWeatherSaturation().setCallback(onWeatherColorChanged);
 	Weather::getWeatherValue().setCallback(onWeatherColorChanged);
 
-	fileSet.setCallback(onFileSetChanged);
+	fileSet->setCallback(onFileSetChanged);
 
 	DigitalRainAnimation::getMatrixHue().setCallback(onMatrixHueChanged);
 
@@ -434,6 +464,8 @@ void clockTaskFn(void *pArg) {
 	ipsClock->setTimeSync(timeSync);
 	ipsClock->getTimeOrDate().setCallback(onDisplayChanged);
 	ipsClock->getBrightnessConfig().setCallback(onBrightnessChanged);
+
+	*oldSlidesSet = slidesSet->value;
 
 	screenSaver = new ScreenSaver();
 
@@ -457,7 +489,13 @@ void clockTaskFn(void *pArg) {
 	mqttBroker->init(ssid);
 
 	while (true) {
-		delay(1);
+		uint32_t value;
+		while(xQueueReceive(mainQueue, &value, toSleep) == pdTRUE) {
+			if (value == MQTT_PUBLISH) {
+				mqttBroker->publishState();
+			}
+			DEBUG("Clock task getting right to it");
+		}
 
 #ifdef BUTTON_MENU_PINS
 		leftButton->getEvent();
@@ -473,7 +511,7 @@ void clockTaskFn(void *pArg) {
 			continue;
 		}
 
-		if ((ipsClock->getDimming() == 2) && !ipsClock->clockOn()) {
+		if ((ipsClock->getDimming() == IPSClock::MATRIX) && !ipsClock->clockOn()) {
 			tfts->enableAllDisplays();
 			tfts->animateRain();
 			tfts->invalidateAllDigits();
@@ -494,23 +532,38 @@ void clockTaskFn(void *pArg) {
 			xSemaphoreTake(memMutex, portMAX_DELAY);
 
 			ipsClock->setBrightness(ipsClock->getBrightnessConfig());
+			tfts->setShowDigits(IPSClock::getTimeOrDate());
+			if (slidesSet->value != *oldSlidesSet) {
+				slidesSet->value = imageUnpacker->unpackImages("/ips/slides/", "/ips/slides_cache", *slidesSet, *oldSlidesSet);
+				slidesSet->put();
+				broadcastUpdate(*slidesSet);
+				broadcastFSChange();
+				*oldSlidesSet = slidesSet->value;
+				tfts->claim();
+				tfts->invalidateAllDigits();
+				tfts->release();
+			}
+			weather->checkIconPack();
+			ipsClock->checkIconPack();
+
 			switch (IPSClock::getTimeOrDate().value) {
-				case 2:
-					if (ipsClock->clockOn() || (ipsClock->getDimming() == 1)) {
+				case IPSClock::WEATHER:
+					if (ipsClock->clockOn() || (ipsClock->getDimming() == IPSClock::DIM)) {
 						weather->loop(ipsClock->getBrightness());
 					} else {
 						tfts->disableAllDisplays();
 					}
 					break;
+				case IPSClock::SLIDE_SHOW:
+					// drop through
 				default:
-					tfts->setShowDigits(true);
 #ifndef DS1302
 					if (timeSync->initialized() || rtcTimeSync->initialized()) {
 #else
 					if (timeSync->initialized() || rtcTimeSync->initialized()) {
 #endif
 						ipsClock->loop();
-						if (ipsClock->getFourDigitDisplay() == 2 && IPSClock::getTimeOrDate().value == 0) {
+						if (ipsClock->getFourDigitDisplay() == IPSClock::FOUR_WITH_WEATHER && IPSClock::getTimeOrDate().value == IPSClock::TIME) {
 							weather->drawSingleDay(ipsClock->getBrightness(), 0, 0);
 						}
 					}
@@ -533,11 +586,11 @@ void weatherTaskFn(void *pArg) {
 		BaseType_t result = xQueueReceive(weatherQueue, &value, toSleep);
 
 		if (result == pdTRUE) {
-			if (value == 2) {	// Location coordinates changed
+			if (value == COORDINATES_UPDATE) {	// Location coordinates changed
 				DEBUG("Weather task sleeping 30 seconds");
 				value = 0;
 				delay(30000);	// In case user is changing latitude and longitude, i.e. wait for both to possibly change
-			} else if (value == 1) {
+			} else if (value == WEATHER_UPDATE) {
 				value = 0;
 				delay(5000);	// Give memory some time to free
 			}
@@ -582,15 +635,15 @@ void createSSID() {
 	ssid = (chipId + hostName).substring(0, 31);
 }
 
-IRAMPtrArray<String*> items {
-	&WSMenuHandler::clockMenu,
-	&WSMenuHandler::ledsMenu,
-	&WSMenuHandler::facesMenu,
-	&WSMenuHandler::weatherMenu,
-	&WSMenuHandler::matrixMenu,
-	&WSMenuHandler::mqttMenu,
-	&WSMenuHandler::networkMenu,
-	&WSMenuHandler::infoMenu,
+IRAMPtrArray<const char*> items {
+	WSMenuHandler::clockMenu,
+	WSMenuHandler::ledsMenu,
+	WSMenuHandler::facesMenu,
+	WSMenuHandler::weatherMenu,
+	WSMenuHandler::matrixMenu,
+	WSMenuHandler::mqttMenu,
+	WSMenuHandler::networkMenu,
+	WSMenuHandler::infoMenu,
 	0
 };
 
@@ -661,8 +714,8 @@ void broadcastUpdate(const BaseConfigItem& item) {
     	serializeJson(root, (char *)buffer->get(), len + 1);
     	ws->textAll(buffer);
     }
-
-	mqttBroker->publishState();
+	uint32_t msg = MQTT_PUBLISH;
+	xQueueSend(mainQueue, &msg, pdMS_TO_TICKS(100));
 
 	xSemaphoreGive(wsMutex);	
 }
@@ -690,7 +743,7 @@ void updateValue(int screen, String pair) {
 			ESP.restart();
 		}
 	} else if (_key == "get_weather") {
-		uint32_t value = 1;
+		uint32_t value = WEATHER_UPDATE;
 		xQueueSend(weatherQueue, &value, 0);
 	} else if (_key == "wifi_ap") {
 		setWiFiAP(value == "true" ? true : false);
@@ -793,7 +846,7 @@ void handleDelete(AsyncWebServerRequest *request) {
 	DEBUG(filename);
 
 	if (filename.length() > 0) {
-		if (LittleFS.remove("/ips/" + fileSet.value + "/" + filename)) {
+		if (LittleFS.remove("/ips/" + fileSet->value + "/" + filename)) {
 			request->send(200, "text/plain", "File deleted");
 
 			wsFacesHandler.broadcast(*ws, 0);
@@ -805,11 +858,17 @@ void handleDelete(AsyncWebServerRequest *request) {
 }
 
 void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+	if (!filename.endsWith(".tar.gz")) {
+		DEBUG("Invalid file type");
+		request->send(415, "text/plain", "Invalid file type");
+		return;
+	}
+
 	if (!index)
 	{
 		DEBUG((String) "UploadStart: " + filename);
 		// open the file on first call and store the file handle in the request object
-		request->_tempFile = LittleFS.open("/ips/" + fileSet.value + "/" + filename, "wb", true);
+		request->_tempFile = LittleFS.open("/ips/" + fileSet->value + "/" + filename, "wb", true);
 	}
 	if (len)
 	{
@@ -852,14 +911,12 @@ void configureWebServer() {
 
 
 void setFace(const char *menuLabel) {
-	if (IPSClock::getTimeOrDate() == 2) {
+	if (IPSClock::getTimeOrDate() == IPSClock::WEATHER) {
 		weather->getIconPack().fromString(menuLabel);
-		weather->getIconPack().put();
-		broadcastUpdate(weather->getIconPack());
+	} else if (IPSClock::getTimeOrDate() == IPSClock::SLIDE_SHOW) {
+		slidesSet->fromString(menuLabel);
 	} else {
 		ipsClock->getClockFace().fromString(menuLabel);
-		ipsClock->getClockFace().put();
-		broadcastUpdate(ipsClock->getClockFace());
 	}
 }
 
@@ -888,7 +945,13 @@ void initFacesMenu() {
 	uint8_t font = TITLE_FONT;
 
 	menu->reset();
-	menu->setTitle(display == 2 ? "Icons" : "Clock Face");
+	const char *displayTitle = "Clock Face";
+	if (display == IPSClock::WEATHER)
+		displayTitle = "Icons";
+	else if (display == IPSClock::SLIDE_SHOW)
+		displayTitle = "Slide Show";
+
+	menu->setTitle(displayTitle);
 	eSPIMenu::Spec& itemSpec = menu->getItemSpec();
 	itemSpec.setFont(TITLE_FONT);
 	itemSpec.setItemColors(MENU_ITEM_BACKGROUND, MENU_TEXT_ITEM, MENU_ITEM_HILIGHT_BACKGROUND, MENU_TEXT_HILIGHT, MENU_ITEM_BACKGROUND, MENU_TEXT_DISABLED);
@@ -903,12 +966,14 @@ void initFacesMenu() {
 	titleSpec.setBorder(0, 0, 1, 0);
 	titleSpec.setBorderColors(TITLE_BORDER_COLOR, TITLE_BORDER_COLOR, TITLE_BORDER_COLOR);
 
-	String dirName = "/ips/";
-	if (display == 2) {
+	String dirName("/ips/");
+	if (display == IPSClock::WEATHER)
 		dirName += "weather";
-	} else {
+	else if (display == IPSClock::SLIDE_SHOW)
+		dirName += "slides";
+	else
 		dirName += "faces";
-	}
+
 	fs::File dir = LittleFS.open(dirName);
     String name = dir.getNextFileName();
 	int optIndex = 0;
@@ -917,7 +982,7 @@ void initFacesMenu() {
 		String fileName = name.substring(dirName.length() + 1, name.length());
 		String option = fileName.substring(0, fileName.lastIndexOf(postfix));
 		eSPIMenu::State state = option == ipsClock->getClockFace() ? eSPIMenu::selected : eSPIMenu::none;
-		if (display == 2) {
+		if (display == IPSClock::WEATHER) {
 			state = option == weather->getIconPack() ? eSPIMenu::selected : eSPIMenu::none;
 		}
 		menu->addItem(option.c_str(), state);
@@ -951,9 +1016,15 @@ String clockFacesCallback() {
 	const String quoteColonQuote("\":\"");
 	const String comma_quote(",\"");
 
-	String options = "\"face_files\":{";
+	String freeSpace = String(LittleFS.totalBytes() - LittleFS.usedBytes());
+	String options = "\"fs_free\":" + freeSpace + comma_quote
+#ifdef notdef
+	 + "fs_size\":" + String(LittleFS.totalBytes()) + comma_quote
+#endif
+	 ;
+	options += "face_files\":{";
 	String sep = quote;
-	String dirName = "/ips/" + fileSet.value;
+	String dirName = "/ips/" + fileSet->value;
 	fs::File dir = LittleFS.open(dirName);
     String name = dir.getNextFileName();
     while(name.length() > 0){
@@ -983,7 +1054,7 @@ void ledTaskFn(void *pArg) {
 			if (ipsClock->clockOn()) {
 				backlights->setOn(true);
 			} else {
-				if (IPSClock::getDimming() == 1) {
+				if (IPSClock::getDimming() == IPSClock::DIM) {
 					backlights->setOn(true);
 				} else {
 					backlights->setOn(false);
@@ -1050,7 +1121,7 @@ void connectedHandler() {
 	MDNS.addService("http", "tcp", 80);
 
 	if (!wifiManager->isAP()) {
-		uint32_t value = 1;
+		uint32_t value = WEATHER_UPDATE;
 		xQueueSend(weatherQueue, &value, 0);	// May not work if AP is active
 	}
 }
@@ -1062,7 +1133,7 @@ void apChange(AsyncWiFiManager *wifiManager) {
 		tfts->setStatus(ssid);
 	} else {
 		tfts->setStatus("AP Destroyed...");
-		uint32_t value = 1;
+		uint32_t value = WEATHER_UPDATE;
 		xQueueSend(weatherQueue, &value, 0);	// Not enough memory to make an HTTPS request while AP is active
 	}
 }
@@ -1110,6 +1181,7 @@ void setup() {
 	wsMutex = xSemaphoreCreateMutex();
 	memMutex = xSemaphoreCreateMutex();
     weatherQueue = xQueueCreate(5, sizeof(uint32_t));
+    mainQueue = xQueueCreate(5, sizeof(uint32_t));
 	tfts = new TFTs();
 
 	LittleFS.begin();

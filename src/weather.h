@@ -27,6 +27,7 @@ public:
 
     void setImageUnpacker(ImageUnpacker *imageUnpacker) { this->imageUnpacker = imageUnpacker; }
     void setTimeSync(TimeSync *pTimeSync) { this->pTimeSync = pTimeSync; }
+    void checkIconPack();
 
     void loop(uint8_t dimming);
     void drawSingleDay(uint8_t dimming, int day, int display);
@@ -54,7 +55,6 @@ private:
     void drawDisplay(int index, int display, bool showDay = true);
     bool preDraw(uint8_t dimming);
     void postDraw();
-    void checkIconPack();
 
     WeatherService *weatherService;
     String oldIcons;

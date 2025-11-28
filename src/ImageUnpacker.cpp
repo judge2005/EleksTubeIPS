@@ -31,7 +31,17 @@ void ImageUnpacker::unpackProgressCallback(uint8_t progress) {
 	newUnpack = false;
 }
 
-void ImageUnpacker::unpackImages(const String &faceName, const String &dest) {
+const String& ImageUnpacker::unpackImages(const String &srcDir, const String &destDir, const String &newFaces, const String &oldFaces) {
+    if (unpackImages(srcDir + newFaces, destDir)) {
+        return newFaces;
+    } else {
+        tfts->setStatus("Reverting!");
+        unpackImages(srcDir + oldFaces, destDir);
+        return oldFaces;
+    }
+}
+
+bool ImageUnpacker::unpackImages(const String &faceName, const String &dest) {
 	String fileName(faceName + ".tar.gz");
 
     if (LittleFS.exists(fileName)) {
@@ -49,6 +59,7 @@ void ImageUnpacker::unpackImages(const String &faceName, const String &dest) {
 
         if( !unpacker.tarGzExpander(tarGzFS, fileName.c_str(), tarGzFS, dest.c_str(), nullptr ) ) {
             Serial.printf("tarGzExpander+intermediate file failed with return code #%d\n", unpacker.tarGzGetError() );
+            return false;
         } else {
             Serial.println("File unzipped");
         }
@@ -74,5 +85,6 @@ void ImageUnpacker::unpackImages(const String &faceName, const String &dest) {
         }
         dir.close();
 #endif
+        return true;
     }
 }

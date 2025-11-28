@@ -1,7 +1,10 @@
 #include "TFTs.h"
 #include "IPSClock.h"
 
-char* IPSClock::digitToName[] = {
+extern void broadcastUpdate(const BaseConfigItem& item);
+extern void broadcastFSChange();
+
+IRAMPtrArray<const char*> IPSClock::digitToName {
     "0",
     "1",
     "2",
@@ -54,15 +57,20 @@ bool IPSClock::clockOn() {
 	return scheduledOn;
 }
 
-void IPSClock::loop() {
+void IPSClock::checkIconPack() {
     if (getClockFace().value != oldClockFace) {
-        oldClockFace = getClockFace().value;
-        imageUnpacker->unpackImages("/ips/faces/" + getClockFace().value, "/ips/cache");
+        getClockFace() = imageUnpacker->unpackImages("/ips/faces/", "/ips/cache", getClockFace(), oldClockFace);
+        getClockFace().put();
+        broadcastUpdate(getClockFace());
+        broadcastFSChange();
+        oldClockFace = getClockFace();
         tfts->claim();
         tfts->invalidateAllDigits();
         tfts->release();
     }
-    
+}
+
+void IPSClock::loop() {
     unsigned long nowMs = millis();
 
     // display refresh
@@ -76,7 +84,7 @@ void IPSClock::loop() {
         }
         unsigned long tDelay = 1000 - realms;
 
-        if (clockOn() || (getDimming() == 1)) {
+        if (clockOn() || (getDimming() == DIM)) {
             tfts->claim();
             tfts->setDimming(getBrightness());
             tfts->setImageJustification(TFTs::MIDDLE_CENTER);
@@ -105,8 +113,7 @@ void IPSClock::loop() {
                             strcpy(name, "am");
                         } else if (value == 'p') {
                             strcpy(name, "pm"); 
-                        } else if (value == '0' || value == '1' || value == '2' || value == '3' || value == '4' || 
-                                   value == '5' || value == '6' || value == '7' || value == '8' || value == '9') {
+                        } else if (value >= '0' && value <= '9') {
                             name[0] = value;
                             name[1] = 0;
                         } 
@@ -128,22 +135,26 @@ void IPSClock::loop() {
                 }
             }
             // Display time: 
-            else if (getTimeOrDate().value == 0) {
+            else if (getTimeOrDate().value == TIME) {
                 uint8_t hour = now.tm_hour;
 
                 // refresh starting on seconds
-                if (getFourDigitDisplay() == 0) {
+                if (getFourDigitDisplay() == SIX) {
                     tfts->setDigit(SECONDS_ONES, digitToName[now.tm_sec % 10], TFTs::yes);
                     tfts->setDigit(SECONDS_TENS, digitToName[now.tm_sec / 10], TFTs::yes);
                     tfts->setDigit(MINUTES_ONES, digitToName[now.tm_min % 10], TFTs::yes);
                     tfts->setDigit(MINUTES_TENS, digitToName[now.tm_min / 10], TFTs::yes);
                 } else {
-                    if (getFourDigitDisplay() == 1) {
+                    if (getFourDigitDisplay() == FOUR) {
                         if (getHourFormat()) {  // true == show am/pm indicator
                             tfts->setDigit(SECONDS_ONES, hour < 12 ? "am" : "pm", TFTs::yes);
                         } else {
                             tfts->setDigit(SECONDS_ONES, "space", TFTs::yes);
                         }
+                    } else if (getFourDigitDisplay() == FOUR_WITH_SLIDESHOW && now.tm_sec % 10 == 3) {
+                        tfts->setShowDigits(SLIDE_SHOW);
+                        tfts->setDigit(SECONDS_ONES, digitToName[random(10)], TFTs::yes);
+                        tfts->setShowDigits(TIME);
                     }
                     tfts->setDigit(SECONDS_TENS, digitToName[now.tm_min % 10], TFTs::yes);
                     tfts->setDigit(MINUTES_ONES, digitToName[now.tm_min / 10], TFTs::yes);
@@ -171,15 +182,15 @@ void IPSClock::loop() {
                 }
             } 
             // Display Date: 
-            else if (getTimeOrDate().value == 1) {
+            else if (getTimeOrDate().value == DATE) {
                 uint8_t day = now.tm_mday;
                 uint8_t month = now.tm_mon;
                 uint8_t year = now.tm_year;
 
                 switch (getDateFormat().value) {
-                case 0:	// DD-MM-YY
+                case EURO:	// DD-MM-YY
                     break;
-                case 1: // MM-DD-YY
+                case USA: // MM-DD-YY
                     day = now.tm_mon;
                     month = now.tm_mday;
                     break;
@@ -196,6 +207,18 @@ void IPSClock::loop() {
                 tfts->setDigit(MINUTES_TENS, digitToName[month / 10], TFTs::yes);
                 tfts->setDigit(HOURS_ONES, digitToName[day % 10], TFTs::yes);
                 tfts->setDigit(HOURS_TENS, digitToName[day / 10], TFTs::yes);
+            } else if (getTimeOrDate().value == SLIDE_SHOW) {
+                if (strcmp(TFTs::INVALID_DIGIT, tfts->getDigitName(SECONDS_ONES)) == 0) {
+                    tfts->setDigit(SECONDS_ONES, digitToName[0], TFTs::yes);
+                    tfts->setDigit(SECONDS_TENS, digitToName[1], TFTs::yes);
+                    tfts->setDigit(MINUTES_ONES, digitToName[2], TFTs::yes);
+                    tfts->setDigit(MINUTES_TENS, digitToName[3], TFTs::yes);
+                    tfts->setDigit(HOURS_ONES, digitToName[4], TFTs::yes);
+                    tfts->setDigit(HOURS_TENS, digitToName[5], TFTs::yes);
+                }
+                if (now.tm_sec % 10 == 0) {
+                    tfts->setDigit(random(6), digitToName[random(10)], TFTs::yes);
+                }
             } else {
                 Serial.println("Bad display state for clock");
             }
