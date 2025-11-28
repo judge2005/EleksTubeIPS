@@ -807,7 +807,13 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
     
     // Colors are already in 16-bit R5, G6, B5 format
 #ifdef DIM_WITH_ENABLE_PIN_PWM
-    if (bitDepth != 16 || pMaskData->aMask != 0 || IPSClock::getFx() != IPSClock::NONE) {
+    if (
+      bitDepth != 16
+      || pMaskData->aMask != 0
+#ifdef TFTS_FX
+      || IPSClock::getFx() != IPSClock::NONE
+#endif
+    ) {
 #else
     if (
       dimming != 255
