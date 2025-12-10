@@ -5,6 +5,11 @@
 
 class ScreenSaver {
 public:
+	enum Mode {
+		BLANK = 0,
+		MATRIX = 1
+	};
+
 	ScreenSaver() : resetTime(0), changeCallback([](bool) {}) {
 	}
 

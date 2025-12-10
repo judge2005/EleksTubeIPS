@@ -60,7 +60,7 @@ IRAMPtrArray<const char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.9.0",
+	"1.9.1",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -213,7 +213,7 @@ IRAMPtrArray<BaseConfigItem*> weatherSet {
 CompositeConfigItem weatherConfig("weather", 0, weatherSet);
 
 IRAMPtrArray<BaseConfigItem*> matrixSet {
-    // Weather service
+    // Screensaver config
 	&DigitalRainAnimation::getMatrixSpeed(),
 	&DigitalRainAnimation::getMatrixHue(),
 	&DigitalRainAnimation::getMatrixSaturation(),
@@ -488,6 +488,10 @@ void clockTaskFn(void *pArg) {
 
 	mqttBroker->init(ssid);
 
+#if defined(HARDWARE_IPSTube_CLOCK) && !defined(DIM_WITH_ENABLE_PIN_PWM)
+	boolean clockWasOn = false;
+#endif
+
 	while (true) {
 		uint32_t value;
 		while(xQueueReceive(mainQueue, &value, toSleep) == pdTRUE) {
@@ -511,13 +515,22 @@ void clockTaskFn(void *pArg) {
 			continue;
 		}
 
+#if defined(HARDWARE_IPSTube_CLOCK) && !defined(DIM_WITH_ENABLE_PIN_PWM)
+		if (clockWasOn != ipsClock->clockOn()) {
+			if (!clockWasOn) {
+				tfts->invalidateAllDigits();
+			}
+			clockWasOn = ipsClock->clockOn();
+		}
+#endif
+
 		if ((ipsClock->getDimming() == IPSClock::MATRIX) && !ipsClock->clockOn()) {
 			tfts->enableAllDisplays();
 			tfts->animateRain();
 			tfts->invalidateAllDigits();
 		} else if (ipsClock->clockOn() && screenSaver->isOn()) {
 			switch(ScreenSaver::getScreenSaver()) {
-				case 0:
+				case ScreenSaver::BLANK:
 					tfts->disableAllDisplays();
 					break;
 				default:
