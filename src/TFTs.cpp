@@ -3,6 +3,32 @@
 #include <WiFi.h>
 #include "matrix-code-14.h"
 #include <byteswap.h>
+
+#ifdef TFT_BACKLIGHT_PIN
+  #define TFT_BACKLIGHT_OFF  digitalWrite(TFT_BACKLIGHT_PIN, TFT_BACKLIGHT_OFF_VALUE);
+  #define TFT_BACKLIGHT_ON   digitalWrite(TFT_BACKLIGHT_PIN, TFT_BACKLIGHT_ON_VALUE);
+  #define TFT_BACKLIGHT_INIT pinMode(TFT_BACKLIGHT_PIN, OUTPUT);
+#else
+  #define TFT_BACKLIGHT_OFF  ;
+  #define TFT_BACKLIGHT_ON  ;
+  #define TFT_BACKLIGHT_INIT ;
+#endif
+
+#ifdef DIM_WITH_TFT_BACKLIGHT_PIN
+  #undef TFT_BACKLIGHT_OFF
+  #undef TFT_BACKLIGHT_ON
+  #undef TFT_BACKLIGHT_INIT
+  #define SET_DIMMING(lvl) ledcWrite(TFT_PWM_CHANNEL, TFT_BACKLIGHT_ON_VALUE == 1 ? lvl: 255 - lvl);
+
+  #define TFT_BACKLIGHT_INIT ledcSetup(TFT_BACKLIGHT_PIN, TFT_PWM_FREQ, TFT_PWM_RESOLUTION); \
+    ledcAttachPin(TFT_BACKLIGHT_PIN, TFT_PWM_CHANNEL); \
+    ledcChangeFrequency(TFT_PWM_CHANNEL, TFT_PWM_FREQ, TFT_PWM_RESOLUTION);
+  #define TFT_BACKLIGHT_OFF  ledcWrite(TFT_PWM_CHANNEL, TFT_BACKLIGHT_ON_VALUE == 1 ? 0 : 255);
+  #define TFT_BACKLIGHT_ON   SET_DIMMING(dimming);
+#else
+  #define SET_DIMMING(lvl) invalidateAllDigits();
+#endif
+
 #define MATRIX_FONT &matrix_code_nfi14pt7b
 
 #define DARKER_GREY 0x18E3
@@ -227,20 +253,6 @@ void TFTs::checkStatus() {
   }
 }
 
-void TFTs::setBrightness(uint8_t lvl) {
-  claim();
-  uint8_t saved = chip_select.getDigitMap();
-  chip_select.setAll();
-
-  // Doesn't work
-  tfts->writecommand(0x51);
-  tfts->writedata(lvl);
-
-
-  chip_select.setDigitMap(saved, true);
-  release();
-}
-
 void TFTs::setStatus(const char* s) {
   claim();
 
@@ -411,15 +423,7 @@ void TFTs::setShowDigits(byte show) {
 
 void TFTs::setDimming(uint8_t dimming) {
   if (dimming != this->dimming) {
-#ifdef DIM_WITH_ENABLE_PIN_PWM
-#if (TFT_ENABLE_VALUE == 1)
-  ledcWrite(TFT_PWM_CHANNEL, dimming);
-#else
-  ledcWrite(TFT_PWM_CHANNEL, 255 - dimming);
-#endif
-#else
-    invalidateAllDigits();
-#endif
+    SET_DIMMING(dimming);
     this->dimming = dimming;
   }
 }
@@ -456,45 +460,22 @@ void TFTs::begin(fs::FS& fs) {
   invalidateAllDigits();
 
   // Turn power on to displays.
-#ifdef DIM_WITH_ENABLE_PIN_PWM
-  // If hardware dimming is used, init ledc, set the pin and channel for PWM and set frequency and resolution
-  ledcSetup(TFT_ENABLE_PIN, TFT_PWM_FREQ, TFT_PWM_RESOLUTION);            // PWM, globally defined
-  ledcAttachPin(TFT_ENABLE_PIN, TFT_PWM_CHANNEL);                         // Attach the pin to the PWM channel
-  ledcChangeFrequency(TFT_PWM_CHANNEL, TFT_PWM_FREQ, TFT_PWM_RESOLUTION); // need to set the frequency and resolution again to have the hardware dimming working properly
-#else
-  pinMode(TFT_ENABLE_PIN, OUTPUT); // Set pin for turning display power on and off.
-#endif
+  TFT_BACKLIGHT_INIT; // Set pin for turning tft backlight on and off.
+
   enableAllDisplays();
 }
 
 void TFTs::enableAllDisplays() {
-#ifdef DIM_WITH_ENABLE_PIN_PWM
-#if (TFT_ENABLE_VALUE == 1)
-  ledcWrite(TFT_PWM_CHANNEL, dimming);
-#else
-  ledcWrite(TFT_PWM_CHANNEL, 255 - dimming);
-#endif
-#else
-  digitalWrite(TFT_ENABLE_PIN, TFT_ENABLE_VALUE);
-#endif
+  chip_select.setAll();
+  writecommand(0x29); // Display ON
+  TFT_BACKLIGHT_ON;
   enabled = true;
 }
 
 void TFTs::disableAllDisplays() {
-#if defined(DIM_WITH_ENABLE_PIN_PWM)
-#if (TFT_ENABLE_VALUE == 1)
-  ledcWrite(TFT_PWM_CHANNEL, 0);
-#else
-  ledcWrite(TFT_PWM_CHANNEL, 255);
-#endif
-#else
-  digitalWrite(TFT_ENABLE_PIN, TFT_DISABLE_VALUE);
-#if defined(HARDWARE_IPSTube_CLOCK)
-// On some models of IPSTube clock the display can't be turned off
   chip_select.setAll();
-  fillScreen(TFT_BLACK);
-#endif
-#endif
+  writecommand(0x28); // Display OFF
+  TFT_BACKLIGHT_OFF;
   enabled = false;
 }
 
@@ -681,7 +662,7 @@ bool TFTs::LoadCLKImageIntoBuffer(fs::File &clkFile) {
 }
 
 uint16_t TFTs::dimColor(uint16_t color) {
-#ifdef DIM_WITH_ENABLE_PIN_PWM
+#ifdef DIM_WITH_TFT_BACKLIGHT_PIN
   return color;
 #else
   if (dimming == 255) {
@@ -803,7 +784,7 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
     }
     
     // Colors are already in 16-bit R5, G6, B5 format
-#ifdef DIM_WITH_ENABLE_PIN_PWM
+#ifdef DIM_WITH_TFT_BACKLIGHT_PIN
     if (
       bitDepth != 16
       || pMaskData->aMask != 0
@@ -898,7 +879,7 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
           b = (b * (oneBitColor & 0x1f)) / 31;
         }
 #endif
-#ifndef DIM_WITH_ENABLE_PIN_PWM        
+#ifndef DIM_WITH_TFT_BACKLIGHT_PIN        
         if (dimming != 255 && bitDepth != 1) {
           r *= dimming;
           g *= dimming;

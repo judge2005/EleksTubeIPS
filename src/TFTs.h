@@ -79,7 +79,6 @@ public:
   void toggleAllDisplays()           { if (enabled) disableAllDisplays(); else enableAllDisplays(); }
   bool isEnabled()                   { return enabled; }
   void setDimming(uint8_t dimming);
-  void setBrightness(uint8_t lvl);
 
   // Making chip_select public so we don't have to proxy all methods, and the caller can just use it directly.
   ChipSelect chip_select;

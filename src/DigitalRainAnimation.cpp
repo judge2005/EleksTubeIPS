@@ -15,7 +15,7 @@ void DigitalRainAnimation::prepareAnim()
   width = _gfx->width();
   height = _gfx->height();
   _gfx->fillRect(0, 0, width, height, 0);
-#ifdef DIM_WITH_ENABLE_PIN_PWM
+#ifdef DIM_WITH_TFT_BACKLIGHT_PIN
   _gfx->setTextColor(hsv2rgb565(getMatrixHue(), getMatrixSaturation(), getMatrixValue()), 0);
 #else
   _gfx->setTextColor(hsv2rgb565(getMatrixHue(), getMatrixSaturation(), getMatrixValue() * brightness / 255L), 0);
@@ -69,7 +69,7 @@ void DigitalRainAnimation::mutateCharAt(int lineNum, int row)
 void DigitalRainAnimation::lineAnimation2(int startX, int lineNum, int dropIndex)
 {
   uint8_t hue = getMatrixHue();
-#ifdef DIM_WITH_ENABLE_PIN_PWM
+#ifdef DIM_WITH_TFT_BACKLIGHT_PIN
   uint8_t val = getMatrixValue();
 #else
   uint8_t val = getMatrixValue() * brightness / 255L;

@@ -295,12 +295,15 @@ def process(image, output_file):
 def tile(file):
     img = Image.open(file)
     w, h = img.size
+    if args.width >1 or args.height > 1:
+        h = args.height
+        w = args.width
     th = h / args.rows
     tw = w / args.cols
     for row in range(0, args.rows, 1):
         for col in range(0, args.cols, 1) :
-            left = col * tw
-            top = row * th
+            left = args.xoffset + col * tw
+            top = args.yoffset + row * th
             out = pathlib.Path(file).stem + "_" + str(row) + "_" + str(col) + "." + args.output
             box = (left, top, left+tw, top+th)
             process(img.crop(box), out)
@@ -387,6 +390,23 @@ parser.add_argument(
     type=int,
     default=1,
     help="number of columns to split input into - defaults to 1"
+)
+
+parser.add_argument(
+    "-x",
+    "--xoffset",
+    dest="xoffset",
+    type=int,
+    default=0,
+    help="initial x offset when tiling - defaults to 0"
+)
+parser.add_argument(
+    "-y",
+    "--yoffset",
+    dest="yoffset",
+    type=int,
+    default=0,
+    help="initial y offset when tiling - defaults to 0"
 )
 
 parser.add_argument(

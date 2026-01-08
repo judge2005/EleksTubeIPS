@@ -62,6 +62,10 @@ public:
 		this->revision = revision;
 	}
 
+	void setUptime(const char *uptime) {
+		this->uptime = uptime;
+	}
+
 	void setDescription(const String& description) {
 		this->description = description;
 	}
@@ -82,6 +86,7 @@ private:
 	String hostname;
 	String revision;
 	String description;
+	String uptime;
 };
 
 

@@ -29,6 +29,7 @@
 #include "ScreenSaver.h"
 #include "mqttBroker.h"
 #include "IRAMPtrArray.h"
+#include "Uptime.h"
 
 //#define DEBUG(...) { Serial.println(__VA_ARGS__); }
 #ifndef DEBUG
@@ -60,7 +61,7 @@ IRAMPtrArray<const char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.9.1",
+	"1.9.2",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -111,6 +112,8 @@ RTCTimeSync *rtcTimeSync;
 DS1302TimeSync *rtcTimeSync;
 #endif
 MQTTBroker *mqttBroker;
+
+Uptime uptime;
 
 TaskHandle_t wifiManagerTask;
 TaskHandle_t clockTask;
@@ -436,6 +439,13 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 
 #define DEFAULT_MAIN_SLEEP (pdMS_TO_TICKS(1))
 
+void runMatrixAnimation() {
+	tfts->setShowDigits(IPSClock::getTimeOrDate());
+	tfts->setDimming(ipsClock->getBrightness());
+	tfts->animateRain();
+	tfts->invalidateAllDigits();
+}
+
 void clockTaskFn(void *pArg) {
 	TickType_t toSleep = DEFAULT_MAIN_SLEEP;
 
@@ -488,10 +498,6 @@ void clockTaskFn(void *pArg) {
 
 	mqttBroker->init(ssid);
 
-#if defined(HARDWARE_IPSTube_CLOCK) && !defined(DIM_WITH_ENABLE_PIN_PWM)
-	boolean clockWasOn = false;
-#endif
-
 	while (true) {
 		uint32_t value;
 		while(xQueueReceive(mainQueue, &value, toSleep) == pdTRUE) {
@@ -500,6 +506,8 @@ void clockTaskFn(void *pArg) {
 			}
 			DEBUG("Clock task getting right to it");
 		}
+
+		uptime.loop();
 
 #ifdef BUTTON_MENU_PINS
 		leftButton->getEvent();
@@ -515,28 +523,17 @@ void clockTaskFn(void *pArg) {
 			continue;
 		}
 
-#if defined(HARDWARE_IPSTube_CLOCK) && !defined(DIM_WITH_ENABLE_PIN_PWM)
-		if (clockWasOn != ipsClock->clockOn()) {
-			if (!clockWasOn) {
-				tfts->invalidateAllDigits();
-			}
-			clockWasOn = ipsClock->clockOn();
-		}
-#endif
+		ipsClock->setBrightness(ipsClock->getBrightnessConfig());
 
 		if ((ipsClock->getDimming() == IPSClock::MATRIX) && !ipsClock->clockOn()) {
-			tfts->enableAllDisplays();
-			tfts->animateRain();
-			tfts->invalidateAllDigits();
+			runMatrixAnimation();
 		} else if (ipsClock->clockOn() && screenSaver->isOn()) {
 			switch(ScreenSaver::getScreenSaver()) {
 				case ScreenSaver::BLANK:
 					tfts->disableAllDisplays();
 					break;
 				default:
-					tfts->enableAllDisplays();
-					tfts->animateRain();
-					tfts->invalidateAllDigits();
+					runMatrixAnimation();
 					break;
 			}
 		} else {
@@ -544,7 +541,6 @@ void clockTaskFn(void *pArg) {
 			// and the weather task decides to retrieve the forecast at the same time
 			xSemaphoreTake(memMutex, portMAX_DELAY);
 
-			ipsClock->setBrightness(ipsClock->getBrightnessConfig());
 			tfts->setShowDigits(IPSClock::getTimeOrDate());
 			if (slidesSet->value != *oldSlidesSet) {
 				slidesSet->value = imageUnpacker->unpackImages("/ips/slides/", "/ips/slides_cache", *slidesSet, *oldSlidesSet);
@@ -570,11 +566,7 @@ void clockTaskFn(void *pArg) {
 				case IPSClock::SLIDE_SHOW:
 					// drop through
 				default:
-#ifndef DS1302
 					if (timeSync->initialized() || rtcTimeSync->initialized()) {
-#else
-					if (timeSync->initialized() || rtcTimeSync->initialized()) {
-#endif
 						ipsClock->loop();
 						if (ipsClock->getFourDigitDisplay() == IPSClock::FOUR_WITH_WEATHER && IPSClock::getTimeOrDate().value == IPSClock::TIME) {
 							weather->drawSingleDay(ipsClock->getBrightness(), 0, 0);
@@ -690,6 +682,7 @@ void infoCallback() {
 	// wsInfoHandler.setBlankingMonitor(&blankingMonitor);
 	wsInfoHandler.setDescription(manifest[0]);
 	wsInfoHandler.setRevision(manifest[1]);
+	wsInfoHandler.setUptime(uptime.uptime());
 
 	wsInfoHandler.setFSSize(String(LittleFS.totalBytes()));
 	wsInfoHandler.setFSFree(String(LittleFS.totalBytes() - LittleFS.usedBytes()));

@@ -92,6 +92,7 @@ void MQTTBroker::onMessage(const espMqttClientTypes::MessageProperties& properti
         } else if (strcmp(topic + topicIndex, displayTopic + 1) == 0) {
             IPSClock::getTimeOrDate() = atoi((const char*)mqttMessageBuffer);
             broadcastUpdate(IPSClock::getTimeOrDate());
+            IPSClock::getTimeOrDate().notify();
         } else if (strcmp(topic + topicIndex, customDataTopic + 1) == 0) {
             // TODO: get the max data from somewhere
             if (length <= 6){

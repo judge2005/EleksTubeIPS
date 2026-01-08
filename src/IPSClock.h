@@ -62,7 +62,7 @@ public:
     void setOnOverride() { onOverride = millis(); };
     void overrideUntilNextChange() { prevScheduleOn = clockOn(); temporaryOverride = true; }
     void setBrightness(byte brightness) { this->brightness = brightness; }
-    uint8_t getBrightness() { return getDimming() == DIM && brightness == 255 && !clockOn() ? 40 : brightness; }
+    uint8_t getBrightness() { return getDimming() == DIM && !clockOn() ? (brightness / 6) : brightness; }
 private:
     static IRAMPtrArray<const char*> digitToName;
 
