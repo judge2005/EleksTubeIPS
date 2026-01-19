@@ -61,7 +61,7 @@ IRAMPtrArray<const char*> manifest {
 	"Unknown clock hardware",
 #endif
 	// Firmware version
-	"1.9.2",
+	"1.9.3",
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
@@ -715,9 +715,9 @@ void broadcastUpdate(const BaseConfigItem& item) {
 	value[item.name] = serialized(rawJSON.c_str());
 
     size_t len = measureJson(root);
-    AsyncWebSocketMessageBuffer * buffer = ws->makeBuffer(len); //  creates a buffer (len + 1) for you.
+    AsyncWebSocketMessageBuffer * buffer = ws->makeBuffer(len);
     if (buffer) {
-    	serializeJson(root, (char *)buffer->get(), len + 1);
+    	serializeJson(root, (char *)buffer->get(), len);
     	ws->textAll(buffer);
     }
 	uint32_t msg = MQTT_PUBLISH;
