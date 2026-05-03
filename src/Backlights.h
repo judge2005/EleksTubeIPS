@@ -26,7 +26,7 @@ public:
   Backlights() : pixels(NUM_LEDS, BACKLIGHTS_PIN)
     {}
 
-  enum patterns { dark, test, constant, rainbow, pulse, breath, num_patterns };
+  enum patterns { dark, test, constant, rainbow, pulse, breath, aurora, num_patterns };
   const static String patterns_str[num_patterns];
 
   static ByteConfigItem& getLEDPattern() { static ByteConfigItem led_pattern("led_pattern", 3); return led_pattern; }
@@ -34,6 +34,7 @@ public:
   static ByteConfigItem& getLEDValue() { static ByteConfigItem led_value("led_value", 255); return led_value; }
   static ByteConfigItem& getLEDSaturation() { static ByteConfigItem led_saturation("led_saturation", 255); return led_saturation; }
   static ByteConfigItem& getBreathPerMin() { static ByteConfigItem breath_per_min("breath_per_min", 10); return breath_per_min; }
+  static ByteConfigItem& getHuePerLed() { static ByteConfigItem hue_per_led("hue_per_led", 10); return hue_per_led; }
 
   static boolean backlightState;
   static byte backlightHue;
@@ -62,6 +63,7 @@ private:
 
   // Pattern methods
   void rainbowPattern();
+  void auroraPattern();
   void pulsePattern();
   void breathPattern();
 

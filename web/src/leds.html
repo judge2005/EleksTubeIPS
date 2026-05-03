@@ -10,13 +10,14 @@
 						<label for="led_pattern">Backlight Pattern</label>
 					</div>
 					<div class="dispInline">
-						<select onchange="setVisibility('bpm_container', this, ['3','4','5']);setVisibility('hue_container', this, ['2','4','5']);setVisibility('saturation_container', this, ['2','3','4','5']);elementChange(this)"  type="picklist"
+						<select onchange="setVisibility('bpm_container', this, ['3','4','5','6']);setVisibility('hueperled_container', this, ['6']);setVisibility('hue_container', this, ['2','4','5']);setVisibility('saturation_container', this, ['2','3','4','5','6']);elementChange(this)"  type="picklist"
 							id="led_pattern" data-mini="true">
 							<option value="0">Dark</option>
 							<option value="2">Constant</option>
 							<option value="3">Rainbow</option>
 							<option value="4">Pulse</option>
 							<option value="5">Breath</option>
+							<option value="6">Aurora</option>
 						</select>
 					</div>
 					<div id="bpm_container" style="display: none;">
@@ -26,6 +27,11 @@
 					</div>
 					<fieldset id="led_colors" data-collapsed="false" data-role="collapsible" data-iconpos="right" data-collapsed-icon="carat-d" data-expanded-icon="carat-u">
 						<legend>Colors</legend>
+						<div id="hueperled_container" style="display: none;">
+							<div class="clearFloats"></div>
+							<label for="hue_per_led">Colors Per Led</label>
+							<input onchange="elementChange(this)" type="range" name="hue_per_led" id="hue_per_led" min="1" max="10" value="4">
+						</div>
 						<div id="hue_container" style="display: none;">
 							<div class="clearFloats"></div>
 							<label for="led_hue">Hue</label>

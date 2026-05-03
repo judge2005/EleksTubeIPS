@@ -183,6 +183,7 @@ IRAMPtrArray<BaseConfigItem*> ledSet {
     &Backlights::getLEDSaturation(),
     &Backlights::getLEDValue(),
     &Backlights::getBreathPerMin(),
+	&Backlights::getHuePerLed(),
     0
 };
 CompositeConfigItem ledConfig("leds", 0, ledSet);

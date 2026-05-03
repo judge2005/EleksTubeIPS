@@ -12,8 +12,8 @@ byte Backlights::underlightBrightness = 128;
 #endif
 
 void Backlights::begin()  {
-	pixels.Begin(); // This initializes the NeoPixel library.
-	pixels.Show();
+  pixels.Begin(); // This initializes the NeoPixel library.
+  pixels.Show();
 }
 
 void Backlights::loop() {
@@ -48,6 +48,9 @@ void Backlights::loop() {
   }
   else if (current_pattern == breath) {
     breathPattern();
+  }
+    else if (current_pattern == aurora) {
+    auroraPattern();
   }
 }
 
@@ -92,6 +95,24 @@ void Backlights::rainbowPattern() {
   show();
 }
 
+void Backlights::auroraPattern()
+{
+  const uint16_t hue_per_led = getHuePerLed().value; //(256/NUM_LEDS)/2;
+
+  uint16_t hue = millis()/((21-getBreathPerMin().value) * 10) % 256;  
+  
+  uint16_t val = getLEDValue();
+
+  val = val * brightness / 255;
+
+  for (uint8_t digit=0; digit < NUM_LEDS; digit++) {
+    // Shift the hue for this LED.
+    uint16_t digitHue = (hue + digit*hue_per_led) % 256;
+ 		setPixelColor(digit, digitHue, getLEDSaturation(), val);
+  }
+  show();
+}
+
 void Backlights::fill(byte hue, byte sat, byte val, byte start, byte end) {
 	RgbColor color = HsbColor((byte)(hue)/256.0, (byte)(sat)/256.0, val/256.0);
 
@@ -109,9 +130,9 @@ void Backlights::show() {
 }
 
 void Backlights::setPixelColor(uint8_t digit, uint8_t hue, uint8_t sat, uint8_t val) {
-		RgbColor color = HsbColor((byte)(hue)/256.0, (byte)(sat)/256.0, val/256.0);
-		pixels.SetPixelColor(digit, colorGamma.Correct(color));
+    RgbColor color = HsbColor((byte)(hue)/256.0, (byte)(sat)/256.0, val/256.0);
+    pixels.SetPixelColor(digit, colorGamma.Correct(color));
 }
 
 const String Backlights::patterns_str[Backlights::num_patterns] = 
-  { "Dark", "Constant", "Rainbow", "Pulse", "Breath" };
+  { "Dark", "Constant", "Rainbow", "Pulse", "Breath", "Aurora" };
