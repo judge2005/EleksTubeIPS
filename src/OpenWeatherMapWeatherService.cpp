@@ -182,7 +182,7 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
 
 bool OpenWeatherMapWeatherService::getCurrentWeatherInfo(WiFiClientSecure &client)
 {
-    if (!sendRequest(client, "weather", 0)) {
+    if (!sendRequest(client, "weather", 1)) {
         return false;
     }
 
