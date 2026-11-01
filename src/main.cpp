@@ -1488,7 +1488,15 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 	wifiManager->setConnectTimeout(5000);	// milliseconds
 	wifiManager->setAPCallback(apChange);
 	wifiManager->setAPCredentials(ssid.c_str(), "secretsauce");
+
+	// After a cold boot some clocks transmit far more weakly than the power they report, so the
+	// router can barely hear them and connecting fails. Setting the power again fixes it. Seen on an
+	// ESP32-PICO-D4, see https://github.com/judge2005/EleksTubeIPS/issues/93. Not WiFi.setTxPower(),
+	// which does nothing until Wi-Fi's start event has been handled.
+	WiFi.mode(WIFI_STA);
+	esp_wifi_set_max_tx_power(WIFI_POWER_19_5dBm);
 	wifiManager->start();
+	esp_wifi_set_max_tx_power(WIFI_POWER_19_5dBm);
 
 	configureWebServer();
 
