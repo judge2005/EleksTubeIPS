@@ -829,6 +829,7 @@ void clockTaskFn(void *pArg) {
 
 void weatherTaskFn(void *pArg) {
 	TickType_t toSleep = DEFAULT_WEATHER_SLEEP;
+	bool lendDisplayBuffer = true;
 	while (true) {
 		// Read from weatherQueue. Wait at most 'toSleep' ticks.
 		uint32_t value;
@@ -876,12 +877,18 @@ void weatherTaskFn(void *pArg) {
 			xSemaphoreTake(memMutex, portMAX_DELAY);
 			// The displays aren't drawn while this holds memMutex, so TLS can have their buffer, the
 			// biggest block of memory the clock has. Transfers to the displays aren't DMA, so they've finished.
-			TLSArena::begin(StaticSprite::output_buffer, sizeof(StaticSprite::output_buffer));
-			bool gotWeather = weatherService->getWeatherInfo();
-			if (!TLSArena::end()) {
-				Serial.println("TLS didn't give back all of the display buffer");
+			if (lendDisplayBuffer) {
+				TLSArena::begin(StaticSprite::output_buffer, sizeof(StaticSprite::output_buffer));
 			}
-			displayBufferLent = true;
+			bool gotWeather = weatherService->getWeatherInfo();
+			if (lendDisplayBuffer) {
+				// Never seen, but if TLS kept some of the buffer, it mustn't end up in a later loan too
+				if (!TLSArena::end()) {
+					Serial.println("TLS didn't give back all of the display buffer, so it won't be lent again");
+					lendDisplayBuffer = false;
+				}
+				displayBufferLent = true;
+			}
 			xSemaphoreGive(memMutex);
 			weather->redraw();	// Even a failed update can have changed part of the forecast
 			if (!gotWeather) {
