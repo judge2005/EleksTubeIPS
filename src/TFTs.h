@@ -19,7 +19,7 @@ public:
   void pushImageWithAlpha(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t *data, uint8_t *alpha, uint8_t opaque);
   void init();
 
-  static uint8_t output_buffer[];
+  static uint8_t output_buffer[(TFT_HEIGHT * TFT_WIDTH + 1) * sizeof(uint16_t)];
 };
 
 struct MaskData {

@@ -34,6 +34,7 @@
 #include "mqttBroker.h"
 #include "IRAMPtrArray.h"
 #include "Uptime.h"
+#include "TLSArena.h"
 
 //#define DEBUG(...) { Serial.println(__VA_ARGS__); }
 #ifndef DEBUG
@@ -83,6 +84,7 @@ void broadcastUpdate(const BaseConfigItem& item);
 void broadcastToWebUI(const BaseConfigItem& item);
 void setFace(const char *menuLabel);
 void initFacesMenu();
+void redrawMenu();
 
 TFTs *tfts = NULL;
 eSPIMenu::Menu *menu;
@@ -643,6 +645,91 @@ void runMatrixAnimation() {
 	tfts->invalidateAllDigits();
 }
 
+// Set by the weather task when TLS has had the display buffer, see weatherTaskFn()
+volatile bool displayBufferLent = false;
+
+// Everything that draws, which uses the display buffer. Only call it holding memMutex.
+void updateDisplays() {
+	if (displayBufferLent) {
+		displayBufferLent = false;
+		tfts->invalidateAllDigits();
+		weather->redraw();
+		if (menuDrawn) {
+			redrawMenu();
+		}
+	}
+
+#ifdef BUTTON_MENU_PINS
+	leftButton->getEvent();
+	rightButton->getEvent();
+	modeButton->getEvent();
+#endif
+#ifdef BUTTON_POWER_PIN
+	powerButton->getEvent();
+#endif
+	if (tfts->checkStatus()) {
+		weather->redraw();	// To get rid of the status message
+	}
+
+	if (menuDrawn) {
+		return;
+	}
+
+	ipsClock->setBrightness(ipsClock->getBrightnessConfig());
+
+	if ((ipsClock->getDimming() == IPSClock::MATRIX) && !ipsClock->clockOn()) {
+		runMatrixAnimation();
+	} else if (ipsClock->clockOn() && screenSaver->isOn()) {
+		switch(ScreenSaver::getScreenSaver()) {
+			case ScreenSaver::BLANK:
+				setDisplaysEnabled(false);
+				break;
+			default:
+				runMatrixAnimation();
+				break;
+		}
+	} else {
+		if (ipsClock->clockOn()) {
+			cycleDisplays();
+		}
+
+		tfts->setShowDigits(IPSClock::getTimeOrDate());
+		if (reloadSlides || slidesSet->value != *oldSlidesSet) {
+			reloadSlides = false;
+			slidesSet->value = imageUnpacker->unpackImages("/ips/slides/", "/ips/slides_cache", *slidesSet, *oldSlidesSet);
+			slidesSet->put();
+			broadcastUpdate(*slidesSet);
+			broadcastFSChange();
+			*oldSlidesSet = slidesSet->value;
+			tfts->claim();
+			tfts->invalidateAllDigits();
+			tfts->release();
+		}
+		weather->checkIconPack();
+		ipsClock->checkIconPack();
+
+		switch (IPSClock::getTimeOrDate().value) {
+			case IPSClock::WEATHER:
+				if (ipsClock->clockOn() || (ipsClock->getDimming() == IPSClock::DIM)) {
+					weather->loop(ipsClock->getBrightness());
+				} else {
+					setDisplaysEnabled(false);
+				}
+				break;
+			case IPSClock::SLIDE_SHOW:
+				// drop through
+			default:
+				if (timeSync->initialized() || rtcTimeSync->initialized()) {
+					ipsClock->loop();
+					if (ipsClock->getFourDigitDisplay() == IPSClock::FOUR_WITH_WEATHER && IPSClock::getTimeOrDate().value == IPSClock::TIME) {
+						weather->drawSingleDay(ipsClock->getBrightness(), 0, 0);
+					}
+				}
+				break;
+		}
+	}
+}
+
 void clockTaskFn(void *pArg) {
 	TickType_t toSleep = DEFAULT_MAIN_SLEEP;
 
@@ -721,89 +808,25 @@ void clockTaskFn(void *pArg) {
 		uptime.loop();
 		ipsClock->updateSchedule();
 
-#ifdef BUTTON_MENU_PINS
-		leftButton->getEvent();
-		rightButton->getEvent();
-		modeButton->getEvent();
-#endif
-#ifdef BUTTON_POWER_PIN
-		powerButton->getEvent();
-#endif
-		if (tfts->checkStatus()) {
-			weather->redraw();	// To get rid of the status message
-		}
-
-		if (menuDrawn) {
-			continue;
-		}
-
-		ipsClock->setBrightness(ipsClock->getBrightnessConfig());
-
-		if ((ipsClock->getDimming() == IPSClock::MATRIX) && !ipsClock->clockOn()) {
-			runMatrixAnimation();
-		} else if (ipsClock->clockOn() && screenSaver->isOn()) {
-			switch(ScreenSaver::getScreenSaver()) {
-				case ScreenSaver::BLANK:
-					setDisplaysEnabled(false);
-					break;
-				default:
-					runMatrixAnimation();
-					break;
-			}
-		} else {
-			if (ipsClock->clockOn()) {
-				cycleDisplays();
-			}
-
-			// Memory is an issue if one of the below decides to unpack a .gz.tar file
-			// and the weather task decides to retrieve the forecast at the same time.
-			// Also reading images from flash while the weather is fetched over TLS slows
-			// both down so much that the task watchdog fires.
-			xSemaphoreTake(memMutex, portMAX_DELAY);
-
-			tfts->setShowDigits(IPSClock::getTimeOrDate());
-			if (reloadSlides || slidesSet->value != *oldSlidesSet) {
-				reloadSlides = false;
-				slidesSet->value = imageUnpacker->unpackImages("/ips/slides/", "/ips/slides_cache", *slidesSet, *oldSlidesSet);
-				slidesSet->put();
-				broadcastUpdate(*slidesSet);
-				broadcastFSChange();
-				*oldSlidesSet = slidesSet->value;
-				tfts->claim();
-				tfts->invalidateAllDigits();
-				tfts->release();
-			}
-			weather->checkIconPack();
-			ipsClock->checkIconPack();
-
-			switch (IPSClock::getTimeOrDate().value) {
-				case IPSClock::WEATHER:
-					if (ipsClock->clockOn() || (ipsClock->getDimming() == IPSClock::DIM)) {
-						weather->loop(ipsClock->getBrightness());
-					} else {
-						setDisplaysEnabled(false);
-					}
-					break;
-				case IPSClock::SLIDE_SHOW:
-					// drop through
-				default:
-					if (timeSync->initialized() || rtcTimeSync->initialized()) {
-						ipsClock->loop();
-						if (ipsClock->getFourDigitDisplay() == IPSClock::FOUR_WITH_WEATHER && IPSClock::getTimeOrDate().value == IPSClock::TIME) {
-							weather->drawSingleDay(ipsClock->getBrightness(), 0, 0);
-						}
-					}
-					break;
-			}
-
-			xSemaphoreGive(memMutex);
-		}
+		// Memory is an issue if the displays need a .gz.tar file unpacked and the weather task
+		// retrieves the forecast at the same time. Also reading images from flash while the weather
+		// is fetched over TLS slows both down so much that the task watchdog fires. And while it's
+		// fetched, TLS has the display buffer.
+		xSemaphoreTake(memMutex, portMAX_DELAY);
+		updateDisplays();
+		xSemaphoreGive(memMutex);
 
 		mqttBroker->checkConnection();
 	}
 }
 
 #define DEFAULT_WEATHER_SLEEP (pdMS_TO_TICKS(15 * 60 * 1000))
+#define FIRST_WEATHER_UPTIME (30 * 1000UL)	// ms
+
+#ifdef USE_DMA
+#error "Wait for the last DMA transfer before lending the display buffer to TLS in weatherTaskFn()"
+#endif
+
 void weatherTaskFn(void *pArg) {
 	TickType_t toSleep = DEFAULT_WEATHER_SLEEP;
 	while (true) {
@@ -830,6 +853,12 @@ void weatherTaskFn(void *pArg) {
 
 		toSleep = DEFAULT_WEATHER_SLEEP;
 		if ((WiFi.status() == WL_CONNECTED) && !wifiManager->isAP()) {
+			if (millis() < FIRST_WEATHER_UPTIME) {
+				// Not on top of starting up, or of browsers reconnecting after a restart
+				toSleep = pdMS_TO_TICKS(FIRST_WEATHER_UPTIME - millis());
+				continue;
+			}
+
 			if (!WeatherService::timeIsSet()) {
 				// NTP usually answers within a few seconds of connecting
 				toSleep = pdMS_TO_TICKS(10000);
@@ -837,9 +866,16 @@ void weatherTaskFn(void *pArg) {
 			}
 
 			// Memory is an issue if the clock task decides to unpack a .gz.tar file
-			// and this task tries to retrieve the forecast at the same time
+			// and this task tries to retrieve the forecast at the same time.
 			xSemaphoreTake(memMutex, portMAX_DELAY);
+			// The displays aren't drawn while this holds memMutex, so TLS can have their buffer, the
+			// biggest block of memory the clock has. Transfers to the displays aren't DMA, so they've finished.
+			TLSArena::begin(StaticSprite::output_buffer, sizeof(StaticSprite::output_buffer));
 			bool gotWeather = weatherService->getWeatherInfo();
+			if (!TLSArena::end()) {
+				Serial.println("TLS didn't give back all of the display buffer");
+			}
+			displayBufferLent = true;
 			xSemaphoreGive(memMutex);
 			weather->redraw();	// Even a failed update can have changed part of the forecast
 			if (!gotWeather) {
@@ -1481,6 +1517,13 @@ void initFacesMenu() {
 	tfts->fillScreen(MENU_ITEM_BACKGROUND);
 }
 
+// After TLS has had the display buffer, see updateDisplays()
+void redrawMenu() {
+	tfts->getSprite().fillSprite(MENU_ITEM_BACKGROUND);
+	menu->show();
+	tfts->getSprite().pushSprite(0, 0);
+}
+
 // The display cycle is shown on the clock page, but stored apart from the other clock settings
 String clockCallback() {
 	return "\"display_cycle\":" + IPSClock::getDisplayCycle().toJSON();
@@ -1744,6 +1787,7 @@ void setup() {
 	*/
 	Serial.begin(115200);
 	Serial.setDebugOutput(false);
+	TLSArena::init();	// Before the weather task can use TLS
 
 	DEBUG("Setup...");
 
