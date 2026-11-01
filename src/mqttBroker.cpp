@@ -339,9 +339,9 @@ void MQTTBroker::setConfigCoordinate(BaseConfigItem &item, const char *value, in
         return;
     }
 
-    // About 10 m, and the longest, -180.0000, fits in the 10 characters the item holds
+    // The entity's step, about 100 m. The longest, -180.000, fits in the 10 characters the item holds.
     char coordinate[12];
-    snprintf(coordinate, sizeof(coordinate), "%.4f", degrees);
+    snprintf(coordinate, sizeof(coordinate), "%.3f", degrees);
     setConfigItem(item, coordinate);
 }
 
@@ -734,7 +734,8 @@ void MQTTBroker::sendSettingDiscovery(const Setting &setting, JsonDocument &doc)
             doc["unit_of_meas"] = setting.unit;
         }
         if (setting.type == COORDINATE) {
-            doc["step"] = 0.0001;
+            // Home Assistant ignores the whole entity if the step is smaller than 0.001
+            doc["step"] = 0.001;
             doc["mode"] = "box";
         }
         doc["val_tpl"] = String("{{") + value + "}}";
