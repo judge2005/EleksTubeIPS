@@ -181,12 +181,13 @@ void StaticSprite::init() {
   setPivot(_iwidth/2, _iheight/2);
 }
 
+// Recursive, because code holding it calls things that claim it too, such as checkStatus()
 void TFTs::claim() {
-  xSemaphoreTake(tftMutex, portMAX_DELAY);
+  xSemaphoreTakeRecursive(tftMutex, portMAX_DELAY);
 }
 
 void TFTs::release(){
-  xSemaphoreGive(tftMutex);
+  xSemaphoreGiveRecursive(tftMutex);
 }
 
 #ifdef SMOOTH_FONT
@@ -226,19 +227,23 @@ StaticSprite& TFTs::getSprite() {
   return *sprite;
 }
 
+static TFT_eSprite *statusSprite = NULL;
+
 // Its 4K are only allocated while a status is shown, see checkStatus()
 TFT_eSprite& TFTs::getStatusSprite() {
-  static TFT_eSprite *sprite = new StaticSprite(tfts);
-
-  if (!sprite->created()) {
-    sprite->createSprite(width(), 16);	// If there isn't the memory, drawing on it does nothing
-
-    sprite->setTextDatum(BC_DATUM);
-    sprite->setTextColor(TFT_GOLD, TFT_BLACK, true);
-    sprite->setTextFont(2);
+  if (statusSprite == NULL) {
+    statusSprite = new StaticSprite(tfts);
   }
 
-  return *sprite;
+  if (!statusSprite->created()) {
+    statusSprite->createSprite(width(), 16);	// If there isn't the memory, drawing on it does nothing
+
+    statusSprite->setTextDatum(BC_DATUM);
+    statusSprite->setTextColor(TFT_GOLD, TFT_BLACK, true);
+    statusSprite->setTextFont(2);
+  }
+
+  return *statusSprite;
 }
 
 // Returns true if a status message was just removed
@@ -249,7 +254,9 @@ bool TFTs::checkStatus() {
     claim();  // setStatus() is called by other tasks too
     if (millis() - statusTime > 5000) {
       statusSet = false;
-      getStatusSprite().deleteSprite();
+      if (statusSprite != NULL) {
+        statusSprite->deleteSprite();
+      }
       expired = true;
     }
     release();
@@ -445,7 +452,7 @@ void TFTs::invalidateAllDigits() {
 
 void TFTs::begin(fs::FS& fs) {
   if (tftMutex == 0) {
-    tftMutex = xSemaphoreCreateMutex();
+    tftMutex = xSemaphoreCreateRecursiveMutex();
   }
 
   this->fs = &fs;
