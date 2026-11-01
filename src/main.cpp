@@ -79,6 +79,7 @@ void infoCallback();
 String wifiCallback();
 String clockFacesCallback();
 String clockCallback();
+String mqttCallback();
 void broadcastUpdate(String msg);
 void broadcastUpdate(const BaseConfigItem& item);
 void broadcastToWebUI(const BaseConfigItem& item);
@@ -933,7 +934,8 @@ WSConfigHandler wsLEDHandler(rootConfig, "leds");
 WSConfigHandler wsFacesHandler(rootConfig, "faces", clockFacesCallback);
 WSConfigHandler wsWeatherHandler(rootConfig, "weather");
 WSConfigHandler wsMatrixHandler(rootConfig, "matrix");
-WSConfigHandler wsMqttHandler(rootConfig, "mqtt");
+const char *mqttExcludes[] = { "mqtt_password", 0 };	// See mqttCallback()
+WSConfigHandler wsMqttHandler(rootConfig, "mqtt", mqttCallback, mqttExcludes);
 WSConfigHandler wsNetworkHandler(rootConfig, "network", wifiCallback);
 WSInfoHandler wsInfoHandler(infoCallback);
 
@@ -1021,15 +1023,19 @@ void broadcastToWebUI(const BaseConfigItem& item) {
 	broadcastUpdate(json);
 }
 
-// The web UI is sent the user, but only whether there's a password
-String webLoginJSON() {
-	return "\"web_user\":" + webUser.toJSON() + ",\"web_password\":\"" + (webPassword.value.length() > 0 ? "********" : "") + "\"";
+// The web UI is only told whether there's a password, never what it is
+String passwordJSON(const StringConfigItem &password) {
+	return String("\"") + password.name + "\":\"" + (password.value.length() > 0 ? "********" : "") + "\"";
 }
 
-// Refuses anything the login couldn't match. Stored settings stop at the first character that isn't
-// ASCII, so the password would stop matching after a restart, and the user goes in the browser's
-// login header, which can't carry every character.
-bool validWebLogin(const StringConfigItem &item, const String &value) {
+String webLoginJSON() {
+	return "\"web_user\":" + webUser.toJSON() + "," + passwordJSON(webPassword);
+}
+
+// Refuses anything a login couldn't match. Stored settings stop at the first character that isn't
+// ASCII, so a password would stop matching after a restart, and the web UI's user goes in the
+// browser's login header, which can't carry every character.
+bool validLogin(const StringConfigItem &item, const String &value) {
 	if (value.length() > item.maxSize) {
 		return false;
 	}
@@ -1045,7 +1051,7 @@ bool validWebLogin(const StringConfigItem &item, const String &value) {
 }
 
 void setWebLogin(StringConfigItem &item, const String &value) {
-	bool changed = validWebLogin(item, value) && value != item.value;
+	bool changed = validLogin(item, value) && value != item.value;
 	if (changed) {
 		item = value;
 		item.put();
@@ -1060,6 +1066,17 @@ void setWebLogin(StringConfigItem &item, const String &value) {
 		ws->closeAll();
 		xSemaphoreGive(wsMutex);
 	}
+}
+
+void setMqttPassword(const String &value) {
+	StringConfigItem &password = MQTTBroker::getPassword();
+	if (validLogin(password, value) && value != password.value) {
+		password = value;
+		password.put();
+		password.notify();	// Connects again with it
+	}
+
+	broadcastUpdate("{\"type\":\"sv.update\",\"value\":{" + passwordJSON(password) + "}}");	// Also puts back anything refused
 }
 
 // A group of settings, like "web_login". Setting one does nothing, but would send what's in it to the
@@ -1092,6 +1109,8 @@ void updateValue(int screen, String pair) {
 	BaseConfigItem *item = rootConfig.get(key);
 	if (item == &webUser || item == &webPassword) {
 		setWebLogin(*(StringConfigItem*)item, value);
+	} else if (item == &MQTTBroker::getPassword()) {
+		setMqttPassword(value);
 	} else if (item != 0 && !isSettingsGroup(item)) {
 		item->fromString(value);
 		item->put();
@@ -1569,6 +1588,11 @@ void redrawMenu() {
 // The display cycle is shown on the clock page, but stored apart from the other clock settings
 String clockCallback() {
 	return "\"display_cycle\":" + IPSClock::getDisplayCycle().toJSON();
+}
+
+// The MQTT page is sent everything but the password, and only whether there is one
+String mqttCallback() {
+	return passwordJSON(MQTTBroker::getPassword());
 }
 
 String wifiCallback() {

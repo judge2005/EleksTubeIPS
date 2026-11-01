@@ -17,7 +17,7 @@ String WSConfigHandler::getData(char *data) {
 
     if (clockConfig != 0) {
         json.concat(sep);
-        json.concat(clockConfig->toJSON(true));
+        json.concat(clockConfig->toJSON(true, excludes));
 		sep = ",";
     }
 

@@ -43,8 +43,10 @@
 					<label for="mqtt_password">Password</label>
 				</div>
 				<div class="dispInline">
+					<!-- onchange, because the clock only sends a placeholder for the password -->
 					<input maxlength="25"
-						onblur="elementBlur(this)" type="text" id="mqtt_password"
+						onchange="elementBlur(this, 'Use only letters, digits, spaces and punctuation, without accents')" pattern="[ -~]*"
+						type="password" id="mqtt_password" autocomplete="new-password"
 						data-mini="true" />
 				</div>
 			</div>
