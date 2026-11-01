@@ -1433,6 +1433,10 @@ void configureWebServer() {
 	// The page that opens the web socket. It's in the filesystem, but served here to set the login cookie.
 	server->on("/app.html", HTTP_GET, [](AsyncWebServerRequest *request) {
 		AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/app.html", "text/html");
+		if (response == NULL) {
+			request->send(404);	// The filesystem image is missing
+			return;
+		}
 		addWebLoginCookie(request, response);
 		request->send(response);
 	});
