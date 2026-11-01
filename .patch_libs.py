@@ -22,6 +22,9 @@ for name, patch in PATCHES.items():
     library = os.path.join(env.subst("$PROJECT_LIBDEPS_DIR"), env.subst("$PIOENV"), name)
     patch = os.path.join(env.subst("$PROJECT_DIR"), patch)
 
+    if not os.path.isdir(library):
+        continue    # Not installed yet, as when cleaning a fresh clone. A build installs it before this runs.
+
     if git_apply(library, patch, "--reverse", "--check").returncode == 0:
         continue    # Already applied
 
