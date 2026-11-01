@@ -75,7 +75,7 @@ static const Setting settings[] = {
     { NUMBER, "hue_per_led", "leds", "LED Colors Per LED", "mdi:gradient-horizontal", true, 1, 10 },
 
     // Minutes, 0 is never
-    { NUMBER, "screen_saver_delay", "matrix", "Screen Saver Delay", "mdi:knob", false, 0, 120 },
+    { NUMBER, "screen_saver_delay", "matrix", "Screen Saver Delay", "mdi:timer-sand", false, 0, 120 },
 
     // The matrix animation, shown by the screen saver and outside the display hours
     { NUMBER, "matrix_hue", "matrix", "Matrix Hue", "mdi:looks", false, 0, 255 },
@@ -627,7 +627,7 @@ bool MQTTBroker::sendHADiscoveryMessage() {
     publishDiscovery("text", "custom", doc, "custom-data");
 
     doc["name"] = "Backlight";
-    doc["icon"] = "mdi:led-strip-variant";
+    doc["icon"] = "mdi:television-ambient-light";	// The LEDs behind the displays
 
     doc["cmd_t"] = backlightStateTopic;
     doc["stat_t"] = volatileStateTopic;
@@ -667,7 +667,7 @@ bool MQTTBroker::sendHADiscoveryMessage() {
 #endif
 
     doc["name"] = "Display";
-    doc["icon"] = "mdi:theater";
+    doc["icon"] = "mdi:view-carousel-outline";
 
     doc["cmd_t"] = displayTopic;
     doc["stat_t"] = volatileStateTopic;
