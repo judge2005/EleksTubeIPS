@@ -44,6 +44,8 @@ private:
     void setSetting(const char *topic, const char *value);
     void setConfigItem(BaseConfigItem &item, const char *value);
     void setConfigNumber(BaseConfigItem &item, const char *value, int min, int max);
+    void setConfigOption(BaseConfigItem &item, const char *value, const char *const *options);
+    void setConfigCoordinate(BaseConfigItem &item, const char *value, int min, int max);
 
     void onFileMessage(const char *path, const uint8_t *payload, size_t length, size_t index, size_t total_length);
     void startFileMessage(const char *path, const uint8_t *payload, size_t length, size_t total_length);

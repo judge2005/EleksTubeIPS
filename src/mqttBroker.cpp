@@ -41,8 +41,12 @@ static const char *const offHoursModes[] = { "Blank", "Dim", "Matrix", 0 };
 static const char *const digitCounts[] = { "Six", "Four AM/PM", "Four + Weather", "Four + Picture", 0 };
 // Values match IPSClock::DateFormat
 static const char *const dateFormats[] = { "DD-MM-YY", "MM-DD-YY", "YY-MM-DD", 0 };
+// The web UI's choices
+static const char *const weatherUnits[] = { "Imperial", "Metric", 0 };
 
-enum SettingType { NUMBER, SELECT, SWITCH };
+// A TEXT_SELECT item holds the option in lower case rather than its index, e.g. "metric" for "Metric".
+// A COORDINATE item holds degrees as text.
+enum SettingType { NUMBER, SELECT, SWITCH, TEXT_SELECT, COORDINATE };
 
 // A config item that Home Assistant shows as an entity, and that can be set with ~/set/<item name>
 struct Setting {
@@ -94,7 +98,12 @@ static const Setting settings[] = {
     // The color of monochrome weather icons
     { NUMBER, "weather_hue", "weather", "Weather Hue", "mdi:looks", true, 0, 255 },
     { NUMBER, "weather_saturation", "weather", "Weather Saturation", "mdi:palette", true, 0, 255 },
-    { NUMBER, "weather_value", "weather", "Weather Brightness", "mdi:brightness-5", true, 0, 255 }
+    { NUMBER, "weather_value", "weather", "Weather Brightness", "mdi:brightness-5", true, 0, 255 },
+
+    // Changing these fetches the weather again. The API key has no entity because it would have to be published.
+    { TEXT_SELECT, "units", "weather", "Weather Units", "mdi:thermometer", true, 0, 0, 0, weatherUnits },
+    { COORDINATE, "weather_latitude", "weather", "Weather Latitude", "mdi:latitude", true, -90, 90, "°" },
+    { COORDINATE, "weather_longitude", "weather", "Weather Longitude", "mdi:longitude", true, -180, 180, "°" }
 };
 
 // The directories under /ips whose files can be managed over MQTT, and the config item that selects one of them
@@ -310,6 +319,32 @@ void MQTTBroker::setConfigNumber(BaseConfigItem &item, const char *value, int mi
     setConfigItem(item, String(constrain(atoi(value), min, max)).c_str());
 }
 
+// Ignores anything that isn't one of the options in lower case
+void MQTTBroker::setConfigOption(BaseConfigItem &item, const char *value, const char *const *options) {
+    for (int i = 0; options[i] != 0; i++) {
+        String option(options[i]);
+        option.toLowerCase();
+        if (option == value) {
+            setConfigItem(item, value);
+            return;
+        }
+    }
+}
+
+// Ignores anything that isn't a number in range. The weather service puts it straight into the request URL.
+void MQTTBroker::setConfigCoordinate(BaseConfigItem &item, const char *value, int min, int max) {
+    char *end;
+    double degrees = strtod(value, &end);
+    if (end == value || *end != 0 || !isfinite(degrees) || degrees < min || degrees > max) {
+        return;
+    }
+
+    // About 10 m, and the longest, -180.0000, fits in the 10 characters the item holds
+    char coordinate[12];
+    snprintf(coordinate, sizeof(coordinate), "%.4f", degrees);
+    setConfigItem(item, coordinate);
+}
+
 // topic looks like /set/<item name>, where the item is one of the settings or selects a file
 void MQTTBroker::setSetting(const char *topic, const char *value) {
     const char *setPrefix = "/set/";
@@ -336,6 +371,10 @@ void MQTTBroker::setSetting(const char *topic, const char *value) {
         if (strcmp(name, setting.item) == 0) {
             if (setting.type == SWITCH) {
                 setConfigItem(*item, value);    // "true", anything else is false
+            } else if (setting.type == TEXT_SELECT) {
+                setConfigOption(*item, value, setting.options);
+            } else if (setting.type == COORDINATE) {
+                setConfigCoordinate(*item, value, setting.min, setting.max);
             } else {
                 int max = setting.max;
                 if (setting.type == SELECT) {
@@ -688,11 +727,15 @@ void MQTTBroker::sendSettingDiscovery(const Setting &setting, JsonDocument &doc)
         doc["ent_cat"] = "config";
     }
 
-    if (setting.type == NUMBER) {
+    if (setting.type == NUMBER || setting.type == COORDINATE) {
         doc["min"] = setting.min;
         doc["max"] = setting.max;
         if (setting.unit != 0) {
             doc["unit_of_meas"] = setting.unit;
+        }
+        if (setting.type == COORDINATE) {
+            doc["step"] = 0.0001;
+            doc["mode"] = "box";
         }
         doc["val_tpl"] = String("{{") + value + "}}";
     } else if (setting.type == SWITCH) {
@@ -700,6 +743,15 @@ void MQTTBroker::sendSettingDiscovery(const Setting &setting, JsonDocument &doc)
         doc["pl_on"] = "true";
         doc["pl_off"] = "false";
         doc["val_tpl"] = String("{{ 'true' if ") + value + " else 'false' }}";
+    } else if (setting.type == TEXT_SELECT) {
+        // The options are single capitalized words, so capitalize turns "metric" back into "Metric"
+        component = "select";
+        JsonArray optArray = doc["options"].to<JsonArray>();
+        for (int i = 0; setting.options[i] != 0; i++) {
+            optArray.add(setting.options[i]);
+        }
+        doc["val_tpl"] = String("{{ ") + value + " | capitalize }}";
+        doc["command_template"] = "{{ value | lower }}";
     } else {
         // e.g. {{ ['Blank','Dim','Matrix'][value_json.clock.dimming] }} and {{ {'Blank':0,'Dim':1,'Matrix':2}[value] }}
         component = "select";
