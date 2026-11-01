@@ -853,9 +853,11 @@ void weatherTaskFn(void *pArg) {
 
 		toSleep = DEFAULT_WEATHER_SLEEP;
 		if ((WiFi.status() == WL_CONNECTED) && !wifiManager->isAP()) {
-			if (millis() < FIRST_WEATHER_UPTIME) {
-				// Not on top of starting up, or of browsers reconnecting after a restart
-				toSleep = pdMS_TO_TICKS(FIRST_WEATHER_UPTIME - millis());
+			// Not on top of starting up, or of browsers reconnecting after a restart. Read once, since if it
+			// passed 30 s between two reads, the subtraction would wrap round to over an hour's sleep.
+			unsigned long uptime = millis();
+			if (uptime < FIRST_WEATHER_UPTIME) {
+				toSleep = pdMS_TO_TICKS(FIRST_WEATHER_UPTIME - uptime);
 				continue;
 			}
 
