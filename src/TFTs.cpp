@@ -226,15 +226,12 @@ StaticSprite& TFTs::getSprite() {
   return *sprite;
 }
 
+// Its 4K are only allocated while a status is shown, see checkStatus()
 TFT_eSprite& TFTs::getStatusSprite() {
-  static bool initialized = false;
-  static TFT_eSprite *sprite;
+  static TFT_eSprite *sprite = new StaticSprite(tfts);
 
-  if (!initialized) {
-    initialized = true;
-
-    sprite = new StaticSprite(tfts);
-    sprite->createSprite(width(), 16);
+  if (!sprite->created()) {
+    sprite->createSprite(width(), 16);	// If there isn't the memory, drawing on it does nothing
 
     sprite->setTextDatum(BC_DATUM);
     sprite->setTextColor(TFT_GOLD, TFT_BLACK, true);
@@ -246,15 +243,23 @@ TFT_eSprite& TFTs::getStatusSprite() {
 
 // Returns true if a status message was just removed
 bool TFTs::checkStatus() {
-  if (millis() - statusTime > 5000) {
-    if (statusSet)  {
+  bool expired = false;
+
+  if (statusSet && millis() - statusTime > 5000) {
+    claim();  // setStatus() is called by other tasks too
+    if (millis() - statusTime > 5000) {
       statusSet = false;
-      invalidateAllDigits();
-      return true;
+      getStatusSprite().deleteSprite();
+      expired = true;
     }
+    release();
   }
 
-  return false;
+  if (expired) {
+    invalidateAllDigits();
+  }
+
+  return expired;
 }
 
 void TFTs::setStatus(const char* s) {
