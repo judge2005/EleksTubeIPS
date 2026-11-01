@@ -695,16 +695,21 @@ void weatherTaskFn(void *pArg) {
 
 		toSleep = DEFAULT_WEATHER_SLEEP;
 		if ((WiFi.status() == WL_CONNECTED) && !wifiManager->isAP()) {
+			if (!WeatherService::timeIsSet()) {
+				// NTP usually answers within a few seconds of connecting
+				toSleep = pdMS_TO_TICKS(10000);
+				continue;
+			}
+
 			// Memory is an issue if the clock task decides to unpack a .gz.tar file
 			// and this task tries to retrieve the forecast at the same time
 			xSemaphoreTake(memMutex, portMAX_DELAY);
 			bool gotWeather = weatherService->getWeatherInfo();
 			xSemaphoreGive(memMutex);
+			weather->redraw();	// Even a failed update can have changed part of the forecast
 			if (!gotWeather) {
 				DEBUG("Failed to get weather");
 				toSleep = pdMS_TO_TICKS(180000);	// Try again in 3 minutes
-			} else {
-				weather->redraw();
 			}
 		}
 

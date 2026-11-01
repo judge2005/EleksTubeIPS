@@ -235,7 +235,7 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
         }
 
         JsonDocument forecastDoc;
-        DeserializationError deserializeError = deserializeJson(forecastDoc, client, DeserializationOption::Filter(forecastFilter));
+        deserializeError = deserializeJson(forecastDoc, client, DeserializationOption::Filter(forecastFilter));
         if (!deserializeError) {
             bool missing = false;
     /*
@@ -272,6 +272,11 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
 
             time_t now;
             time(&now);
+
+            // Without the date, every entry looks like the start of another day
+            if (!timeIsSet()) {
+                return false;
+            }
 
             // Truncate to midnight in current timezone:
             time_t midnightLocal = now - (now + tzOffset) % SECONDS_IN_DAY;
@@ -330,13 +335,14 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
 #endif
                 }
 
-                if (dt >= nextNoon) {
+                // The checks on the indexes only matter if the clock's date is wrong
+                if (dt >= nextNoon && iconNameIndex >= 0) {
                     nextNoon += SECONDS_IN_DAY;
                     iconNames[iconNameIndex] = iName;
                     iconNameIndex--;
                 }
 
-                if (dt > midnightLocal) {
+                if (dt > midnightLocal && hiLoIndex > 0) {
                     midnightLocal += SECONDS_IN_DAY;
                     hiLoIndex--;
                     temp_min[hiLoIndex] = NAN;
@@ -368,13 +374,13 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
             }
 
             if(missing) {
+                parsingError = true;
 #ifdef DEBUG_WEATHER_MEMORY
                 Serial.print("Couldn't read all data. Free heap: ");
                 Serial.print(_freeHeap());
                 Serial.print(", Max block size=");
                 Serial.println(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 
-                parsingError = true;
                 serializeJson(forecastDoc, Serial);
                 Serial.println("");
 #endif
