@@ -51,6 +51,7 @@ public:
     static IntConfigItem& getDimming() { static IntConfigItem dimming("dimming", MATRIX); return dimming; }
     static ByteConfigItem& getBrightnessConfig() { static ByteConfigItem brightness_config("brightness_config", 255); return brightness_config; }
     static StringConfigItem& getCustomData() { static StringConfigItem custom_data("custom_data", 10, ""); return custom_data; }	// Custom data for MQTT
+    static bool setCustomData(const String &value);
 
     void init();
     void loop();

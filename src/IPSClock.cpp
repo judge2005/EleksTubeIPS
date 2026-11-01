@@ -20,6 +20,17 @@ IRAMPtrArray<const char*> IPSClock::digitToName {
 IPSClock::IPSClock() {
 }
 
+// One character per display: a digit, ':', 'a' for AM, 'p' for PM, or ' ' or '_' for a space. Anything
+// else shows as a space. Empty, "clear" or "CLEAR" goes back to the time. Returns false if it is too long.
+bool IPSClock::setCustomData(const String &value) {
+    if (value.length() > NUM_DIGITS) {
+        return false;
+    }
+
+    getCustomData() = (value == "clear" || value == "CLEAR") ? String() : value;
+    return true;
+}
+
 void IPSClock::init() {
 	displayTimer.init(millis(), 0);
     oldClockFace = getClockFace().value;

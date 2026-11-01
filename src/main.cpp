@@ -1158,9 +1158,24 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 	}
 }
 
+// Shows text instead of the time, like ~/set/custom over MQTT, e.g. curl -d value=12:34 http://<clock>/custom.
+// Replies with the text being shown, so a GET just reads it.
+void customHandler(AsyncWebServerRequest *request) {
+	if (request->method() == HTTP_POST && request->hasArg("value")) {
+		if (!IPSClock::setCustomData(request->arg("value"))) {
+			request->send(400, "text/plain", "The value can be at most " + String(NUM_DIGITS) + " characters\n");
+			return;
+		}
+		requestMqttPublish();
+	}
+
+	request->send(200, "text/plain", IPSClock::getCustomData().value + "\n");
+}
+
 void configureWebServer() {
 	server->serveStatic("/", LittleFS, "/");
 	server->on("/", HTTP_GET, mainHandler).setFilter(ON_STA_FILTER);
+	server->on("/custom", HTTP_GET | HTTP_POST, customHandler);
 	server->on("/t", HTTP_POST, timeHandler).setFilter(ON_AP_FILTER);
 	server->on("/assets/favicon-32x32.png", HTTP_GET, sendFavicon);
 	server->on("/upload_face", HTTP_POST, handleUploadDone, handleUpload);

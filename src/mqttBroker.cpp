@@ -236,20 +236,7 @@ void MQTTBroker::onMessage(const espMqttClientTypes::MessageProperties& properti
         } else if (strcmp(topic + topicIndex, displayTopic + 1) == 0) {
             setConfigNumber(IPSClock::getTimeOrDate(), (const char*)mqttMessageBuffer, IPSClock::TIME, IPSClock::SLIDE_SHOW);
         } else if (strcmp(topic + topicIndex, customDataTopic + 1) == 0) {
-            // TODO: get the max data from somewhere
-            if (length <= 6){
-                // empty string or clear/CLEAR will clear the custom data
-                if (strcmp((const char*)mqttMessageBuffer, "CLEAR") == 0
-                    || strcmp((const char*)mqttMessageBuffer, "clear") == 0){
-                    IPSClock::getCustomData() = "";
-                }
-                else{
-                    IPSClock::getCustomData() = (const char*)mqttMessageBuffer;
-                }
-            }
-            else{
-//                Serial.println("Custom data too long, ignoring");
-            }
+            IPSClock::setCustomData((const char*)mqttMessageBuffer);	// Ignored if it is too long
         } else if (strcmp(topic + topicIndex, backlightStateTopic + 1) == 0) {
             if (strcmp((const char*)mqttMessageBuffer, "OFF") == 0) {
                 Backlights::backlightState = false;
