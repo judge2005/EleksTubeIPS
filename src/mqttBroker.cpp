@@ -94,6 +94,8 @@ static const Setting settings[] = {
     { SWITCH, "leading_zero", "clock", "Leading Zero", "mdi:numeric-0-box-outline", true },
     { SELECT, "four_digit_display", "clock", "Number of Digits", "mdi:numeric", true, 0, 0, 0, digitCounts },
     { SELECT, "date_format", "clock", "Date Format", "mdi:calendar", true, 0, 0, 0, dateFormats },
+    // Seconds on each of time, date and weather, 0 stays on one
+    { NUMBER, "display_cycle", "cycle", "Display Cycle Time", "mdi:autorenew", true, 0, 240, "s" },
 
     // The color of monochrome weather icons
     { NUMBER, "weather_hue", "weather", "Weather Hue", "mdi:looks", true, 0, 255 },

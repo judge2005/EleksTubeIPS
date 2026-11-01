@@ -76,6 +76,7 @@ void setWiFiAP(bool on);
 void infoCallback();
 String wifiCallback();
 String clockFacesCallback();
+String clockCallback();
 void broadcastUpdate(String msg);
 void broadcastUpdate(const BaseConfigItem& item);
 void broadcastToWebUI(const BaseConfigItem& item);
@@ -321,6 +322,13 @@ IRAMPtrArray<BaseConfigItem*> networkSet {
 
 CompositeConfigItem networkConfig("network", 0, networkSet);
 
+IRAMPtrArray<BaseConfigItem*> cycleSet {
+	&IPSClock::getDisplayCycle(),
+	0
+};
+
+CompositeConfigItem cycleConfig("cycle", 0, cycleSet);
+
 // All configurations
 IRAMPtrArray<BaseConfigItem*> configSetRoot {
 	&globalConfig,
@@ -331,6 +339,7 @@ IRAMPtrArray<BaseConfigItem*> configSetRoot {
 	&matrixConfig,
 	&mqttConfig,
 	&networkConfig,
+	&cycleConfig,
 	0
 };
 
@@ -445,10 +454,34 @@ void onMatrixHueChanged(ConfigItem<int> &item) {
 	broadcastToWebUI(item);
 }
 
+unsigned long lastDisplayChange = 0;
+
 void onDisplayChanged(ConfigItem<int> &item) {
+	lastDisplayChange = millis();	// However it changed, show it for a whole cycle
 	tfts->invalidateAllDigits();
 
 	weather->redraw();
+}
+
+// Moves on to the next of time, date and weather once the display has been shown for the cycle time.
+// Weather is skipped without an API key. The display isn't saved, so the flash isn't written every
+// few seconds, and after a restart the clock starts on the one chosen last.
+void cycleDisplays() {
+	uint8_t seconds = IPSClock::getDisplayCycle().value;
+	if (seconds == 0 || millis() - lastDisplayChange < seconds * 1000UL) {
+		return;
+	}
+
+	IntConfigItem &display = IPSClock::getTimeOrDate();
+	if (display.value == IPSClock::TIME) {
+		display.value = IPSClock::DATE;
+	} else if (display.value == IPSClock::DATE && WeatherService::getWeatherToken().value.length() > 0) {
+		display.value = IPSClock::WEATHER;
+	} else {
+		display.value = IPSClock::TIME;	// After the weather, or from the slide show
+	}
+	broadcastUpdate(display);
+	display.notify();
 }
 
 void onBrightnessChanged(ConfigItem<byte> &item) {
@@ -687,6 +720,10 @@ void clockTaskFn(void *pArg) {
 					break;
 			}
 		} else {
+			if (ipsClock->clockOn()) {
+				cycleDisplays();
+			}
+
 			// Memory is an issue if one of the below decides to unpack a .gz.tar file
 			// and the weather task decides to retrieve the forecast at the same time.
 			// Also reading images from flash while the weather is fetched over TLS slows
@@ -811,7 +848,7 @@ IRAMPtrArray<const char*> items {
 };
 
 WSMenuHandler wsMenuHandler(items);
-WSConfigHandler wsClockHandler(rootConfig, "clock");
+WSConfigHandler wsClockHandler(rootConfig, "clock", clockCallback);
 WSConfigHandler wsLEDHandler(rootConfig, "leds");
 WSConfigHandler wsFacesHandler(rootConfig, "faces", clockFacesCallback);
 WSConfigHandler wsWeatherHandler(rootConfig, "weather");
@@ -1278,6 +1315,11 @@ void initFacesMenu() {
 	tfts->fillScreen(MENU_ITEM_BACKGROUND);
 }
 
+// The display cycle is shown on the clock page, but stored apart from the other clock settings
+String clockCallback() {
+	return "\"display_cycle\":" + IPSClock::getDisplayCycle().toJSON();
+}
+
 String wifiCallback() {
 	String wifiStatus = "\"wifi_ap\":";
 
@@ -1397,6 +1439,7 @@ void upgradeEEPROM() {
 	EEPROM.get(0, storedChecksum);
 	if (storedChecksum == previousRootConfig.getChecksum(0)) {
 		networkConfig.put();	// Their defaults, nothing has been read yet
+		cycleConfig.put();
 		EEPROM.put(0, rootConfig.getChecksum(0));
 		config.commit();
 	}

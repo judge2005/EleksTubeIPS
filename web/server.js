@@ -168,6 +168,7 @@ var state = {
 		'dimming': 1,
 		'four_digit_display': 2,
 		'brightness_config': 200,
+		'display_cycle': 30,
 		'set_icon_clock': 'Foo'
 	},
 	"2": {
