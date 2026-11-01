@@ -7,6 +7,8 @@
 #include <ESPmDNS.h>
 #include <AsyncWiFiManager.h>
 #include <EspSNTPTimeSync.h>
+#include <sntp_pt.h>
+#include <lwip/tcpip.h>
 #ifndef DS1302
 #include <EspRTCTimeSync.h>
 #else
@@ -157,6 +159,8 @@ StringConfigItem staticSubnet("static_subnet", 15, "");
 StringConfigItem staticDNS1("static_dns1", 15, "");
 StringConfigItem staticDNS2("static_dns2", 15, "");
 bool staticAddressChanged = false;
+
+StringConfigItem timeServer("time_server", 63, "pool.ntp.org");	// A name or an IP address
 
 enum WEATHER_MESSAGE {
 	WEATHER_UPDATE = 1,
@@ -311,6 +315,7 @@ IRAMPtrArray<BaseConfigItem*> networkSet {
 	&staticSubnet,
 	&staticDNS1,
 	&staticDNS2,
+	&timeServer,
 	0
 };
 
@@ -388,6 +393,22 @@ void makeRoomForTimeZone() {
 	room[sizeof(room) - 1] = 0;
 	setenv("TZ", room, 1);
 	timeSync->setTz(IPSClock::getTimeZone().value);
+}
+
+// EspSNTPTimeSync always asks pool.ntp.org. This switches to the time server setting.
+// The SNTP module keeps a pointer to the name, not a copy.
+static char sntpServer[64];
+
+void useTimeServer(void *arg) {
+	String name = timeServer.value.length() > 0 ? timeServer.value : String("pool.ntp.org");
+	pftime_sntp::stop();
+	strlcpy(sntpServer, name.c_str(), sizeof(sntpServer));
+	pftime_sntp::setservername(0, sntpServer);
+	pftime_sntp::init();	// Asks the new server straight away
+}
+
+void onTimeServerChanged(ConfigItem<String> &item) {
+	tcpip_callback(useTimeServer, NULL);	// The SNTP module must only be used from lwIP's thread once the network is up
 }
 
 void onWeatherConfigChanged(ConfigItem<String> &item) {
@@ -1521,6 +1542,8 @@ void setup() {
 	timeSync = new EspSNTPTimeSync(IPSClock::getTimeZone().value, asyncTimeSetCallback, asyncTimeErrorCallback);
 	timeSync->init();
 	makeRoomForTimeZone();
+	useTimeServer(NULL);	// Before the network is up, like init() itself
+	timeServer.setCallback(onTimeServerChanged);
 
 #ifndef DS1302
 	rtcTimeSync = new EspRTCTimeSync(RTC_SDA_PIN, RTC_SCL_PIN);
