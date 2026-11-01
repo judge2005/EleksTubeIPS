@@ -622,6 +622,7 @@ bool MQTTBroker::sendHADiscoveryMessage() {
     doc["stat_t"] = volatileStateTopic;
     doc["cmd_t"] = customDataTopic;
     doc["val_tpl"] = "{{value_json.custom}}";
+    doc["max"] = NUM_DIGITS;	// The clock ignores anything longer, so Home Assistant should refuse it
 
     publishDiscovery("text", "custom", doc, "custom-data");
 
