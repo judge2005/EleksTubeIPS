@@ -186,24 +186,32 @@ index 3000c72..972a7e0 100644
    } else if(_state == RESPONSE_WAIT_ACK){
      if(!_sendContentLength || _ackedLength >= _writtenLength){
 diff --git a/src/WebServer.cpp b/src/WebServer.cpp
-index 95c2dd6..00e75b5 100644
+index 95c2dd6..bf8b51f 100644
 --- a/src/WebServer.cpp
 +++ b/src/WebServer.cpp
-@@ -20,6 +20,7 @@
+@@ -20,6 +20,10 @@
  */
  #include "ESPAsyncWebServer.h"
  #include "WebHandlerImpl.h"
 +#include <new>
++#ifdef ESP32
++#include <esp_heap_caps.h>
++#endif
  
  bool ON_STA_FILTER(AsyncWebServerRequest *request) {
    return WiFi.localIP() == request->client()->localIP();
-@@ -42,7 +43,8 @@ AsyncWebServer::AsyncWebServer(uint16_t port)
+@@ -42,7 +46,13 @@ AsyncWebServer::AsyncWebServer(uint16_t port)
      if(c == NULL)
        return;
      c->setRxTimeout(3);
 -    AsyncWebServerRequest *r = new AsyncWebServerRequest((AsyncWebServer*)s, c);
-+    // Without nothrow, running out of memory throws and the program aborts
-+    AsyncWebServerRequest *r = new (std::nothrow) AsyncWebServerRequest((AsyncWebServer*)s, c);
++    // Without nothrow, running out of memory throws and the program aborts. A request makes more
++    // allocations that would, so it isn't started without some room.
++    AsyncWebServerRequest *r = NULL;
++#ifdef ESP32
++    if(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) >= 4096)
++#endif
++      r = new (std::nothrow) AsyncWebServerRequest((AsyncWebServer*)s, c);
      if(r == NULL){
        c->close(true);
        c->free();
