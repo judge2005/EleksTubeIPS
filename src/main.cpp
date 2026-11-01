@@ -344,6 +344,17 @@ void onTimezoneChanged(ConfigItem<String> &tzItem) {
 	timeSync->sync();
 }
 
+// EspSNTPTimeSync::setTz() copies a new time zone over the TZ environment variable, which is only as
+// long as the time zone the clock started with. A longer one overwrote the heap, which could restart
+// the clock before the new time zone was saved. Make room for the longest the setting holds.
+void makeRoomForTimeZone() {
+	char room[64];
+	memset(room, ' ', sizeof(room) - 1);
+	room[sizeof(room) - 1] = 0;
+	setenv("TZ", room, 1);
+	timeSync->setTz(IPSClock::getTimeZone().value);
+}
+
 void onWeatherConfigChanged(ConfigItem<String> &item) {
 	uint32_t value = COORDINATES_UPDATE;
 	xQueueSend(weatherQueue, &value, 0);
@@ -1406,6 +1417,7 @@ void setup() {
 
 	timeSync = new EspSNTPTimeSync(IPSClock::getTimeZone().value, asyncTimeSetCallback, asyncTimeErrorCallback);
 	timeSync->init();
+	makeRoomForTimeZone();
 
 #ifndef DS1302
 	rtcTimeSync = new EspRTCTimeSync(RTC_SDA_PIN, RTC_SCL_PIN);
