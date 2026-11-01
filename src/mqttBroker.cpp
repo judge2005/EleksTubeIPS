@@ -845,5 +845,9 @@ void MQTTBroker::publishDiscovery(const char *component, const char *objectId, J
     // holding their memory while the weather is fetched, and if the client runs out of memory part
     // way through a QoS 1 message it stops sending altogether. Discovery is sent again on every
     // connect and whenever Home Assistant comes online, so nothing is lost if one goes missing.
-    client.publish(discoveryTopic, 0, false, payload.c_str());
+    //
+    // Retained so Home Assistant has the entities as soon as it connects to the broker. It only says
+    // it is online once it has started, too late for automations that run at startup. An empty
+    // retained message removes the entity from the broker as well.
+    client.publish(discoveryTopic, 0, true, payload.c_str());
 }
