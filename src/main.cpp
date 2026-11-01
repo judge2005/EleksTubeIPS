@@ -150,6 +150,14 @@ StringConfigItem hostName("hostname", 63, "ipstube");
 StringConfigItem hostName("hostname", 63, "ipsclock");
 #endif
 
+// Set on the Wi-Fi portal's Configure Static WiFi page, see captureStaticAddress(). An empty address means DHCP.
+StringConfigItem staticIP("static_ip", 15, "");
+StringConfigItem staticGateway("static_gateway", 15, "");
+StringConfigItem staticSubnet("static_subnet", 15, "");
+StringConfigItem staticDNS1("static_dns1", 15, "");
+StringConfigItem staticDNS2("static_dns2", 15, "");
+bool staticAddressChanged = false;
+
 enum WEATHER_MESSAGE {
 	WEATHER_UPDATE = 1,
 	COORDINATES_UPDATE = 2
@@ -296,8 +304,35 @@ IRAMPtrArray<BaseConfigItem*> configSetGlobal = {
 
 CompositeConfigItem globalConfig("global", 0, configSetGlobal);
 
+// Settings added in 2.0.3. They are stored after the earlier ones, see upgradeEEPROM().
+IRAMPtrArray<BaseConfigItem*> networkSet {
+	&staticIP,
+	&staticGateway,
+	&staticSubnet,
+	&staticDNS1,
+	&staticDNS2,
+	0
+};
+
+CompositeConfigItem networkConfig("network", 0, networkSet);
+
 // All configurations
 IRAMPtrArray<BaseConfigItem*> configSetRoot {
+	&globalConfig,
+	&clockConfig,
+	&ledConfig,
+	&facesConfig,
+	&weatherConfig,
+	&matrixConfig,
+	&mqttConfig,
+	&networkConfig,
+	0
+};
+
+CompositeConfigItem rootConfig("root", 0, configSetRoot);
+
+// The configurations from upstream 1.9.4 to 2.0.2, to recognise them in EEPROM
+IRAMPtrArray<BaseConfigItem*> previousSetRoot {
 	&globalConfig,
 	&clockConfig,
 	&ledConfig,
@@ -308,7 +343,7 @@ IRAMPtrArray<BaseConfigItem*> configSetRoot {
 	0
 };
 
-CompositeConfigItem rootConfig("root", 0, configSetRoot);
+CompositeConfigItem previousRootConfig("root", 0, previousSetRoot);
 
 // Store the configurations in EEPROM
 EEPROMConfig config(rootConfig);
@@ -1318,8 +1353,22 @@ void commitEEPROMTaskFn(void *pArg) {
 	}
 }
 
+// config.init() resets every setting to its default if the set of settings has changed, which it
+// recognises by a checksum of their names. Settings added since then are stored after the others,
+// so if EEPROM holds the previous set, keep it and just add the new settings.
+void upgradeEEPROM() {
+	unsigned int storedChecksum = 0;
+	EEPROM.get(0, storedChecksum);
+	if (storedChecksum == previousRootConfig.getChecksum(0)) {
+		networkConfig.put();	// Their defaults, nothing has been read yet
+		EEPROM.put(0, rootConfig.getChecksum(0));
+		config.commit();
+	}
+}
+
 void initFromEEPROM() {
 //	config.setDebugPrint(debugPrint);
+	upgradeEEPROM();
 	config.init();
 //	rootConfig.debug(debugPrint);
 	rootConfig.get();	// Read all of the config values from EEPROM
@@ -1360,10 +1409,64 @@ void setWiFiAP(bool on) {
 	}
 }
 
+// Saves an address from the portal's form in its canonical form, or empty if it isn't one
+void setAddress(StringConfigItem &item, const String &value) {
+	IPAddress address;
+	String newValue = address.fromString(value) && (uint32_t)address != 0 ? address.toString() : "";
+	if (newValue != item.value) {
+		item = newValue;
+		staticAddressChanged = true;
+	}
+}
+
+// The Wi-Fi portal keeps the static address it is given to itself, and forgets it when the clock
+// restarts. This sees the portal's form before the portal does, so SetupServer() can save it with
+// the other settings. It always returns false, so the request goes on to the portal.
+bool captureStaticAddress(AsyncWebServerRequest *request) {
+	// Only the Configure Static WiFi page has the address fields, and the portal only answers on its access point
+	if (request->url() == "/wifisave" && request->hasArg("ip") && ON_AP_FILTER(request)) {
+		setAddress(staticIP, request->arg("ip"));
+		setAddress(staticGateway, request->arg("gw"));
+		setAddress(staticSubnet, request->arg("sn"));
+		setAddress(staticDNS1, request->arg("dns1"));
+		setAddress(staticDNS2, request->arg("dns2"));
+	}
+
+	return false;
+}
+
+// Gives the Wi-Fi portal the saved static address, if there is one. The portal uses it to connect
+// and shows it on the Configure Static WiFi page.
+void setStaticAddress() {
+	// Registered before the portal's own handler, so it sees the form first
+	server->on("/wifisave", HTTP_GET, [](AsyncWebServerRequest *request) {}).setFilter(captureStaticAddress);
+
+	IPAddress ip, gateway, subnet, dns1, dns2;
+	if (ip.fromString(staticIP.value)) {
+		gateway.fromString(staticGateway.value);
+		if (!subnet.fromString(staticSubnet.value)) {
+			subnet = IPAddress(255, 255, 255, 0);
+		}
+		if (!dns1.fromString(staticDNS1.value)) {
+			dns1 = gateway;	// Routers usually answer DNS queries, and the clock needs DNS for NTP and the weather
+		}
+		dns2.fromString(staticDNS2.value);
+		wifiManager->setSTAStaticIPConfig(ip, gateway, subnet, dns1, dns2);
+	}
+}
+
 void SetupServer() {
 	DEBUG("SetupServer()");
 	hostName = String(hostnameParam->getValue());
 	hostName.put();
+	if (staticAddressChanged) {
+		// The portal has already reconnected with the old address, and it can't go back to DHCP.
+		// Restart so the new address is used.
+		networkConfig.put();
+		config.commit();
+		delay(500);	// Let the reply to the form go
+		ESP.restart();
+	}
 	config.commit();
 	createSSID();
 	wifiManager->setAPCredentials(ssid.c_str(), "secretsauce");
@@ -1488,6 +1591,7 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 	wifiManager->setConnectTimeout(5000);	// milliseconds
 	wifiManager->setAPCallback(apChange);
 	wifiManager->setAPCredentials(ssid.c_str(), "secretsauce");
+	setStaticAddress();
 
 	// After a cold boot some clocks transmit far more weakly than the power they report, so the
 	// router can barely hear them and connecting fails. Setting the power again fixes it. Seen on an
