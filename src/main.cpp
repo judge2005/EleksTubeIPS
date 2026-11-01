@@ -853,6 +853,10 @@ void weatherTaskFn(void *pArg) {
 
 		toSleep = DEFAULT_WEATHER_SLEEP;
 		if ((WiFi.status() == WL_CONNECTED) && !wifiManager->isAP()) {
+			if (WeatherService::getWeatherToken().value.length() == 0) {
+				continue;	// Setting a key wakes this task, see onWeatherConfigChanged()
+			}
+
 			// Not on top of starting up, or of browsers reconnecting after a restart. Read once, since if it
 			// passed 30 s between two reads, the subtraction would wrap round to over an hour's sleep.
 			unsigned long uptime = millis();
