@@ -1841,7 +1841,7 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
     xTaskCreatePinnedToCore(
           commitEEPROMTaskFn, /* Function to implement the task */
           "Commit EEPROM task", /* Name of the task */
-		  2048,  /* Stack size in words */
+		  3072,  /* Stack size in bytes. Writing the settings to flash used over 1.5K of 2K */
           NULL,  /* Task input parameter */
 		  tskIDLE_PRIORITY,  /* More than background tasks */
           &commitEEPROMTask,  /* Task handle. */
