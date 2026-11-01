@@ -1,12 +1,16 @@
 #ifndef ELEKSTUBE_MQTT_H
 #define ELEKSTUBE_MQTT_H
 #include <ConfigItem.h>
+#include <ArduinoJson.h>
+#include <FS.h>
 #ifdef ASYNC_MQTT_HA_CLIENT
 #include <AsyncMqttClient.h>
 #else
 #include <espMqttClient.h>
 #endif
 #include "IRAMPtrArray.h"
+
+struct Setting;
 
 class MQTTBroker
 {
@@ -16,10 +20,14 @@ public:
     static StringConfigItem& getUser() { static StringConfigItem mqtt_user("mqtt_user", 25, ""); return mqtt_user; }
     static StringConfigItem& getPassword() { static StringConfigItem mqtt_password("mqtt_password", 25, ""); return mqtt_password; }
 
+    MQTTBroker();
+
     bool init(const String& id);
     void connect();
     void checkConnection();
-    void publishState();
+    bool publishState();
+    bool sendHADiscoveryMessage();
+    void sendFileDiscovery(const String& dir);
 
 private:
     void onConnect(bool sessionPresent);
@@ -31,17 +39,29 @@ private:
     void onMessage(const espMqttClientTypes::MessageProperties& properties, const char* topic, const uint8_t*  payload, size_t length, size_t index, size_t total_length);
 #endif
 
-    void sendHADiscoveryMessage();
+    void publishDiscovery(const char *component, const char *objectId, JsonDocument &doc, const char *uniqueId = 0);
+    void sendSettingDiscovery(const Setting &setting, JsonDocument &doc);
+    void setSetting(const char *topic, const char *value);
+    void setConfigItem(BaseConfigItem &item, const char *value);
+    void setConfigNumber(BaseConfigItem &item, const char *value, int min, int max);
+
+    void onFileMessage(const char *path, const uint8_t *payload, size_t length, size_t index, size_t total_length);
+    void startFileMessage(const char *path, const uint8_t *payload, size_t length, size_t total_length);
+    void publishFileStatus();
 
     String id;
     char home[40];
     char persistentStateTopic[64];
     char volatileStateTopic[64];
     char availabilityTopic[64];
+    char fileStatusTopic[64];
+
+    bool deviceDescribed = false;   // Whether this round of discovery messages has described the device yet
 
     const char* screenSaverTopic = "~/set/screen_saver";
     const char* brightnessTopic = "~/set/brightness";
-    const char* screenSaverDelayTopic = "~/set/screen_saver_delay";
+    // Not ~/set/screen_saver, the config item's name, because the screen saver switch already uses that
+    const char* screenSaverModeTopic = "~/set/screen_saver_mode";
     const char* displayTopic = "~/set/display";
 
     const char* customDataTopic = "~/set/custom";
@@ -54,7 +74,19 @@ private:
     const char* underlightStateTopic = "~/set/underlight_state";
     const char* underlightBrightnessTopic = "~/set/underlight_brightness";
 
+    const char* restartTopic = "~/set/restart";
+
+    // ~/files/<upload|delete>/<faces|weather|slides>/<name>
+    const char* filesTopic = "~/files/";
+
     static IRAMPtrArray<const char*> displayStates;
+
+    // The file upload or delete currently being received
+    String fileAction;
+    String fileDir;
+    String fileName;
+    const char *fileError = 0;
+    fs::File uploadFile;
 
     bool reconnect = false;
     uint32_t lastReconnect = 0;

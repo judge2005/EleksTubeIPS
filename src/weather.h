@@ -28,6 +28,7 @@ public:
     void setImageUnpacker(ImageUnpacker *imageUnpacker) { this->imageUnpacker = imageUnpacker; }
     void setTimeSync(TimeSync *pTimeSync) { this->pTimeSync = pTimeSync; }
     void checkIconPack();
+    void reloadIconPack() { reloadIcons = true; }   // Unpack the icon pack again, e.g. after it was replaced
 
     void loop(uint8_t dimming);
     void drawSingleDay(uint8_t dimming, int day, int display);
@@ -53,14 +54,16 @@ private:
     };
 
     void drawDisplay(int index, int display, bool showDay = true);
-    bool preDraw(uint8_t dimming);
+    bool preDraw(uint8_t dimming, unsigned long redrawMs);
     void postDraw();
 
     WeatherService *weatherService;
     String oldIcons;
+    bool reloadIcons = false;
     ClockTimer::Timer displayTimer;
     ImageUnpacker *imageUnpacker;
     bool _redraw = false;
+    uint8_t lastDimming = 0;
 	TimeSync *pTimeSync = 0;
 };
 #endif

@@ -4,7 +4,6 @@ const htmlmin = require('gulp-htmlmin');
 const cleancss = require('gulp-clean-css');
 const uglify = require('gulp-uglify');
 const gzip = require('gulp-gzip');
-const del = require('del');
 const inline = require('gulp-inline');
 const inlineImages = require('gulp-css-inline-images');
 const favicon = require('gulp-base64-favicon');
@@ -12,8 +11,13 @@ const favicon = require('gulp-base64-favicon');
 const dataFolder = '../data';
 const srcFolder = 'src';
 
-function clean() {
-    return del([ dataFolder + '/*.gz'], {force: true});
+function clean(done) {
+    for (const file of fs.readdirSync(dataFolder)) {
+        if (file.endsWith('.gz')) {
+            fs.rmSync(dataFolder + '/' + file);
+        }
+    }
+    done();
 }
 
 function buildfs_inline() {

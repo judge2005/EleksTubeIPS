@@ -100,7 +100,7 @@ bool OpenWeatherMapWeatherService::sendRequest(WiFiClientSecure &client, const c
     }
 
     char url[255];
-    sprintf(url, "GET /data/2.5/%s?lat=%s&lon=%s&appid=%s&units=%s&cnt=%d HTTP/1.1", request, getLatitude().value, getLongitude().value, token, getUnits().value, count);
+    sprintf(url, "GET /data/2.5/%s?lat=%s&lon=%s&appid=%s&units=%s&cnt=%d HTTP/1.1", request, getLatitude().value.c_str(), getLongitude().value.c_str(), token, getUnits().value.c_str(), count);
 
 #ifdef DEBUG_WEATHER_HTTP
     Serial.print("requesting URL: ");
@@ -198,12 +198,10 @@ bool OpenWeatherMapWeatherService::getCurrentWeatherInfo(WiFiClientSecure &clien
 	DeserializationError deserializeError = deserializeJson(doc, client, DeserializationOption::Filter(todayFilter));
 	if (!deserializeError) {
         JsonObject weather = doc["weather"][0];
-        conditions = weather["main"] | "Unknown";
         iconNames[5] = weather["icon"] | "unknown";
 
         JsonObject main = doc["main"];
         temp = main.containsKey("temp") ? main["temp"] : NAN;
-        humidity = main.containsKey("humidity") ? main["humidity"] : -1;
 	} else {
         parsingError = true;
 #ifdef DEBUG_DESERIALIZATION
@@ -273,8 +271,6 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
             }
 
             time_t now;
-            struct tm timeinfo;
-            getLocalTime(&timeinfo);
             time(&now);
 
             // Truncate to midnight in current timezone:
@@ -298,17 +294,18 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
             float temp = NAN;
 
             for (int i=0; i<list.size(); i++) {
-                JsonObject forecast = list[i];
-                long dt = forecast.containsKey("dt") ? forecast["dt"] : NAN;
-
-                if (isnan(dt)) {
+                JsonObject item = list[i];
+                if (!item.containsKey("dt")) {
                     missing = true;
 #ifdef DEBUG_DESERIALIZATION
                     Serial.print("Could not get timestamp for item ");
                     Serial.println(i);
 #endif
+                    continue;   // Can't tell which day it belongs to
                 }
-                JsonObject main = forecast["main"];
+                long dt = item["dt"];
+
+                JsonObject main = item["main"];
                 temp = main.containsKey("temp") ? main["temp"] : NAN;
                 if (!isnan(temp)) {
                     maxTemp = max(maxTemp, temp);
@@ -323,9 +320,9 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
 #endif
                 }
 
-                JsonObject weather = forecast["weather"][0];
+                JsonObject weather = item["weather"][0];
                 iName = weather.containsKey("icon") ? (const char*)weather["icon"] : "unknown";
-                if (strcmp(iName, "unkown") == 0) {
+                if (strcmp(iName, "unknown") == 0) {
                     missing = true;
 #ifdef DEBUG_DESERIALIZATION
                     Serial.print("Could not get icon for item ");
@@ -366,10 +363,8 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
             }
 
             // Just in case
-            if (iconNameIndex >= 0) {
-                for (int i=iconNameIndex; i--; i>=0) {
-                    iconNames[i] = "unknown";
-                }
+            for (int i = iconNameIndex; i >= 0; i--) {
+                iconNames[i] = "unknown";
             }
 
             if(missing) {
@@ -406,6 +401,11 @@ bool OpenWeatherMapWeatherService::getForecastWeatherInfo(WiFiClientSecure &clie
 bool OpenWeatherMapWeatherService::getWeatherInfo() {
     bool ret = false;
 
+    // Don't bother connecting, which needs a lot of memory, if the request can't work
+    if (getWeatherToken().value.length() == 0) {
+        return false;
+    }
+
     WiFiClientSecure client;
 
     const char *host = "api.openweathermap.org";
@@ -427,7 +427,8 @@ bool OpenWeatherMapWeatherService::getWeatherInfo() {
     {
         Serial.println("Failed to connect");
     } else {
-        ret = getCurrentWeatherInfo(client) && getForecastWeatherInfo(client, 8) && getForecastWeatherInfo(client, 40);
+        // 40 3-hour periods is the whole 5 day forecast
+        ret = getCurrentWeatherInfo(client) && getForecastWeatherInfo(client, 40);
     }
 
     return ret;

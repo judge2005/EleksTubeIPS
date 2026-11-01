@@ -85,7 +85,7 @@ public:
 
   void setStatus(const char*);
   void setStatus(const String& s) { setStatus(s.c_str()); }
-  void checkStatus();
+  bool checkStatus();
   void printlnAll(const char* s);
   void printAll(const char* s);
   void drawMeter(int val, bool first, const char *legend);
@@ -118,7 +118,6 @@ private:
   uint16_t defaultTextBackground = TFT_BLACK;
   uint8_t current_graphic = 1;
   char icons[NUM_DIGITS][16];
-  char loadedFilename[255];
 
   bool enabled;
   fs::FS* fs;

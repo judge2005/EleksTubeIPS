@@ -13,7 +13,7 @@ String WSConfigHandler::getData(char *data) {
 	json.concat(name);
 	json.concat("\", \"value\":{");
     BaseConfigItem *clockConfig = rootConfig.get(name);
-    char *sep = "";
+    const char *sep = "";
 
     if (clockConfig != 0) {
         json.concat(sep);

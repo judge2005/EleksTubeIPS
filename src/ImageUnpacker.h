@@ -6,6 +6,9 @@ class ImageUnpacker {
 public:
     const String& unpackImages(const String &srcDir, const String &destDir, const String &newFaces, const String &oldFaces);
 
+    // Whether name can be used for <name>.tar.gz in one of the /ips directories
+    static bool isValidName(const String &name);
+
 protected:
     bool unpackImages(const String &faceName, const String &dest);
 

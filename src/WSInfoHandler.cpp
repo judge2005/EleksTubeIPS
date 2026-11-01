@@ -9,19 +9,29 @@ extern "C" {
 }
 
 static uint32_t sketchSize(sketchSize_t response) {
-    esp_image_metadata_t data;
-    const esp_partition_t *running = esp_ota_get_running_partition();
-    if (!running) return 0;
-    const esp_partition_pos_t running_pos  = {
-        .offset = running->address,
-        .size = running->size,
-    };
-    data.start_addr = running_pos.offset;
-    esp_image_verify(ESP_IMAGE_VERIFY, &running_pos, &data);
+    // Verifying the image reads and hashes all of it, which takes a while,
+    // and the running image can't change until the next restart
+    static uint32_t imageLen = 0;
+    static uint32_t partitionSize = 0;
+
+    if (partitionSize == 0) {
+        esp_image_metadata_t data;
+        const esp_partition_t *running = esp_ota_get_running_partition();
+        if (!running) return 0;
+        const esp_partition_pos_t running_pos  = {
+            .offset = running->address,
+            .size = running->size,
+        };
+        data.start_addr = running_pos.offset;
+        esp_image_verify(ESP_IMAGE_VERIFY, &running_pos, &data);
+        imageLen = data.image_len;
+        partitionSize = running_pos.size;
+    }
+
     if (response) {
-        return running_pos.size - data.image_len;
+        return partitionSize - imageLen;
     } else {
-        return data.image_len;
+        return imageLen;
     }
 }
     
@@ -29,8 +39,7 @@ void WSInfoHandler::handle(AsyncWebSocketClient *client, char *data) {
 	cbFunc();
 
 	// static Uptime uptime;
-	const size_t bufferSize = JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(30);
-	DynamicJsonDocument doc(bufferSize);
+	JsonDocument doc;
 	JsonObject root = doc.to<JsonObject>();
 
 	root["type"] = "sv.init.clock";
@@ -38,7 +47,7 @@ void WSInfoHandler::handle(AsyncWebSocketClient *client, char *data) {
 	size_t free8bitHeap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
 	size_t freeIRAMHeap = freeHeap - free8bitHeap;
 
-	JsonVariant value = root.createNestedObject("value");
+	JsonVariant value = root["value"].to<JsonObject>();
 	value["esp_free_iram_heap"] = freeIRAMHeap;
 	value["esp_free_heap"] = free8bitHeap;
 	value["esp_free_heap_min"] = heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT);

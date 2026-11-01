@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <new>
 #include <esp_wifi.h>
 #include <ArduinoJson.h>
 #include <SPI.h>
@@ -75,6 +76,7 @@ String wifiCallback();
 String clockFacesCallback();
 void broadcastUpdate(String msg);
 void broadcastUpdate(const BaseConfigItem& item);
+void broadcastToWebUI(const BaseConfigItem& item);
 void setFace(const char *menuLabel);
 void initFacesMenu();
 
@@ -125,7 +127,7 @@ TaskHandle_t weatherTask;
 SemaphoreHandle_t wsMutex;
 SemaphoreHandle_t memMutex;
 QueueHandle_t weatherQueue;
-QueueHandle_t mainQueue;
+QueueHandle_t wsPendingQueue;	// Web UI updates from tasks other than async_tcp, see broadcastUpdate()
 
 AsyncWiFiManagerParameter *hostnameParam;
 String ssid("EleksTubeIPS");
@@ -153,9 +155,53 @@ enum WEATHER_MESSAGE {
 	COORDINATES_UPDATE = 2
 };
 
-enum MAIN_MESSAGE {
-	MQTT_PUBLISH = 1
-};
+// Set by any task, acted on by the clock task. Flags rather than a queue so nothing ever waits.
+volatile bool mqttPublishRequested = false;
+volatile bool mqttDiscoveryRequested = false;
+
+void requestMqttPublish() {
+	mqttPublishRequested = true;
+}
+
+void requestMqttDiscovery() {
+	mqttDiscoveryRequested = true;
+}
+
+// LittleFS works out the space in use by walking the whole filesystem, which takes about
+// a quarter of a second and holds the filesystem lock. So keep the answer until something
+// changes. Anything that writes or removes files must call fsChanged() once it has done so.
+static SemaphoreHandle_t fsSpaceMutex;
+static volatile bool fsSpaceStale = true;
+static size_t fsTotal = 0;
+static size_t fsFree = 0;
+
+void fsChanged() {
+	fsSpaceStale = true;
+}
+
+size_t fsTotalBytes() {
+	xSemaphoreTake(fsSpaceMutex, portMAX_DELAY);
+	if (fsTotal == 0) {
+		fsTotal = LittleFS.totalBytes();	// Never changes
+	}
+	xSemaphoreGive(fsSpaceMutex);
+
+	return fsTotal;
+}
+
+size_t fsFreeBytes() {
+	size_t total = fsTotalBytes();
+
+	xSemaphoreTake(fsSpaceMutex, portMAX_DELAY);
+	if (fsSpaceStale) {
+		fsSpaceStale = false;	// Before the walk, so a change made during it isn't lost
+		fsFree = total - LittleFS.usedBytes();
+	}
+	size_t free = fsFree;
+	xSemaphoreGive(fsSpaceMutex);
+
+	return free;
+}
 
 // Clock config
 IRAMPtrArray<BaseConfigItem*> clockSet {
@@ -192,6 +238,7 @@ CompositeConfigItem ledConfig("leds", 0, ledSet);
 StringConfigItem *fileSet = new StringConfigItem("file_set", 10, "faces");
 StringConfigItem *slidesSet = new StringConfigItem("slide_show", 25, "anime_female");
 String *oldSlidesSet = new String("anime_female");
+bool reloadSlides = false;	// Unpack the slide show again, e.g. after it was replaced
 
 IRAMPtrArray<BaseConfigItem*> faceSet {
 	// Faces
@@ -303,8 +350,8 @@ void onWeatherConfigChanged(ConfigItem<String> &item) {
 }
 
 void broadcastFSChange() {
-	String freeSpace = String(LittleFS.totalBytes() - LittleFS.usedBytes());
-	String msg = "{\"type\":\"sv.update\",\"value\":{\"fs_free\":" + freeSpace + ",\"fs_size\":" + String(LittleFS.totalBytes()) + "}}";
+	String freeSpace = String(fsFreeBytes());
+	String msg = "{\"type\":\"sv.update\",\"value\":{\"fs_free\":" + freeSpace + ",\"fs_size\":" + String(fsTotalBytes()) + "}}";
 	broadcastUpdate(msg);
 }
 
@@ -324,8 +371,11 @@ void onFileSetChanged(ConfigItem<String> &item) {
 	broadcastUpdate(msg);
 }
 
+// Also called every second while the hue cycles. Only the web UI follows that, publishing the whole
+// state to MQTT every second is a lot of work for the clock and fills Home Assistant's history.
+// Changes made from the web UI or MQTT are published by the code that makes them.
 void onMatrixHueChanged(ConfigItem<int> &item) {
-	broadcastUpdate(item);
+	broadcastToWebUI(item);
 }
 
 void onDisplayChanged(ConfigItem<int> &item) {
@@ -438,9 +488,24 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 #endif
 }
 
-#define DEFAULT_MAIN_SLEEP (pdMS_TO_TICKS(1))
+// Fast enough for the buttons and the matrix animation, which runs at up to 50 frames a second
+#define DEFAULT_MAIN_SLEEP (pdMS_TO_TICKS(10))
+
+// Only sends commands when the state needs to change. Claims the displays because other tasks can show status messages.
+void setDisplaysEnabled(bool enabled) {
+	if (tfts->isEnabled() != enabled) {
+		tfts->claim();
+		if (enabled) {
+			tfts->enableAllDisplays();
+		} else {
+			tfts->disableAllDisplays();
+		}
+		tfts->release();
+	}
+}
 
 void runMatrixAnimation() {
+	setDisplaysEnabled(true);	// e.g. the screen saver was just switched from blank to matrix
 	tfts->setShowDigits(IPSClock::getTimeOrDate());
 	tfts->setDimming(ipsClock->getBrightness());
 	tfts->animateRain();
@@ -499,16 +564,31 @@ void clockTaskFn(void *pArg) {
 
 	mqttBroker->init(ssid);
 
+	uint32_t lastMqttPublish = 0;
+
 	while (true) {
-		uint32_t value;
-		while(xQueueReceive(mainQueue, &value, toSleep) == pdTRUE) {
-			if (value == MQTT_PUBLISH) {
-				mqttBroker->publishState();
+		vTaskDelay(toSleep);
+
+		// Discovery and publishing the state take a few K, so they are tried again later if the weather
+		// is being fetched. Publish at most once a second so that something that changes quickly, like
+		// matrix hue cycling, can't run the heap out.
+		if (mqttDiscoveryRequested) {
+			mqttDiscoveryRequested = false;
+			if (!mqttBroker->sendHADiscoveryMessage()) {
+				mqttDiscoveryRequested = true;
 			}
-			DEBUG("Clock task getting right to it");
+		}
+
+		if (mqttPublishRequested && millis() - lastMqttPublish >= 1000) {
+			mqttPublishRequested = false;
+			lastMqttPublish = millis();
+			if (!mqttBroker->publishState()) {
+				mqttPublishRequested = true;
+			}
 		}
 
 		uptime.loop();
+		ipsClock->updateSchedule();
 
 #ifdef BUTTON_MENU_PINS
 		leftButton->getEvent();
@@ -518,7 +598,9 @@ void clockTaskFn(void *pArg) {
 #ifdef BUTTON_POWER_PIN
 		powerButton->getEvent();
 #endif
-		tfts->checkStatus();
+		if (tfts->checkStatus()) {
+			weather->redraw();	// To get rid of the status message
+		}
 
 		if (menuDrawn) {
 			continue;
@@ -531,7 +613,7 @@ void clockTaskFn(void *pArg) {
 		} else if (ipsClock->clockOn() && screenSaver->isOn()) {
 			switch(ScreenSaver::getScreenSaver()) {
 				case ScreenSaver::BLANK:
-					tfts->disableAllDisplays();
+					setDisplaysEnabled(false);
 					break;
 				default:
 					runMatrixAnimation();
@@ -539,11 +621,14 @@ void clockTaskFn(void *pArg) {
 			}
 		} else {
 			// Memory is an issue if one of the below decides to unpack a .gz.tar file
-			// and the weather task decides to retrieve the forecast at the same time
+			// and the weather task decides to retrieve the forecast at the same time.
+			// Also reading images from flash while the weather is fetched over TLS slows
+			// both down so much that the task watchdog fires.
 			xSemaphoreTake(memMutex, portMAX_DELAY);
 
 			tfts->setShowDigits(IPSClock::getTimeOrDate());
-			if (slidesSet->value != *oldSlidesSet) {
+			if (reloadSlides || slidesSet->value != *oldSlidesSet) {
+				reloadSlides = false;
 				slidesSet->value = imageUnpacker->unpackImages("/ips/slides/", "/ips/slides_cache", *slidesSet, *oldSlidesSet);
 				slidesSet->put();
 				broadcastUpdate(*slidesSet);
@@ -561,7 +646,7 @@ void clockTaskFn(void *pArg) {
 					if (ipsClock->clockOn() || (ipsClock->getDimming() == IPSClock::DIM)) {
 						weather->loop(ipsClock->getBrightness());
 					} else {
-						tfts->disableAllDisplays();
+						setDisplaysEnabled(false);
 					}
 					break;
 				case IPSClock::SLIDE_SHOW:
@@ -685,8 +770,8 @@ void infoCallback() {
 	wsInfoHandler.setRevision(manifest[1]);
 	wsInfoHandler.setUptime(uptime.uptime());
 
-	wsInfoHandler.setFSSize(String(LittleFS.totalBytes()));
-	wsInfoHandler.setFSFree(String(LittleFS.totalBytes() - LittleFS.usedBytes()));
+	wsInfoHandler.setFSSize(String(fsTotalBytes()));
+	wsInfoHandler.setFSFree(String(fsFreeBytes()));
 	TimeSync::SyncStats &syncStats = timeSync->getStats();
 
 	wsInfoHandler.setFailedCount(syncStats.failedCount);
@@ -695,7 +780,20 @@ void infoCallback() {
 	wsInfoHandler.setHostname(hostName);
 }
 
+/*
+ * The web socket library isn't thread safe. If another task sends while async_tcp is handling an
+ * ack for the same client, the client's message queue gets corrupted and the clock crashes. So
+ * messages from other tasks, e.g. the clock task, are queued and sent by async_tcp, see wsHandler().
+ */
 void broadcastUpdate(String msg) {
+	if (strcmp(pcTaskGetName(NULL), "async_tcp") != 0) {
+		String *pending = new (std::nothrow) String(msg);
+		if (pending != NULL && xQueueSend(wsPendingQueue, &pending, 0) != pdTRUE) {
+			delete pending;	// Queue is full
+		}
+		return;
+	}
+
 	xSemaphoreTake(wsMutex, portMAX_DELAY);
 
     ws->textAll(msg);
@@ -703,28 +801,35 @@ void broadcastUpdate(String msg) {
 	xSemaphoreGive(wsMutex);
 }
 
-void broadcastUpdate(const BaseConfigItem& item) {
-	xSemaphoreTake(wsMutex, portMAX_DELAY);
+// Only call this on async_tcp
+void sendPendingUpdates() {
+	String *pending;
 
+	while (xQueueReceive(wsPendingQueue, &pending, 0) == pdTRUE) {
+		broadcastUpdate(*pending);
+		delete pending;
+	}
+}
+
+void broadcastUpdate(const BaseConfigItem& item) {
+	broadcastToWebUI(item);
+
+	requestMqttPublish();
+}
+
+void broadcastToWebUI(const BaseConfigItem& item) {
 	JsonDocument doc;
 	JsonObject root = doc.to<JsonObject>();
 
 	root["type"] = "sv.update";
 
-	JsonVariant value = root.createNestedObject("value");
+	JsonVariant value = root["value"].to<JsonObject>();
 	String rawJSON = item.toJSON();	// This object needs to hang around until we are done serializing.
 	value[item.name] = serialized(rawJSON.c_str());
 
-    size_t len = measureJson(root);
-    AsyncWebSocketMessageBuffer * buffer = ws->makeBuffer(len);
-    if (buffer) {
-    	serializeJson(root, (char *)buffer->get(), len);
-    	ws->textAll(buffer);
-    }
-	uint32_t msg = MQTT_PUBLISH;
-	xQueueSend(mainQueue, &msg, pdMS_TO_TICKS(100));
-
-	xSemaphoreGive(wsMutex);	
+	String json;
+	serializeJson(root, json);
+	broadcastUpdate(json);
 }
 
 void updateValue(int screen, String pair) {
@@ -765,7 +870,7 @@ void handleWSMsg(AsyncWebSocketClient *client, char *data) {
 	int code = wholeMsg.substring(0, wholeMsg.indexOf(':')).toInt();
 
 	if (code < 9) {
-		if (code < wsHandlers.length()) {
+		if (code >= 0 && code < wsHandlers.length()) {
 			if (wsHandlers[code] != NULL) {
 				wsHandlers[code]->handle(client, data);
 			}
@@ -784,6 +889,15 @@ void wsHandler(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
 	case WS_EVT_CONNECT:
 		DEBUG("WS connected")
 		;
+		// Anything queued while nobody was connected is out of date. Send it now, before the
+		// client asks for the current state, rather than after.
+		sendPendingUpdates();
+
+		// Send updates queued by other tasks whenever async_tcp polls the client, see broadcastUpdate()
+		client->client()->onPoll([](void *arg, AsyncClient *c) {
+			sendPendingUpdates();
+			((AsyncWebSocketClient*)arg)->_onPoll();	// What the web socket library registered
+		}, client);
 		break;
 	case WS_EVT_DISCONNECT:
 		DEBUG("WS disconnected")
@@ -845,18 +959,42 @@ void sendFavicon(AsyncWebServerRequest *request) {
 	request->send(LittleFS, "/assets/favicon-32x32.png", "image/png");
 }
 
+/*
+ * Called when <name>.tar.gz has been uploaded to, or deleted from, /ips/<dir> by
+ * either the web UI or MQTT
+ */
+void filesChanged(const String &dir, const String &name, bool uploaded) {
+	// If the file in use was replaced, unpack the new version
+	if (uploaded) {
+		if (dir == "faces" && name == IPSClock::getClockFace().value) {
+			ipsClock->reloadClockFace();
+		} else if (dir == "weather" && name == Weather::getIconPack().value) {
+			weather->reloadIconPack();
+		} else if (dir == "slides" && name == slidesSet->value) {
+			reloadSlides = true;
+		}
+	}
+
+	wsFacesHandler.broadcast(*ws, 0);
+	mqttBroker->sendFileDiscovery(dir);
+}
+
+#define DELETE_FACE_URL "/delete_face/"
+
 void handleDelete(AsyncWebServerRequest *request) {
 	DEBUG("Got delete request");
 
-	String filename = request->pathArg(0);
+	String filename = request->url().substring(strlen(DELETE_FACE_URL));
 
 	DEBUG(filename);
 
-	if (filename.length() > 0) {
+	// No '/' so it can't reach outside the current file set
+	if (filename.length() > 0 && filename.endsWith(".tar.gz") && filename.indexOf('/') < 0) {
 		if (LittleFS.remove("/ips/" + fileSet->value + "/" + filename)) {
+			fsChanged();
 			request->send(200, "text/plain", "File deleted");
 
-			wsFacesHandler.broadcast(*ws, 0);
+			filesChanged(fileSet->value, filename.substring(0, filename.lastIndexOf(".tar.gz")), false);
 			return;
 		}
 	}
@@ -864,33 +1002,87 @@ void handleDelete(AsyncWebServerRequest *request) {
 	request->send(500, "text/plain", "Delete dailed");
 }
 
-void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-	if (!filename.endsWith(".tar.gz")) {
-		DEBUG("Invalid file type");
-		request->send(415, "text/plain", "Invalid file type");
-		return;
-	}
+// Outcome of a web upload, kept in request->_tempObject (which the request frees) until handleUploadDone() responds
+struct UploadResult {
+	int code;
+	const char *message;
+};
 
-	if (!index)
+// Uploads are written here first so a failed upload doesn't destroy the file it was replacing
+static const char *const webUploadTempFile = "/ips/web_upload.tmp";
+
+// Called once the whole request has been received. Only respond here, a request can only have one response.
+void handleUploadDone(AsyncWebServerRequest *request) {
+	UploadResult *result = (UploadResult*)request->_tempObject;
+
+	if (result == NULL) {
+		request->send(400, "text/plain", "No file");
+	} else {
+		request->send(result->code, "text/plain", result->message);
+	}
+}
+
+void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+	String name = filename.substring(0, filename.lastIndexOf(".tar.gz"));
+
+	if (!index && request->_tempObject == NULL)
 	{
 		DEBUG((String) "UploadStart: " + filename);
-		// open the file on first call and store the file handle in the request object
-		request->_tempFile = LittleFS.open("/ips/" + fileSet->value + "/" + filename, "wb", true);
+		UploadResult *result = (UploadResult*)malloc(sizeof(UploadResult));
+		if (result == NULL) {
+			return;
+		}
+		*result = { 200, "File uploaded" };
+		request->_tempObject = result;
+
+		LittleFS.remove(webUploadTempFile);	// In case an earlier upload was cut short by a reset
+		fsChanged();	// Also means the space check below uses an up to date figure
+
+		if (!filename.endsWith(".tar.gz") || !ImageUnpacker::isValidName(name) || len < 2 || data[0] != 0x1f || data[1] != 0x8b) {
+			*result = { 415, "Invalid file name or type" };
+		} else if (request->contentLength() + 8192 > fsFreeBytes()) {
+			*result = { 507, "Not enough space" };
+		} else {
+			// open the file on first call and store the file handle in the request object
+			request->_tempFile = LittleFS.open(webUploadTempFile, "w");
+			if (!request->_tempFile) {
+				*result = { 500, "Could not create file" };
+			}
+		}
 	}
+
+	UploadResult *result = (UploadResult*)request->_tempObject;
+	if (result == NULL || !request->_tempFile) {
+		return;	// Failed already
+	}
+
 	if (len)
 	{
 		// stream the incoming chunk to the opened file
 		DEBUG((String) "Writing: " + len + " byted");
-		request->_tempFile.write(data, len);
+		if (request->_tempFile.write(data, len) != len) {
+			*result = { 500, "Write failed" };
+			request->_tempFile.close();
+			LittleFS.remove(webUploadTempFile);
+			fsChanged();
+			return;
+		}
+		fsChanged();	// Every chunk, in case the upload is abandoned part way through
 	}
 	if (final)
 	{
 		DEBUG((String) "UploadEnd: " + filename);
-		// close the file handle as the upload is now done
+		// close the file handle as the upload is now done, and swap it in
 		request->_tempFile.close();
-		request->send(200, "text/plain", "File uploaded");
-
-		wsFacesHandler.broadcast(*ws, 0);
+		String path = "/ips/" + fileSet->value + "/" + filename;
+		LittleFS.remove(path);
+		bool renamed = LittleFS.rename(webUploadTempFile, path);
+		fsChanged();
+		if (renamed) {
+			filesChanged(fileSet->value, name, true);
+		} else {
+			*result = { 500, "Could not save file" };
+		}
 	}
 }
 
@@ -899,10 +1091,9 @@ void configureWebServer() {
 	server->on("/", HTTP_GET, mainHandler).setFilter(ON_STA_FILTER);
 	server->on("/t", HTTP_POST, timeHandler).setFilter(ON_AP_FILTER);
 	server->on("/assets/favicon-32x32.png", HTTP_GET, sendFavicon);
-	server->on("/upload_face", HTTP_POST, [](AsyncWebServerRequest *request) {
-    	request->send(200);
-    }, handleUpload);
-	server->on("^\\/delete_face\\/(.*\\.tar\\.gz)$", HTTP_DELETE, handleDelete);
+	server->on("/upload_face", HTTP_POST, handleUploadDone, handleUpload);
+	// A wildcard rather than a regex because std::regex adds well over 100K to the image
+	server->on(DELETE_FACE_URL "*", HTTP_DELETE, handleDelete);
 	server->serveStatic("/assets", LittleFS, "/assets");
 	
 #ifdef OTA
@@ -1023,10 +1214,10 @@ String clockFacesCallback() {
 	const String quoteColonQuote("\":\"");
 	const String comma_quote(",\"");
 
-	String freeSpace = String(LittleFS.totalBytes() - LittleFS.usedBytes());
+	String freeSpace = String(fsFreeBytes());
 	String options = "\"fs_free\":" + freeSpace + comma_quote
 #ifdef notdef
-	 + "fs_size\":" + String(LittleFS.totalBytes()) + comma_quote
+	 + "fs_size\":" + String(fsTotalBytes()) + comma_quote
 #endif
 	 ;
 	options += "face_files\":{";
@@ -1187,8 +1378,9 @@ void setup() {
 
 	wsMutex = xSemaphoreCreateMutex();
 	memMutex = xSemaphoreCreateMutex();
+	fsSpaceMutex = xSemaphoreCreateMutex();
     weatherQueue = xQueueCreate(5, sizeof(uint32_t));
-    mainQueue = xQueueCreate(5, sizeof(uint32_t));
+    wsPendingQueue = xQueueCreate(8, sizeof(String*));
 	tfts = new TFTs();
 
 	LittleFS.begin();

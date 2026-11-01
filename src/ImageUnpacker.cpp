@@ -3,8 +3,27 @@
 #include "TFTs.h"
 #include "ImageUnpacker.h"
 
+extern void fsChanged();
+
 bool ImageUnpacker::newUnpack = true;
 const char* ImageUnpacker::unpackName = "";
+
+bool ImageUnpacker::isValidName(const String &name) {
+    // Names are stored in config items that hold at most 25 characters, and end up in file
+    // paths and in JSON that the web UI builds by hand
+    if (name.length() == 0 || name.length() > 25) {
+        return false;
+    }
+
+    for (int i = 0; i < name.length(); i++) {
+        char c = name[i];
+        if (c < ' ' || c > '~' || c == '/' || c == '\\' || c == '"') {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 TarGzUnpacker &ImageUnpacker::getUnpacker() {
     static TarGzUnpacker *unpacker = 0;
@@ -57,7 +76,10 @@ bool ImageUnpacker::unpackImages(const String &faceName, const String &dest) {
 
         TarGzUnpacker &unpacker = getUnpacker();
 
-        if( !unpacker.tarGzExpander(tarGzFS, fileName.c_str(), tarGzFS, dest.c_str(), nullptr ) ) {
+        bool unpacked = unpacker.tarGzExpander(tarGzFS, fileName.c_str(), tarGzFS, dest.c_str(), nullptr );
+        fsChanged();    // Files were removed, and maybe added, whether or not that worked
+
+        if( !unpacked ) {
             Serial.printf("tarGzExpander+intermediate file failed with return code #%d\n", unpacker.tarGzGetError() );
             return false;
         } else {
@@ -87,4 +109,6 @@ bool ImageUnpacker::unpackImages(const String &faceName, const String &dest) {
 #endif
         return true;
     }
+
+    return false;
 }

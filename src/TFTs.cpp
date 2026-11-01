@@ -244,13 +244,17 @@ TFT_eSprite& TFTs::getStatusSprite() {
   return *sprite;
 }
 
-void TFTs::checkStatus() {
+// Returns true if a status message was just removed
+bool TFTs::checkStatus() {
   if (millis() - statusTime > 5000) {
     if (statusSet)  {
       statusSet = false;
       invalidateAllDigits();
+      return true;
     }
   }
+
+  return false;
 }
 
 void TFTs::setStatus(const char* s) {
@@ -429,7 +433,6 @@ void TFTs::setDimming(uint8_t dimming) {
 }
 
 void TFTs::invalidateAllDigits() {
-  loadedFilename[0] = 0;
   for (uint8_t digit=0; digit < NUM_DIGITS; digit++) {
     setDigit(digit, INVALID_DIGIT, TFTs::no);
   }
@@ -564,8 +567,16 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
   bmpFile.seek(8, fs::SeekCur); // Skip file size and a reserved word
   bmpStart = read32(bmpFile); // start of bitmap
   headerSize = read32(bmpFile); // header size
-  w = read32(bmpFile); // width
-  h = read32(bmpFile); // height
+  int32_t bmpWidth = read32(bmpFile); // width
+  int32_t bmpHeight = read32(bmpFile); // height, negative if the rows are top down
+
+  // Images come from uploaded archives so don't trust the header. Anything bigger than
+  // the display would overflow the row buffers in LoadImageBytesIntoSprite().
+  if (bmpWidth <= 0 || bmpWidth > TFT_WIDTH || bmpHeight == 0 || abs(bmpHeight) > TFT_HEIGHT) {
+    return false;
+  }
+  w = bmpWidth;
+  h = bmpHeight;
   uint16_t planes = read16(bmpFile); // color planes (must be 1)
   if (planes != 1) {
 #ifdef DEBUG_OUTPUT
@@ -596,13 +607,24 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
   Serial.print("dimming: ");
   Serial.println(dimming);
 #endif
-  uint32_t palette[256];
+  uint32_t *palette = NULL;
   MaskData maskData;
   if (bitDepth <= 8) // 1,2,4,8 bit bitmap: read color palette
   {
     read32(bmpFile); read32(bmpFile); read32(bmpFile); // size, w resolution, h resolution
     paletteSize = read32(bmpFile);
     if (paletteSize == 0) paletteSize = 1 << bitDepth; // if 0, size is 2^bitDepth
+    if (paletteSize > (1u << bitDepth)) {
+      return false;   // A pixel can't index more colors than this
+    }
+
+    // On the heap because the clock task doesn't have 1K of stack to spare. Room for every
+    // color a pixel can index, even if the palette is shorter.
+    palette = (uint32_t*)calloc(1 << bitDepth, sizeof(uint32_t));
+    if (palette == NULL) {
+      return false;
+    }
+
     if (compression == 3) {
       bmpFile.seek(14 + 12 + headerSize); // start of color palette
     } else if (compression == 6) {
@@ -622,7 +644,7 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
       maskData.gMask = read32(bmpFile);
       maskData.gShift = (calc_shift(maskData.gMask) - (6 - __builtin_popcount(maskData.gMask))) % 16;
       maskData.bMask = read32(bmpFile);
-      maskData.bShift = (calc_shift(maskData.bMask) - (5 - __builtin_popcount(maskData.rMask))) % 16;
+      maskData.bShift = (calc_shift(maskData.bMask) - (5 - __builtin_popcount(maskData.bMask))) % 16;
       if (maskData.gMask != 0x07e0) {  // 0x07e0 is the green mask for RGB565
         // We have either ARGB4444 or ARGB1555
         maskData.aMask = read32(bmpFile);
@@ -638,7 +660,10 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
 
   bmpFile.seek(bmpStart);
 
-  return LoadImageBytesIntoSprite(w, abs(h), bitDepth, ((bitDepth * w +31) >> 5) * 4, h > 0, &maskData, palette, bmpFile);
+  bool loaded = LoadImageBytesIntoSprite(w, abs(h), bitDepth, ((bitDepth * w +31) >> 5) * 4, h > 0, &maskData, palette, bmpFile);
+  free(palette);
+
+  return loaded;
 }
 
 bool TFTs::LoadCLKImageIntoBuffer(fs::File &clkFile) {
@@ -647,6 +672,11 @@ bool TFTs::LoadCLKImageIntoBuffer(fs::File &clkFile) {
   // First two bytes should already have been read
   w = read16(clkFile);
   h = read16(clkFile);
+
+  // Don't trust the header, see LoadBMPImageIntoBuffer()
+  if (w <= 0 || w > TFT_WIDTH || h <= 0 || h > TFT_HEIGHT) {
+    return false;
+  }
 #ifdef DEBUG_OUTPUT
   Serial.print("image W, H: ");
   Serial.print(w); 
@@ -729,6 +759,9 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
 
   if (bitDepth < 16) {
     inputBuffer = (uint8_t*)malloc(inputBufferSize);
+    if (inputBuffer == NULL) {
+      return false;
+    }
   }
 
 #ifdef DEBUG_OUTPUT  
@@ -769,7 +802,8 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
       pushImageDMA(0, spriteRow, sprite.width(), sprite.height() - spriteRow, (uint16_t const*)(&StaticSprite::output_buffer[sprite.width() * spriteRow * 2]));
   }
 #endif
-  int oneBitColor = dimColor(monochromeColor);
+  // dimColor() takes a uint16_t, so keep -1 meaning 'use the palette'
+  int oneBitColor = monochromeColor >= 0 ? dimColor(monochromeColor) : -1;
 
   for (int row = 0; row < h; row++) {
     size_t read = file.read(inputBuffer, inputBufferSize);
@@ -935,30 +969,26 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
 bool TFTs::LoadImageIntoBuffer(const char* filename) {
   bool loaded = false;
 
-  if (fs->exists(filename)) {
-    fs::File file;
-    file = fs->open(filename, "r");
-    if (file) {
-      uint16_t magic = read16(file);
- 
-      if (magic == 0x4B43) { // look for "CK" header
-        loaded = LoadCLKImageIntoBuffer(file);
-      }
+  // No exists() check first, it opens the file too
+  fs::File file = fs->open(filename, "r");
+  if (file) {
+    uint16_t magic = read16(file);
 
-      if (magic == 0x4D42) {
-        loaded = LoadBMPImageIntoBuffer(file);
-      }
-
-      file.close();
-
-      strcpy(loadedFilename, filename);
+    if (magic == 0x4B43) { // look for "CK" header
+      loaded = LoadCLKImageIntoBuffer(file);
     }
+
+    if (magic == 0x4D42) {
+      loaded = LoadBMPImageIntoBuffer(file);
+    }
+
+    file.close();
   }
 
   if (!loaded) {
     getSprite().fillSprite(0);
   }
-  return false;
+  return loaded;
 }
 
 TFT_eSprite& TFTs::drawImage(uint8_t digit) {

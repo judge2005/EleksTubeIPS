@@ -55,9 +55,11 @@ public:
     void init();
     void loop();
     void checkIconPack();
+    void reloadClockFace() { reloadFace = true; }   // Unpack the clock face again, e.g. after it was replaced
     void setTimeSync(TimeSync *pTimeSync) { this->pTimeSync = pTimeSync; }
     void setImageUnpacker(ImageUnpacker *imageUnpacker) { this->imageUnpacker = imageUnpacker; }
 
+    void updateSchedule();
     bool clockOn();
     void setOnOverride() { onOverride = millis(); };
     void overrideUntilNextChange() { prevScheduleOn = clockOn(); temporaryOverride = true; }
@@ -68,7 +70,10 @@ private:
 
     byte brightness = 255;
     ClockTimer::Timer displayTimer;
+    ClockTimer::Timer scheduleTimer;
+    bool scheduledOn = true;
     String oldClockFace;
+    bool reloadFace = false;
 	TimeSync *pTimeSync = 0;
     ImageUnpacker *imageUnpacker;
     unsigned long onOverride = 0;

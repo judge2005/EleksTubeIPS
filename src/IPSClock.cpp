@@ -25,26 +25,44 @@ void IPSClock::init() {
     oldClockFace = getClockFace().value;
 }
 
-bool IPSClock::clockOn() {
-    if (millis() - onOverride <= 10000) {
-        return true;
+/*
+ * Works out whether the display schedule says the clock should be on. Getting the local time
+ * is relatively slow and clockOn() is called a lot, including by the LED task which has very
+ * little stack. So the clock task calls this and it only does the work once a second.
+ */
+void IPSClock::updateSchedule() {
+    unsigned long nowMs = millis();
+
+    if (!scheduleTimer.expired(nowMs)) {
+        return;
     }
-    
+    scheduleTimer.init(nowMs, 1000);
+
 	struct tm now;
 	suseconds_t uSec;
-    bool scheduledOn = false;
+    bool on = false;
 
 	if (getDisplayOn().value == getDisplayOff().value) {
-		scheduledOn = true;
+		on = true;
 	} else if (pTimeSync) {
         pTimeSync->getLocalTime(&now, &uSec);
 
         if (getDisplayOn().value < getDisplayOff().value) {
-            scheduledOn = now.tm_hour >= getDisplayOn().value && now.tm_hour < getDisplayOff().value;
+            on = now.tm_hour >= getDisplayOn().value && now.tm_hour < getDisplayOff().value;
         } else if (getDisplayOn().value > getDisplayOff().value) {
-            scheduledOn = !(now.tm_hour >= getDisplayOff().value && now.tm_hour < getDisplayOn().value);
+            on = !(now.tm_hour >= getDisplayOff().value && now.tm_hour < getDisplayOn().value);
         }
     }
+
+    scheduledOn = on;
+}
+
+bool IPSClock::clockOn() {
+    if (millis() - onOverride <= 10000) {
+        return true;
+    }
+
+    bool scheduledOn = this->scheduledOn;
 
     if (temporaryOverride) {
         if (prevScheduleOn == scheduledOn) {
@@ -58,7 +76,8 @@ bool IPSClock::clockOn() {
 }
 
 void IPSClock::checkIconPack() {
-    if (getClockFace().value != oldClockFace) {
+    if (reloadFace || getClockFace().value != oldClockFace) {
+        reloadFace = false;
         getClockFace() = imageUnpacker->unpackImages("/ips/faces/", "/ips/cache", getClockFace(), oldClockFace);
         getClockFace().put();
         broadcastUpdate(getClockFace());
@@ -173,7 +192,6 @@ void IPSClock::loop() {
                     }
                 }
 
-                tfts->setDigit(HOURS_ONES, digitToName[hour % 10], TFTs::yes);
                 tfts->setDigit(HOURS_ONES, digitToName[hour % 10], TFTs::yes);
                 if (hour < 10 && !getLeadingZero().value) {
                     tfts->setDigit(HOURS_TENS, "space", TFTs::yes);
