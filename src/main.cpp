@@ -1247,7 +1247,7 @@ void handleDelete(AsyncWebServerRequest *request) {
 		}
 	}
 
-	request->send(500, "text/plain", "Delete dailed");
+	request->send(500, "text/plain", "Delete failed");
 }
 
 // Outcome of a web upload, kept in request->_tempObject (which the request frees) until handleUploadDone() responds

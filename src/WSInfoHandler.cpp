@@ -42,7 +42,7 @@ void WSInfoHandler::handle(AsyncWebSocketClient *client, char *data) {
 	JsonDocument doc;
 	JsonObject root = doc.to<JsonObject>();
 
-	root["type"] = "sv.init.clock";
+	root["type"] = "sv.init.info";
 	size_t freeHeap = ESP.getFreeHeap();
 	size_t free8bitHeap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
 	size_t freeIRAMHeap = freeHeap - free8bitHeap;
