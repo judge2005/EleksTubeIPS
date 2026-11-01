@@ -1040,6 +1040,22 @@ void setWebLogin(StringConfigItem &item, const String &value) {
 	broadcastUpdate("{\"type\":\"sv.update\",\"value\":{" + webLoginJSON() + "}}");	// Also puts back anything refused
 }
 
+// A group of settings, like "web_login". Setting one does nothing, but would send what's in it to the
+// web UI, passwords too.
+bool isSettingsGroup(const BaseConfigItem *item) {
+	if (item == &rootConfig) {
+		return true;
+	}
+
+	for (int i = 0; configSetRoot[i] != 0; i++) {
+		if (item == configSetRoot[i]) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void updateValue(int screen, String pair) {
 	if (screen != 8) {
 		screenSaver->reset();
@@ -1054,7 +1070,7 @@ void updateValue(int screen, String pair) {
 	BaseConfigItem *item = rootConfig.get(key);
 	if (item == &webUser || item == &webPassword) {
 		setWebLogin(*(StringConfigItem*)item, value);
-	} else if (item != 0) {
+	} else if (item != 0 && !isSettingsGroup(item)) {
 		item->fromString(value);
 		item->put();
 		// Order of below is important to maintain external consistency
