@@ -1032,12 +1032,21 @@ bool validWebLogin(const StringConfigItem &item, const String &value) {
 }
 
 void setWebLogin(StringConfigItem &item, const String &value) {
-	if (validWebLogin(item, value)) {
+	bool changed = validWebLogin(item, value) && value != item.value;
+	if (changed) {
 		item = value;
 		item.put();
 	}
 
 	broadcastUpdate("{\"type\":\"sv.update\",\"value\":{" + webLoginJSON() + "}}");	// Also puts back anything refused
+
+	// Web sockets are only checked when they connect, so ones opened before the login was set or
+	// changed must connect again with it
+	if (changed && webUser.value.length() > 0 && webPassword.value.length() > 0) {
+		xSemaphoreTake(wsMutex, portMAX_DELAY);
+		ws->closeAll();
+		xSemaphoreGive(wsMutex);
+	}
 }
 
 // A group of settings, like "web_login". Setting one does nothing, but would send what's in it to the
