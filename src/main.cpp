@@ -1209,7 +1209,49 @@ void customHandler(AsyncWebServerRequest *request) {
 	request->send(200, "text/plain", IPSClock::getCustomData().value + "\n");
 }
 
+// The files in board_build.embed_files
+#define SETTINGS_PAGE(name) \
+	extern const uint8_t name##PageStart[] asm("_binary_data_" #name "_html_gz_start"); \
+	extern const uint8_t name##PageEnd[] asm("_binary_data_" #name "_html_gz_end");
+
+SETTINGS_PAGE(clock)
+SETTINGS_PAGE(leds)
+SETTINGS_PAGE(faces)
+SETTINGS_PAGE(weather)
+SETTINGS_PAGE(matrix)
+SETTINGS_PAGE(mqtt)
+SETTINGS_PAGE(network)
+SETTINGS_PAGE(info)
+
+struct SettingsPage {
+	const char *url;
+	const uint8_t *start;
+	const uint8_t *end;
+};
+
+// Served from the firmware rather than the filesystem, so they always match it, even when only the
+// firmware was installed. The filesystem image has copies, for anything older that looks for them there.
+static const SettingsPage settingsPages[] = {
+	{ "/clock.html", clockPageStart, clockPageEnd },
+	{ "/leds.html", ledsPageStart, ledsPageEnd },
+	{ "/faces.html", facesPageStart, facesPageEnd },
+	{ "/weather.html", weatherPageStart, weatherPageEnd },
+	{ "/matrix.html", matrixPageStart, matrixPageEnd },
+	{ "/mqtt.html", mqttPageStart, mqttPageEnd },
+	{ "/network.html", networkPageStart, networkPageEnd },
+	{ "/info.html", infoPageStart, infoPageEnd }
+};
+
 void configureWebServer() {
+	// Before serveStatic(), which would find the copies in the filesystem
+	for (const SettingsPage &page : settingsPages) {
+		server->on(page.url, HTTP_GET, [&page](AsyncWebServerRequest *request) {
+			AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", page.start, page.end - page.start);
+			response->addHeader("Content-Encoding", "gzip");
+			request->send(response);
+		});
+	}
+
 	server->serveStatic("/", LittleFS, "/");
 	server->on("/", HTTP_GET, mainHandler).setFilter(ON_STA_FILTER);
 	server->on("/custom", HTTP_GET | HTTP_POST, customHandler);
