@@ -14,6 +14,15 @@
 						<label for="time_server">Time Server</label>
 						<input maxlength="63" onblur="elementBlur(this)" type="text" id="time_server" data-mini="true" />
 					</div>
+					<div data-role="fieldcontain">
+						<label for="web_user">Web UI User</label>
+						<input maxlength="31" onblur="elementBlur(this, 'Use only letters, digits and . _ - @')" pattern="[A-Za-z0-9._@\-]*" type="text" id="web_user" autocomplete="off" data-mini="true" />
+					</div>
+					<!-- onchange, because the clock only sends a placeholder for the password -->
+					<div data-role="fieldcontain">
+						<label for="web_password">Web UI Password</label>
+						<input maxlength="63" onchange="elementBlur(this, 'Use only letters, digits, spaces and punctuation, without accents')" pattern="[ -~]*" type="password" id="web_password" autocomplete="new-password" data-mini="true" />
+					</div>
 					<div class="dispInlineLabel">
 						<label for="wifi_ap">WiFi AP</label>
 					</div>

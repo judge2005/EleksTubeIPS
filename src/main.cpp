@@ -9,6 +9,7 @@
 #include <EspSNTPTimeSync.h>
 #include <sntp_pt.h>
 #include <lwip/tcpip.h>
+#include <mbedtls/sha256.h>
 #ifndef DS1302
 #include <EspRTCTimeSync.h>
 #else
@@ -162,6 +163,10 @@ StringConfigItem staticDNS2("static_dns2", 15, "");
 bool staticAddressChanged = false;
 
 StringConfigItem timeServer("time_server", 63, "pool.ntp.org");	// A name or an IP address
+
+// The web UI login, see WebLoginHandler. The clock only asks for it when both are set.
+StringConfigItem webUser("web_user", 31, "");
+StringConfigItem webPassword("web_password", 63, "");
 
 enum WEATHER_MESSAGE {
 	WEATHER_UPDATE = 1,
@@ -329,8 +334,48 @@ IRAMPtrArray<BaseConfigItem*> cycleSet {
 
 CompositeConfigItem cycleConfig("cycle", 0, cycleSet);
 
+// Settings added after 2.0.5, stored after all of those. The web UI and MQTT are never sent the password.
+IRAMPtrArray<BaseConfigItem*> webLoginSet {
+	&webUser,
+	&webPassword,
+	0
+};
+
+CompositeConfigItem webLoginConfig("web_login", 0, webLoginSet);
+
 // All configurations
 IRAMPtrArray<BaseConfigItem*> configSetRoot {
+	&globalConfig,
+	&clockConfig,
+	&ledConfig,
+	&facesConfig,
+	&weatherConfig,
+	&matrixConfig,
+	&mqttConfig,
+	&networkConfig,
+	&cycleConfig,
+	&webLoginConfig,
+	0
+};
+
+CompositeConfigItem rootConfig("root", 0, configSetRoot);
+
+// The configurations from upstream 1.9.4 to 2.0.2, to recognise them in EEPROM
+IRAMPtrArray<BaseConfigItem*> setRoot202 {
+	&globalConfig,
+	&clockConfig,
+	&ledConfig,
+	&facesConfig,
+	&weatherConfig,
+	&matrixConfig,
+	&mqttConfig,
+	0
+};
+
+CompositeConfigItem rootConfig202("root", 0, setRoot202);
+
+// And from 2.0.3 to 2.0.5
+IRAMPtrArray<BaseConfigItem*> setRoot205 {
 	&globalConfig,
 	&clockConfig,
 	&ledConfig,
@@ -343,21 +388,7 @@ IRAMPtrArray<BaseConfigItem*> configSetRoot {
 	0
 };
 
-CompositeConfigItem rootConfig("root", 0, configSetRoot);
-
-// The configurations from upstream 1.9.4 to 2.0.2, to recognise them in EEPROM
-IRAMPtrArray<BaseConfigItem*> previousSetRoot {
-	&globalConfig,
-	&clockConfig,
-	&ledConfig,
-	&facesConfig,
-	&weatherConfig,
-	&matrixConfig,
-	&mqttConfig,
-	0
-};
-
-CompositeConfigItem previousRootConfig("root", 0, previousSetRoot);
+CompositeConfigItem rootConfig205("root", 0, setRoot205);
 
 // Store the configurations in EEPROM
 EEPROMConfig config(rootConfig);
@@ -941,6 +972,38 @@ void broadcastToWebUI(const BaseConfigItem& item) {
 	broadcastUpdate(json);
 }
 
+// The web UI is sent the user, but only whether there's a password
+String webLoginJSON() {
+	return "\"web_user\":" + webUser.toJSON() + ",\"web_password\":\"" + (webPassword.value.length() > 0 ? "********" : "") + "\"";
+}
+
+// Refuses anything the login couldn't match. Stored settings stop at the first character that isn't
+// ASCII, so the password would stop matching after a restart, and the user goes in the browser's
+// login header, which can't carry every character.
+bool validWebLogin(const StringConfigItem &item, const String &value) {
+	if (value.length() > item.maxSize) {
+		return false;
+	}
+
+	for (int i = 0; i < value.length(); i++) {
+		char c = value[i];
+		if (&item == &webUser ? !isalnum((unsigned char)c) && strchr("._-@", c) == NULL : c < ' ' || c > '~') {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void setWebLogin(StringConfigItem &item, const String &value) {
+	if (validWebLogin(item, value)) {
+		item = value;
+		item.put();
+	}
+
+	broadcastUpdate("{\"type\":\"sv.update\",\"value\":{" + webLoginJSON() + "}}");	// Also puts back anything refused
+}
+
 void updateValue(int screen, String pair) {
 	if (screen != 8) {
 		screenSaver->reset();
@@ -953,7 +1016,9 @@ void updateValue(int screen, String pair) {
 	const char* key = _key.c_str();
 	String value = pair.substring(index+1);
 	BaseConfigItem *item = rootConfig.get(key);
-	if (item != 0) {
+	if (item == &webUser || item == &webPassword) {
+		setWebLogin(*(StringConfigItem*)item, value);
+	} else if (item != 0) {
 		item->fromString(value);
 		item->put();
 		// Order of below is important to maintain external consistency
@@ -1209,6 +1274,57 @@ void customHandler(AsyncWebServerRequest *request) {
 	request->send(200, "text/plain", IPSClock::getCustomData().value + "\n");
 }
 
+static const char *const webLoginRealm = "IPS Clock";
+
+// Never through the clock's own access point, which has a password of its own. That's how a forgotten
+// login can be changed: the access point comes on when the clock can't join Wi-Fi at startup.
+bool webLoginRequired(AsyncWebServerRequest *request) {
+	return webUser.value.length() > 0 && webPassword.value.length() > 0 && !ON_AP_FILTER(request);
+}
+
+// Not every browser sends the login with the web socket's handshake, so the pages set this cookie
+// and the web socket checks it instead. It changes when the login does.
+String webLoginCookie() {
+	String login = chipId + ":" + webUser.value + ":" + webPassword.value;
+	uint8_t hash[32];
+	mbedtls_sha256_ret((const unsigned char*)login.c_str(), login.length(), hash, 0);
+
+	String cookie = "ips_login=";
+	for (uint8_t b : hash) {
+		cookie += "0123456789abcdef"[b >> 4];
+		cookie += "0123456789abcdef"[b & 15];
+	}
+
+	return cookie;
+}
+
+void addWebLoginCookie(AsyncWebServerRequest *request, AsyncWebServerResponse *response) {
+	if (webLoginRequired(request)) {
+		response->addHeader("Set-Cookie", webLoginCookie() + "; Path=/; HttpOnly; SameSite=Strict");
+	}
+}
+
+// Answers every request that needs the login and doesn't have it, before any other handler sees it
+class WebLoginHandler : public AsyncWebHandler {
+public:
+	bool canHandle(AsyncWebServerRequest *request) override {
+		if (!webLoginRequired(request)) {
+			return false;
+		}
+
+		if (request->url() == ws->url()) {
+			AsyncWebHeader *cookies = request->getHeader("Cookie");
+			return cookies == NULL || ("; " + cookies->value() + ";").indexOf("; " + webLoginCookie() + ";") < 0;
+		}
+
+		return !request->authenticate(webUser.value.c_str(), webPassword.value.c_str(), webLoginRealm);
+	}
+
+	void handleRequest(AsyncWebServerRequest *request) override {
+		request->requestAuthentication(webLoginRealm);	// Digest, so the browser doesn't send the password itself
+	}
+};
+
 // The files in board_build.embed_files
 #define SETTINGS_PAGE(name) \
 	extern const uint8_t name##PageStart[] asm("_binary_data_" #name "_html_gz_start"); \
@@ -1248,9 +1364,17 @@ void configureWebServer() {
 		server->on(page.url, HTTP_GET, [&page](AsyncWebServerRequest *request) {
 			AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", page.start, page.end - page.start);
 			response->addHeader("Content-Encoding", "gzip");
+			addWebLoginCookie(request, response);	// So the web socket can reconnect after the login has changed
 			request->send(response);
 		});
 	}
+
+	// The page that opens the web socket. It's in the filesystem, but served here to set the login cookie.
+	server->on("/app.html", HTTP_GET, [](AsyncWebServerRequest *request) {
+		AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/app.html", "text/html");
+		addWebLoginCookie(request, response);
+		request->send(response);
+	});
 
 	server->serveStatic("/", LittleFS, "/");
 	server->on("/", HTTP_GET, mainHandler).setFilter(ON_STA_FILTER);
@@ -1374,7 +1498,8 @@ String wifiCallback() {
 	wifiStatus += ",";
 	wifiStatus += "\"hostname\":\"";
 	wifiStatus += hostName.value;
-	wifiStatus += "\"";
+	wifiStatus += "\",";
+	wifiStatus += webLoginJSON();
 
 	return wifiStatus;
 }
@@ -1475,16 +1600,22 @@ void commitEEPROMTaskFn(void *pArg) {
 
 // config.init() resets every setting to its default if the set of settings has changed, which it
 // recognises by a checksum of their names. Settings added since then are stored after the others,
-// so if EEPROM holds the previous set, keep it and just add the new settings.
+// so if EEPROM holds an earlier set, keep it and just add the new settings.
 void upgradeEEPROM() {
 	unsigned int storedChecksum = 0;
 	EEPROM.get(0, storedChecksum);
-	if (storedChecksum == previousRootConfig.getChecksum(0)) {
-		networkConfig.put();	// Their defaults, nothing has been read yet
+	// The new settings' defaults, nothing has been read yet
+	if (storedChecksum == rootConfig202.getChecksum(0)) {
+		networkConfig.put();
 		cycleConfig.put();
-		EEPROM.put(0, rootConfig.getChecksum(0));
-		config.commit();
+		webLoginConfig.put();
+	} else if (storedChecksum == rootConfig205.getChecksum(0)) {
+		webLoginConfig.put();
+	} else {
+		return;
 	}
+	EEPROM.put(0, rootConfig.getChecksum(0));
+	config.commit();
 }
 
 void initFromEEPROM() {
@@ -1714,6 +1845,7 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 	wifiManager->setConnectTimeout(5000);	// milliseconds
 	wifiManager->setAPCallback(apChange);
 	wifiManager->setAPCredentials(ssid.c_str(), "secretsauce");
+	server->addHandler(new WebLoginHandler());	// Before any other handler, so it sees every request first
 	setStaticAddress();
 
 	// After a cold boot some clocks transmit far more weakly than the power they report, so the
