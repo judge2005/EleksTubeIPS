@@ -549,8 +549,8 @@ bool MQTTBroker::publishState() {
             serializeJson(volatileState, buffer);
             client.publish(volatileStateTopic, 1, false, buffer);
 
-            // Leave out the MQTT credentials, the weather API key and the web UI login, anyone subscribed to the broker can read this
-            const char *excludes[] = { "mqtt", "weather", "web_login", 0 };
+            // Leave out the MQTT credentials, the weather API key, the web UI login and the access point password, anyone subscribed to the broker can read this
+            const char *excludes[] = { "mqtt", "weather", "web_login", "access_point", 0 };
             const char *weatherExcludes[] = { "weather_token", 0 };
             String persistentState;
             persistentState.reserve(1400);

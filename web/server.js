@@ -213,7 +213,8 @@ var state = {
 		'hostname' : 'localhost',
 		'time_server' : 'pool.ntp.org',
 		'web_user' : '',
-		'web_password' : ''
+		'web_password' : '',
+		'ap_password' : 'abcd2345fg'
 	},
 	"7": {
 		"weather_token":"462cf98d57c30f4cc3698a70a63bd3bb",

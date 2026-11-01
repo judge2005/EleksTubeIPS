@@ -10,6 +10,7 @@
 #include <sntp_pt.h>
 #include <lwip/tcpip.h>
 #include <mbedtls/sha256.h>
+#include <bootloader_random.h>
 #ifndef DS1302
 #include <EspRTCTimeSync.h>
 #else
@@ -170,6 +171,9 @@ StringConfigItem timeServer("time_server", 63, "pool.ntp.org");	// A name or an 
 // The web UI login, see WebLoginHandler. The clock only asks for it when both are set.
 StringConfigItem webUser("web_user", 31, "");
 StringConfigItem webPassword("web_password", 63, "");
+
+// Each clock makes up its own, see initFromEEPROM(). Upstream used "secretsauce" on every clock.
+StringConfigItem apPassword("ap_password", 63, "");
 
 enum WEATHER_MESSAGE {
 	WEATHER_UPDATE = 1,
@@ -346,6 +350,14 @@ IRAMPtrArray<BaseConfigItem*> webLoginSet {
 
 CompositeConfigItem webLoginConfig("web_login", 0, webLoginSet);
 
+// Settings added after 2.0.7. MQTT is never sent the access point's password.
+IRAMPtrArray<BaseConfigItem*> accessPointSet {
+	&apPassword,
+	0
+};
+
+CompositeConfigItem accessPointConfig("access_point", 0, accessPointSet);
+
 // All configurations
 IRAMPtrArray<BaseConfigItem*> configSetRoot {
 	&globalConfig,
@@ -358,6 +370,7 @@ IRAMPtrArray<BaseConfigItem*> configSetRoot {
 	&networkConfig,
 	&cycleConfig,
 	&webLoginConfig,
+	&accessPointConfig,
 	0
 };
 
@@ -392,6 +405,23 @@ IRAMPtrArray<BaseConfigItem*> setRoot205 {
 };
 
 CompositeConfigItem rootConfig205("root", 0, setRoot205);
+
+// And from 2.0.6 to 2.0.7
+IRAMPtrArray<BaseConfigItem*> setRoot207 {
+	&globalConfig,
+	&clockConfig,
+	&ledConfig,
+	&facesConfig,
+	&weatherConfig,
+	&matrixConfig,
+	&mqttConfig,
+	&networkConfig,
+	&cycleConfig,
+	&webLoginConfig,
+	0
+};
+
+CompositeConfigItem rootConfig207("root", 0, setRoot207);
 
 // Store the configurations in EEPROM
 EEPROMConfig config(rootConfig);
@@ -731,6 +761,20 @@ void updateDisplays() {
 	}
 }
 
+// While the access point is on, its name and password take turns in the status line, so whoever can
+// see the clock can join it. Each is shown before the last expires, so the digits aren't redrawn.
+void showAccessPoint() {
+	static unsigned long lastShown = 0;
+	static bool showPassword = false;
+
+	if (wifiManager->isAP() && millis() - lastShown >= 4000) {
+		lastShown = millis();
+		String status = showPassword ? "Password " + apPassword.value : ssid;
+		tfts->setStatus(status.c_str());
+		showPassword = !showPassword;
+	}
+}
+
 void clockTaskFn(void *pArg) {
 	TickType_t toSleep = DEFAULT_MAIN_SLEEP;
 
@@ -808,6 +852,7 @@ void clockTaskFn(void *pArg) {
 
 		uptime.loop();
 		ipsClock->updateSchedule();
+		showAccessPoint();
 
 		// Memory is an issue if the displays need a .gz.tar file unpacked and the weather task
 		// retrieves the forecast at the same time. Also reading images from flash while the weather
@@ -1079,6 +1124,24 @@ void setMqttPassword(const String &value) {
 	broadcastUpdate("{\"type\":\"sv.update\",\"value\":{" + passwordJSON(password) + "}}");	// Also puts back anything refused
 }
 
+String randomAPPassword();
+
+// Unlike the other passwords it's shown, on the Network page and on the displays, since it's there so
+// that whoever can see the clock can join its access point. Clearing it makes a new random one. It's
+// used the next time the access point starts.
+void setAPPassword(const String &value) {
+	String password = value.length() > 0 ? value : randomAPPassword();
+	if (password.length() >= 8 && validLogin(apPassword, password) && password != apPassword.value) {
+		apPassword = password;
+		apPassword.put();
+		xSemaphoreTake(wsMutex, portMAX_DELAY);	// Held while the Wi-Fi manager runs, see wifiManagerTaskFn()
+		wifiManager->setAPCredentials(ssid.c_str(), apPassword.value.c_str());
+		xSemaphoreGive(wsMutex);
+	}
+
+	broadcastToWebUI(apPassword);	// Also puts back anything refused
+}
+
 // A group of settings, like "web_login". Setting one does nothing, but would send what's in it to the
 // web UI, passwords too.
 bool isSettingsGroup(const BaseConfigItem *item) {
@@ -1111,6 +1174,8 @@ void updateValue(int screen, String pair) {
 		setWebLogin(*(StringConfigItem*)item, value);
 	} else if (item == &MQTTBroker::getPassword()) {
 		setMqttPassword(value);
+	} else if (item == &apPassword) {
+		setAPPassword(value);
 	} else if (item != 0 && !isSettingsGroup(item)) {
 		item->fromString(value);
 		item->put();
@@ -1609,6 +1674,8 @@ String wifiCallback() {
 	wifiStatus += hostName.value;
 	wifiStatus += "\",";
 	wifiStatus += webLoginJSON();
+	wifiStatus += ",\"ap_password\":";
+	wifiStatus += apPassword.toJSON();
 
 	return wifiStatus;
 }
@@ -1718,13 +1785,38 @@ void upgradeEEPROM() {
 		networkConfig.put();
 		cycleConfig.put();
 		webLoginConfig.put();
+		accessPointConfig.put();
 	} else if (storedChecksum == rootConfig205.getChecksum(0)) {
 		webLoginConfig.put();
+		accessPointConfig.put();
+	} else if (storedChecksum == rootConfig207.getChecksum(0)) {
+		accessPointConfig.put();
 	} else {
 		return;
 	}
 	EEPROM.put(0, rootConfig.getChecksum(0));
 	config.commit();
+}
+
+// From letters and digits that can't be mistaken for each other, so it's easy to copy off the displays
+String randomAPPassword() {
+	const char *characters = "abcdefghijkmnpqrstuvwxyz23456789";	// 32
+	String password;
+
+	// esp_random() is only really random while Wi-Fi is on, or with the bootloader's source, which
+	// mustn't be used while Wi-Fi is on
+	bool wifiOff = WiFi.getMode() == WIFI_OFF;
+	if (wifiOff) {
+		bootloader_random_enable();
+	}
+	for (int i = 0; i < 10; i++) {
+		password += characters[esp_random() % 32];
+	}
+	if (wifiOff) {
+		bootloader_random_disable();
+	}
+
+	return password;
 }
 
 void initFromEEPROM() {
@@ -1733,6 +1825,12 @@ void initFromEEPROM() {
 	config.init();
 //	rootConfig.debug(debugPrint);
 	rootConfig.get();	// Read all of the config values from EEPROM
+
+	if (apPassword.value.length() < 8) {	// The first start, or the first since upgrading
+		apPassword = randomAPPassword();
+		apPassword.put();
+		config.commit();
+	}
 
 	hostnameParam = new AsyncWiFiManagerParameter("Hostname", "clock host name", hostName.value.c_str(), 63);
 }
@@ -1764,7 +1862,7 @@ void apChange(AsyncWiFiManager *wifiManager) {
 
 void setWiFiAP(bool on) {
 	if (on) {
-		wifiManager->startConfigPortal(ssid.c_str(), "secretsauce");
+		wifiManager->startConfigPortal(ssid.c_str(), apPassword.value.c_str());
 	} else {
 		wifiManager->stopConfigPortal();
 	}
@@ -1830,7 +1928,7 @@ void SetupServer() {
 	}
 	config.commit();
 	createSSID();
-	wifiManager->setAPCredentials(ssid.c_str(), "secretsauce");
+	wifiManager->setAPCredentials(ssid.c_str(), apPassword.value.c_str());
 	DEBUG(hostName.value.c_str());
 	MDNS.begin(hostName.value.c_str());
 	MDNS.addService("http", "tcp", 80);
@@ -1954,7 +2052,7 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 	wifiManager->setConnectedCallback(connectedHandler);
 	wifiManager->setConnectTimeout(5000);	// milliseconds
 	wifiManager->setAPCallback(apChange);
-	wifiManager->setAPCredentials(ssid.c_str(), "secretsauce");
+	wifiManager->setAPCredentials(ssid.c_str(), apPassword.value.c_str());
 	server->addHandler(new WebLoginHandler());	// Before any other handler, so it sees every request first
 	setStaticAddress();
 

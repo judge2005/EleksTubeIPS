@@ -23,6 +23,10 @@
 						<label for="web_password">Web UI Password</label>
 						<input maxlength="63" onchange="elementBlur(this, 'Use only letters, digits, spaces and punctuation, without accents')" pattern="[ -~]*" type="password" id="web_password" autocomplete="new-password" data-mini="true" />
 					</div>
+					<div data-role="fieldcontain">
+						<label for="ap_password">WiFi AP Password</label>
+						<input maxlength="63" onblur="elementBlur(this, 'Use 8 to 63 letters, digits, spaces and punctuation, without accents, or clear it for a new random one')" pattern="([ -~]{8,63})?" type="text" id="ap_password" autocomplete="off" data-mini="true" />
+					</div>
 					<div class="dispInlineLabel">
 						<label for="wifi_ap">WiFi AP</label>
 					</div>
