@@ -652,6 +652,33 @@ void onButtonEvent(const Button *button, Button::Event evt) {
 #endif
 }
 
+// The buttons are read even while the weather is fetched and the displays can't be drawn, see
+// clockTaskFn(), and what was pressed is acted on afterwards, so presses aren't lost
+struct ButtonEvent {
+	const Button *button;
+	Button::Event event;
+};
+
+ButtonEvent buttonEvents[8];
+uint8_t buttonEventCount = 0;
+
+void queueButtonEvent(const Button *button, Button::Event evt) {
+	if (buttonEventCount < sizeof(buttonEvents) / sizeof(buttonEvents[0])) {
+		buttonEvents[buttonEventCount++] = { button, evt };
+	}
+}
+
+void readButtons() {
+#ifdef BUTTON_MENU_PINS
+	leftButton->getEvent();
+	rightButton->getEvent();
+	modeButton->getEvent();
+#endif
+#ifdef BUTTON_POWER_PIN
+	powerButton->getEvent();
+#endif
+}
+
 // Fast enough for the buttons and the matrix animation, which runs at up to 50 frames a second
 #define DEFAULT_MAIN_SLEEP (pdMS_TO_TICKS(10))
 
@@ -690,14 +717,11 @@ void updateDisplays() {
 		}
 	}
 
-#ifdef BUTTON_MENU_PINS
-	leftButton->getEvent();
-	rightButton->getEvent();
-	modeButton->getEvent();
-#endif
-#ifdef BUTTON_POWER_PIN
-	powerButton->getEvent();
-#endif
+	for (uint8_t i = 0; i < buttonEventCount; i++) {
+		onButtonEvent(buttonEvents[i].button, buttonEvents[i].event);
+	}
+	buttonEventCount = 0;
+
 	if (tfts->checkStatus()) {
 		weather->redraw();	// To get rid of the status message
 	}
@@ -813,14 +837,14 @@ void clockTaskFn(void *pArg) {
 	rightButton = new GPIOButton(BUTTON_RIGHT_PIN, false);
 	leftButton = new GPIOButton(BUTTON_LEFT_PIN, false);
 
-	leftButton->setCallback(onButtonEvent);
-	modeButton->setCallback(onButtonEvent);
-	rightButton->setCallback(onButtonEvent);
+	leftButton->setCallback(queueButtonEvent);
+	modeButton->setCallback(queueButtonEvent);
+	rightButton->setCallback(queueButtonEvent);
 #endif
 #ifdef BUTTON_POWER_PIN
 	powerButton = new GPIOButton(BUTTON_POWER_PIN, false);
 
-	powerButton->setCallback(onButtonEvent);
+	powerButton->setCallback(queueButtonEvent);
 #endif
 
 	screenSaver->reset();
@@ -853,14 +877,17 @@ void clockTaskFn(void *pArg) {
 		uptime.loop();
 		ipsClock->updateSchedule();
 		showAccessPoint();
+		readButtons();
 
 		// Memory is an issue if the displays need a .gz.tar file unpacked and the weather task
 		// retrieves the forecast at the same time. Also reading images from flash while the weather
 		// is fetched over TLS slows both down so much that the task watchdog fires. And while it's
-		// fetched, TLS has the display buffer.
-		xSemaphoreTake(memMutex, portMAX_DELAY);
-		updateDisplays();
-		xSemaphoreGive(memMutex);
+		// fetched, TLS has the display buffer. So the displays wait until it's done, but the buttons
+		// and MQTT carry on.
+		if (xSemaphoreTake(memMutex, 0) == pdTRUE) {
+			updateDisplays();
+			xSemaphoreGive(memMutex);
+		}
 
 		mqttBroker->checkConnection();
 	}
