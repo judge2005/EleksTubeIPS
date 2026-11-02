@@ -53,4 +53,13 @@ function buildfs_theme() {
 }
 
 exports.clean = clean;
-exports.default = series(clean, buildfs_inline, buildfs_theme);
+// Built into the firmware like the stylesheet. Gzipped like everything else here, though the PNGs barely shrink,
+// so the firmware serves them all the same way.
+function buildfs_icons() {
+    // Not as text, which is gulp's default and mangles the PNGs
+    return src([srcFolder + '/favicon.svg', srcFolder + '/favicon.png', srcFolder + '/apple-touch-icon.png'], { encoding: false })
+        .pipe(gzip())
+        .pipe(dest(dataFolder));
+}
+
+exports.default = series(clean, buildfs_inline, buildfs_theme, buildfs_icons);

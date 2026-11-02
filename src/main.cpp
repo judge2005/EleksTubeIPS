@@ -1330,11 +1330,6 @@ void timeHandler(AsyncWebServerRequest *request) {
 	request->send(LittleFS, "/time.html");
 }
 
-void sendFavicon(AsyncWebServerRequest *request) {
-	DEBUG("Got favicon request")
-	request->send(LittleFS, "/assets/favicon-32x32.png", "image/png");
-}
-
 /*
  * Called when <name>.tar.gz has been uploaded to, or deleted from, /ips/<dir> by
  * either the web UI or MQTT
@@ -1560,10 +1555,30 @@ static const SettingsPage settingsPages[] = {
 	{ "/info.html", infoPageStart, infoPageEnd }
 };
 
-// The web UI's look. The settings pages link it as well as app.html, so a clock with an older filesystem
-// image, and so an older app.html, gets it too.
-extern const uint8_t themeStart[] asm("_binary_data_theme_css_gz_start");
-extern const uint8_t themeEnd[] asm("_binary_data_theme_css_gz_end");
+#define EMBEDDED_FILE(name, file) \
+	extern const uint8_t name##Start[] asm("_binary_data_" file "_gz_start"); \
+	extern const uint8_t name##End[] asm("_binary_data_" file "_gz_end");
+
+EMBEDDED_FILE(theme, "theme_css")
+EMBEDDED_FILE(faviconSvg, "favicon_svg")
+EMBEDDED_FILE(faviconPng, "favicon_png")
+EMBEDDED_FILE(touchIcon, "apple_touch_icon_png")
+
+struct EmbeddedFile {
+	const char *url;
+	const char *type;
+	const uint8_t *start;
+	const uint8_t *end;
+};
+
+// The web UI's look and its icons. The settings pages link the stylesheet as well as app.html, and theme.js
+// swaps in the icon, so a clock with an older filesystem image, and so an older app.html, gets them too.
+static const EmbeddedFile embeddedFiles[] = {
+	{ "/theme.css", "text/css", themeStart, themeEnd },
+	{ "/favicon.svg", "image/svg+xml", faviconSvgStart, faviconSvgEnd },
+	{ "/favicon.png", "image/png", faviconPngStart, faviconPngEnd },
+	{ "/apple-touch-icon.png", "image/png", touchIconStart, touchIconEnd }
+};
 
 void configureWebServer() {
 	// Before serveStatic(), which would find the copies in the filesystem
@@ -1576,11 +1591,13 @@ void configureWebServer() {
 		});
 	}
 
-	server->on("/theme.css", HTTP_GET, [](AsyncWebServerRequest *request) {
-		AsyncWebServerResponse *response = request->beginResponse_P(200, "text/css", themeStart, themeEnd - themeStart);
-		response->addHeader("Content-Encoding", "gzip");
-		request->send(response);
-	});
+	for (const EmbeddedFile &file : embeddedFiles) {
+		server->on(file.url, HTTP_GET, [&file](AsyncWebServerRequest *request) {
+			AsyncWebServerResponse *response = request->beginResponse_P(200, file.type, file.start, file.end - file.start);
+			response->addHeader("Content-Encoding", "gzip");
+			request->send(response);
+		});
+	}
 
 	// The page that opens the web socket. It's in the filesystem, but served here to set the login cookie.
 	server->on("/app.html", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -1597,7 +1614,6 @@ void configureWebServer() {
 	server->on("/", HTTP_GET, mainHandler).setFilter(ON_STA_FILTER);
 	server->on("/custom", HTTP_GET | HTTP_POST, customHandler);
 	server->on("/t", HTTP_POST, timeHandler).setFilter(ON_AP_FILTER);
-	server->on("/assets/favicon-32x32.png", HTTP_GET, sendFavicon);
 	server->on("/upload_face", HTTP_POST, handleUploadDone, handleUpload);
 	// A wildcard rather than a regex because std::regex adds well over 100K to the image
 	server->on(DELETE_FACE_URL "*", HTTP_DELETE, handleDelete);
