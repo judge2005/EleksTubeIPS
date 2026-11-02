@@ -1,6 +1,6 @@
 # User Guide
 
-How to set up and use a clock running [this firmware](https://github.com/kedube/EleksTubeIPS). To install it, use the [web installer](https://kedube.github.io/EleksTubeIPS/) or see the [README](../README.md).
+How to set up and use a clock running [this firmware](https://github.com/judge2005/EleksTubeIPS). To install it, see [Installation](https://github.com/judge2005/EleksTubeIPS/wiki/Installation) in the wiki.
 
 * [Connecting to Wi-Fi](#connecting-to-wi-fi)
 * [Status messages](#status-messages)
