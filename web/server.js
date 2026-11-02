@@ -217,7 +217,7 @@ var state = {
 		'ap_password' : 'abcd2345'
 	},
 	"7": {
-		"weather_token":"462cf98d57c30f4cc3698a70a63bd3bb",
+		"weather_token":"********",
 		"weather_latitude":"21.2",
 		"weather_longitude":"-37.1",
 		"units":"imperial",

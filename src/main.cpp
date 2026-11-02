@@ -81,6 +81,7 @@ String wifiCallback();
 String clockFacesCallback();
 String clockCallback();
 String mqttCallback();
+String weatherCallback();
 void broadcastUpdate(String msg);
 void broadcastUpdate(const BaseConfigItem& item);
 void broadcastToWebUI(const BaseConfigItem& item);
@@ -1015,7 +1016,8 @@ WSMenuHandler wsMenuHandler(items);
 WSConfigHandler wsClockHandler(rootConfig, "clock", clockCallback);
 WSConfigHandler wsLEDHandler(rootConfig, "leds");
 WSConfigHandler wsFacesHandler(rootConfig, "faces", clockFacesCallback);
-WSConfigHandler wsWeatherHandler(rootConfig, "weather");
+const char *weatherExcludes[] = { "weather_token", 0 };	// See weatherCallback()
+WSConfigHandler wsWeatherHandler(rootConfig, "weather", weatherCallback, weatherExcludes);
 WSConfigHandler wsMatrixHandler(rootConfig, "matrix");
 const char *mqttExcludes[] = { "mqtt_password", 0 };	// See mqttCallback()
 WSConfigHandler wsMqttHandler(rootConfig, "mqtt", mqttCallback, mqttExcludes);
@@ -1108,8 +1110,10 @@ void broadcastToWebUI(const BaseConfigItem& item) {
 }
 
 // The web UI is only told whether there's a password, never what it is
+const char *passwordPlaceholder = "********";
+
 String passwordJSON(const StringConfigItem &password) {
-	return String("\"") + password.name + "\":\"" + (password.value.length() > 0 ? "********" : "") + "\"";
+	return String("\"") + password.name + "\":\"" + (password.value.length() > 0 ? passwordPlaceholder : "") + "\"";
 }
 
 String webLoginJSON() {
@@ -1152,15 +1156,16 @@ void setWebLogin(StringConfigItem &item, const String &value) {
 	}
 }
 
-void setMqttPassword(const String &value) {
-	StringConfigItem &password = MQTTBroker::getPassword();
-	if (validLogin(password, value) && value != password.value) {
-		password = value;
-		password.put();
-		password.notify();	// Connects again with it
+// For the MQTT password and the weather API key, which the web UI is only told are set. A page
+// loaded before they were hidden sends the placeholder back when it loses focus, so that's ignored.
+void setSecret(StringConfigItem &item, const String &value) {
+	if (validLogin(item, value) && value != item.value && value != passwordPlaceholder) {
+		item = value;
+		item.put();
+		item.notify();	// Connects to the broker again, or fetches the weather, with it
 	}
 
-	broadcastUpdate("{\"type\":\"sv.update\",\"value\":{" + passwordJSON(password) + "}}");	// Also puts back anything refused
+	broadcastUpdate("{\"type\":\"sv.update\",\"value\":{" + passwordJSON(item) + "}}");	// Also puts back anything refused
 }
 
 String randomAPPassword();
@@ -1211,8 +1216,8 @@ void updateValue(int screen, String pair) {
 	BaseConfigItem *item = rootConfig.get(key);
 	if (item == &webUser || item == &webPassword) {
 		setWebLogin(*(StringConfigItem*)item, value);
-	} else if (item == &MQTTBroker::getPassword()) {
-		setMqttPassword(value);
+	} else if (item == &MQTTBroker::getPassword() || item == &WeatherService::getWeatherToken()) {
+		setSecret(*(StringConfigItem*)item, value);
 	} else if (item == &apPassword) {
 		setAPPassword(value);
 	} else if (item != 0 && !isSettingsGroup(item)) {
@@ -1697,6 +1702,11 @@ String clockCallback() {
 // The MQTT page is sent everything but the password, and only whether there is one
 String mqttCallback() {
 	return passwordJSON(MQTTBroker::getPassword());
+}
+
+// The same for the weather page's API key
+String weatherCallback() {
+	return passwordJSON(WeatherService::getWeatherToken());
 }
 
 String wifiCallback() {

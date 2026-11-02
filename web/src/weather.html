@@ -9,8 +9,10 @@
 		<form action="/set_weather" method="POST" id="weather_form">
 			<div data-role="fieldcontain">
 				<label for="weather_token">OpenWeatherMap API Key</label>
+				<!-- onchange, because the clock only sends a placeholder for the key -->
 				<input maxlength="63"
-					onblur="elementBlur(this)" type="text" id="weather_token"
+					onchange="elementBlur(this, 'Use only letters and digits')" pattern="[A-Za-z0-9]*"
+					type="password" id="weather_token" autocomplete="new-password"
 					data-mini="true" />
 			</div>
 			<div class="clearFloats"></div>
