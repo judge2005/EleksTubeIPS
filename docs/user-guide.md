@@ -6,6 +6,8 @@ How to set up and use a clock running [this firmware](https://github.com/kedube/
 * [Status messages](#status-messages)
 * [The web UI](#the-web-ui): [Clock](#clock), [LEDs](#leds), [Files](#files), [Weather](#weather), [Screen Saver](#screen-saver), [MQTT](#mqtt-and-home-assistant), [Network](#network), [Info](#info)
 * [Clock buttons](#clock-buttons)
+* [Showing your own text](#showing-your-own-text)
+* [Uploading files over MQTT](#uploading-files-over-mqtt)
 
 ## Connecting to Wi-Fi
 
@@ -105,7 +107,7 @@ The clock's images come in sets, each in a `.tar.gz` file: clock faces, weather 
 
 The set in use in each list is also kept unpacked, which takes more room than its file. For example, the maxclassic weather icons take about 450 KB unpacked, and monochrome about 8 KB. If there isn't room for the set you tap, the clock keeps the one it had, and the Files page says so. Delete sets you don't use, or switch to smaller weather icons or the blank slide show, then try again. If it says the clock was too busy, it was short of memory while serving web pages, so wait a minute and try again.
 
-You can also choose sets with the [clock's buttons](#clock-buttons), and upload and delete them over MQTT, see [Uploading files over MQTT](../README.md#uploading-files-over-mqtt).
+You can also choose sets with the [clock's buttons](#clock-buttons), and upload and delete them over MQTT, see [Uploading files over MQTT](#uploading-files-over-mqtt).
 
 More clock faces are in [more_faces](../more_faces) and at [Spider19996/Tube-Clock-Faces](https://github.com/Spider19996/Tube-Clock-Faces), and more weather icons in [weather_icons](../weather_icons). The clock comes with two slide shows, anime_female and blank. blank is there to free up space if you don't show pictures. To make your own sets, see [Image Collections](https://github.com/judge2005/EleksTubeIPS/wiki/Image-Collections) in the upstream wiki.
 
@@ -155,7 +157,7 @@ Topics start with `clock/<id>`, where `<id>` is the clock's **MQTT ID** from the
 | `clock/<id>/set/brightness` | 10 to 255 |
 | `clock/<id>/set/display` | 0 for the time, 1 the date, 2 the weather, 3 the slide show |
 | `clock/<id>/set/screen_saver` | `ON` or `OFF` |
-| `clock/<id>/set/custom` | Up to six characters to show instead of the time, see [Showing your own text](../README.md#showing-your-own-text) |
+| `clock/<id>/set/custom` | Up to six characters to show instead of the time, see [Showing your own text](#showing-your-own-text) |
 | `clock/<id>/set/backlight_state` | `ON` or `OFF` |
 | `clock/<id>/set/backlight_hs` | Hue from 0 to 360 and saturation from 0 to 100, such as `240,100` |
 | `clock/<id>/set/backlight_brightness` | 0 to 255 |
@@ -210,3 +212,42 @@ When the displays are off for the night (outside the Display On hours):
 * Hold power to turn the displays back on, until you hold it again or until the next time Display On turns them off.
 
 On the IPSTube, pressing power switches between the time, the date, the weather and the slide show, and holding it works as above.
+
+## Showing your own text
+
+The clock can show up to six characters instead of the time, one on each display, drawn with the clock face's images: digits, `:`, `a` for AM, `p` for PM, and a space or `_` for a blank display. Anything else shows as a blank. Send `clear`, or nothing, to go back to the time.
+
+Over HTTP, for example with curl:
+
+```
+curl -d value=12:34 http://<clock>/custom
+curl -d value=clear http://<clock>/custom
+```
+
+`curl http://<clock>/custom` replies with the text being shown. If the web UI has a login, add it with `-u <user>:<password>`. Over MQTT, publish the text to `clock/<id>/set/custom`, see [MQTT and Home Assistant](#mqtt-and-home-assistant).
+
+## Uploading files over MQTT
+
+Topics start with `clock/<id>`, where `<id>` is the **MQTT ID** shown on the clock's [Info](#info) page, for example `A1B2C3elekstubeips`.
+
+| Action | Topic | Payload |
+|---|---|---|
+| Upload | `clock/<id>/files/upload/<set>/<name>` | The `.tar.gz` file |
+| Delete | `clock/<id>/files/delete/<set>/<name>` | Anything, or empty |
+
+`<set>` is `faces`, `weather` or `slides`. `<name>` is the name without `.tar.gz`: up to 25 characters, without `/`, `\` or `"`. Don't publish these with the retain flag, or the clock will repeat the upload or delete every time it reconnects.
+
+The clock reports the result on `clock/<id>/files/status`:
+
+```json
+{"action":"upload","set":"slides","name":"solar","status":"ok"}
+```
+
+Instead of `ok`, `status` can be `invalid name`, `unknown set`, `unknown action`, `not a .tar.gz file`, `not enough space`, `could not create file`, `write failed`, `rename failed` or `file not found`.
+
+For example, with Mosquitto's command-line client:
+
+```
+mosquitto_pub -h <broker> -u <user> -P <password> \
+  -t clock/A1B2C3elekstubeips/files/upload/slides/solar -f solar.tar.gz
+```
