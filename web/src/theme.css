@@ -1,4 +1,4 @@
-/* The web UI's look over jQuery Mobile's widgets. By day it's paperheartdesign.com's "Blueberry Bliss"
+/* The web UI's look over jQuery Mobile's widgets. By day it's paperheartdesign.com's "Under the Wave"
    palette, and by night color-meanings.com's "Purple Blur", with a stronger shade for what has to stand
    out. It follows the browser's light or dark setting unless the header's button has picked one, see
    theme.js. The firmware serves it, and the settings pages link it as well as app.html, so a clock
@@ -8,27 +8,27 @@
    places are !important. Not the slider tracks' background-image or the handles' background-color,
    which app.html sets on the color sliders as they move. */
 
-/* Day: Blueberry Bliss, #1c2127 #0b385f #3373b0 #bed4e9 #e7f1fb */
+/* Day: Under the Wave, #00022b #010e54 #0855b1 #4fa5d8 #daeaf7 */
 :root {
 	color-scheme: light;
 	--font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-	--bg: #e7f1fb;
-	--bg-glow: radial-gradient(700px 320px at 15% -140px, rgba(190, 212, 233, .95), transparent), radial-gradient(700px 320px at 90% -120px, rgba(51, 115, 176, .2), transparent);
+	--bg: #daeaf7;
+	--bg-glow: radial-gradient(700px 320px at 15% -140px, rgba(79, 165, 216, .45), transparent), radial-gradient(700px 320px at 90% -120px, rgba(8, 85, 177, .22), transparent);
 	--surface: #fff;
-	--field: #f3f8fd;
-	--track: #d6e4f2;
-	--hover: #edf4fb;
-	--line: #d9e6f2;
-	--text: #1c2127;
-	--muted: #566270;
-	--accent: #3373b0;
-	--accent-fill: linear-gradient(135deg, #3373b0, #0b385f);
-	--accent-soft: rgba(51, 115, 176, .12);
+	--field: #f0f6fc;
+	--track: #c8def2;
+	--hover: #e8f2fb;
+	--line: #d2e3f3;
+	--text: #00022b;
+	--muted: #4b5a7a;
+	--accent: #0855b1;
+	--accent-fill: linear-gradient(135deg, #0855b1, #010e54);
+	--accent-soft: rgba(8, 85, 177, .12);
 	--on-accent: #fff;
 	--knob: #fff;
-	--glow: 0 2px 10px rgba(51, 115, 176, .3);
-	--shadow: 0 1px 2px rgba(11, 56, 95, .05), 0 6px 20px rgba(11, 56, 95, .07);
-	--header: rgba(231, 241, 251, .82);
+	--glow: 0 2px 10px rgba(8, 85, 177, .35);
+	--shadow: 0 1px 2px rgba(1, 14, 84, .05), 0 6px 20px rgba(1, 14, 84, .08);
+	--header: rgba(218, 234, 247, .82);
 	--icon-filter: invert(1);
 	--icon-active-filter: none;
 	--theme-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'><path d='M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z'/></svg>");
