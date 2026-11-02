@@ -1776,6 +1776,12 @@ void initFacesMenu() {
 	else
 		dirName += "faces";
 
+	String current = ipsClock->getClockFace();
+	if (display == IPSClock::WEATHER)
+		current = weather->getIconPack();
+	else if (display == IPSClock::SLIDE_SHOW)
+		current = slidesSet->value;
+
 	fs::File dir = LittleFS.open(dirName);
     String name = dir.getNextFileName();
 	int optIndex = 0;
@@ -1783,10 +1789,7 @@ void initFacesMenu() {
     while(name.length() > 0 && optIndex < ESPI_MENU_MAX_ITEMS){
 		String fileName = name.substring(dirName.length() + 1, name.length());
 		String option = fileName.substring(0, fileName.lastIndexOf(postfix));
-		eSPIMenu::State state = option == ipsClock->getClockFace() ? eSPIMenu::selected : eSPIMenu::none;
-		if (display == IPSClock::WEATHER) {
-			state = option == weather->getIconPack() ? eSPIMenu::selected : eSPIMenu::none;
-		}
+		eSPIMenu::State state = option == current ? eSPIMenu::selected : eSPIMenu::none;
 		menu->addItem(option.c_str(), state);
         name = dir.getNextFileName();
 		optIndex++;
