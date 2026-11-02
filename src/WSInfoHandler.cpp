@@ -61,6 +61,7 @@ void WSInfoHandler::handle(AsyncWebSocketClient *client, char *data) {
 	value["wifi_mac_address"] = WiFi.macAddress();
 	value["wifi_ssid"] = WiFi.SSID();
 	value["wifi_ap_ssid"] = ssid;
+	value["mqtt_id"] = mqttId;
 	value["hostname"] = hostname;
 	value["software_revision"] = revision;
 	value["description"] = description;

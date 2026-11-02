@@ -139,6 +139,7 @@ QueueHandle_t wsPendingQueue;	// Web UI updates from tasks other than async_tcp,
 
 AsyncWiFiManagerParameter *hostnameParam;
 String ssid("EleksTubeIPS");
+String mqttId;	// What upstream used as the access point's name, see setup()
 String chipId = getChipId();
 
 // Persistent Configuration
@@ -449,7 +450,7 @@ void asyncTimeErrorCallback(String msg) {
 
 template<class T>
 void onMqttParamsChanged(ConfigItem<T> &item) {
-	mqttBroker->init(ssid);
+	mqttBroker->init(mqttId);
 }
 
 void onTimezoneChanged(ConfigItem<String> &tzItem) {
@@ -849,7 +850,7 @@ void clockTaskFn(void *pArg) {
 
 	screenSaver->reset();
 
-	mqttBroker->init(ssid);
+	mqttBroker->init(mqttId);
 
 	uint32_t lastMqttPublish = 0;
 
@@ -984,8 +985,12 @@ String getChipId(void)
 }
 
 void createSSID() {
-	// Create a unique SSID that includes the hostname. Max SSID length is 32!
-	ssid = (chipId + hostName).substring(0, 31);
+	// Unique enough from the end of the MAC address, and short enough to read off the displays
+	uint8_t macid[6];
+	esp_efuse_mac_get_default(macid);
+	char name[16];
+	snprintf(name, sizeof(name), "EleksTube%02X%02X", macid[4], macid[5]);
+	ssid = name;
 }
 
 IRAMPtrArray<const char*> items {
@@ -1028,6 +1033,7 @@ IRAMPtrArray<WSHandler*> wsHandlers {
 
 void infoCallback() {
 	wsInfoHandler.setSsid(ssid);
+	wsInfoHandler.setMqttId(mqttId);
 	// wsInfoHandler.setBlankingMonitor(&blankingMonitor);
 	wsInfoHandler.setDescription(manifest[0]);
 	wsInfoHandler.setRevision(manifest[1]);
@@ -2001,6 +2007,12 @@ void setup() {
 	menu = new eSPIMenu::Menu(&tfts->getSprite());
 
 	createSSID();
+
+	// MQTT topics and Home Assistant's unique IDs are made from this. It's what upstream used as the
+	// access point's name, which was made before the settings were read, so it has the default
+	// hostname rather than the clock's own. It stays the same so entities keep their IDs. Upstream
+	// made it again with the clock's own hostname when the Wi-Fi portal was saved, until a restart.
+	mqttId = (chipId + hostName).substring(0, 31);
 
 	EEPROM.begin(2048);
 	initFromEEPROM();
