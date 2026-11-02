@@ -11,6 +11,8 @@
 #include <lwip/tcpip.h>
 #include <mbedtls/sha256.h>
 #include <bootloader_random.h>
+#include <esp_ota_ops.h>
+#include <esp_rom_crc.h>
 #ifndef DS1302
 #include <EspRTCTimeSync.h>
 #else
@@ -1582,12 +1584,68 @@ static const EmbeddedFile embeddedFiles[] = {
 	{ "/apple-touch-icon.png", "image/png", touchIconStart, touchIconEnd }
 };
 
+// Browsers keep a page sent with an ETag and ask each time whether it has changed. When it hasn't, the
+// clock answers with a few hundred bytes instead of the page. That matters most for app.html, 147 KB that
+// was sent every time the web UI was opened, which left the clock short of memory while it did.
+
+// For the files built into the firmware, which only change with it
+static const String &firmwareEtag() {
+	static String etag;
+
+	if (etag.length() == 0) {
+		char hex[17];
+		const uint8_t *sha = esp_ota_get_app_description()->app_elf_sha256;
+		snprintf(hex, sizeof(hex), "%02x%02x%02x%02x%02x%02x%02x%02x", sha[0], sha[1], sha[2], sha[3], sha[4], sha[5], sha[6], sha[7]);
+		etag = String("\"") + hex + "\"";
+	}
+
+	return etag;
+}
+
+// For app.html, which only changes with a new filesystem image, so only after a restart. Empty if it's missing.
+static const String &appEtag() {
+	static String etag;
+
+	if (etag.length() == 0) {
+		// Whichever the server sends, see AsyncFileResponse
+		fs::File file = LittleFS.exists("/app.html") ? LittleFS.open("/app.html") : LittleFS.open("/app.html.gz");
+		if (file) {
+			uint8_t buffer[512];
+			uint32_t crc = 0;
+			size_t n;
+			while ((n = file.read(buffer, sizeof(buffer))) > 0) {
+				crc = esp_rom_crc32_le(crc, buffer, n);
+			}
+			etag = "\"" + String(crc, HEX) + "-" + String(file.size()) + "\"";
+		}
+	}
+
+	return etag;
+}
+
+// Answers the request if the browser's copy is current. Otherwise returns NULL.
+static AsyncWebServerResponse *notModified(AsyncWebServerRequest *request, const String &etag) {
+	AsyncWebHeader *match = request->getHeader("If-None-Match");
+	return etag.length() > 0 && match != NULL && match->value() == etag ? request->beginResponse(304) : NULL;
+}
+
+static void addEtag(AsyncWebServerResponse *response, const String &etag) {
+	if (etag.length() > 0) {
+		response->addHeader("ETag", etag);
+		response->addHeader("Cache-Control", "no-cache");	// Keep it, but check before using it
+	}
+}
+
 void configureWebServer() {
 	// Before serveStatic(), which would find the copies in the filesystem
 	for (const SettingsPage &page : settingsPages) {
 		server->on(page.url, HTTP_GET, [&page](AsyncWebServerRequest *request) {
-			AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", page.start, page.end - page.start);
-			response->addHeader("Content-Encoding", "gzip");
+			AsyncWebServerResponse *response = notModified(request, firmwareEtag());
+			if (response == NULL) {
+				response = request->beginResponse_P(200, "text/html", page.start, page.end - page.start);
+				response->addHeader("Content-Encoding", "gzip");
+			}
+			addEtag(response, firmwareEtag());
 			addWebLoginCookie(request, response);	// So the web socket can reconnect after the login has changed
 			request->send(response);
 		});
@@ -1595,19 +1653,27 @@ void configureWebServer() {
 
 	for (const EmbeddedFile &file : embeddedFiles) {
 		server->on(file.url, HTTP_GET, [&file](AsyncWebServerRequest *request) {
-			AsyncWebServerResponse *response = request->beginResponse_P(200, file.type, file.start, file.end - file.start);
-			response->addHeader("Content-Encoding", "gzip");
+			AsyncWebServerResponse *response = notModified(request, firmwareEtag());
+			if (response == NULL) {
+				response = request->beginResponse_P(200, file.type, file.start, file.end - file.start);
+				response->addHeader("Content-Encoding", "gzip");
+			}
+			addEtag(response, firmwareEtag());
 			request->send(response);
 		});
 	}
 
 	// The page that opens the web socket. It's in the filesystem, but served here to set the login cookie.
 	server->on("/app.html", HTTP_GET, [](AsyncWebServerRequest *request) {
-		AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/app.html", "text/html");
+		AsyncWebServerResponse *response = notModified(request, appEtag());
 		if (response == NULL) {
-			request->send(404);	// The filesystem image is missing
-			return;
+			response = request->beginResponse(LittleFS, "/app.html", "text/html");
+			if (response == NULL) {
+				request->send(404);	// The filesystem image is missing
+				return;
+			}
 		}
+		addEtag(response, appEtag());
 		addWebLoginCookie(request, response);
 		request->send(response);
 	});
