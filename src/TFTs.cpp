@@ -229,55 +229,165 @@ StaticSprite& TFTs::getSprite() {
 
 static TFT_eSprite *statusSprite = NULL;
 
-// Its 4K are only allocated while a status is shown, see checkStatus()
-TFT_eSprite& TFTs::getStatusSprite() {
+// The status sprite has four bits a pixel, so it's drawn in indexes into this
+enum { STATUS_BLACK, STATUS_GOLD, STATUS_WHITE };
+static const uint16_t statusPalette[16] = { TFT_BLACK, TFT_GOLD, TFT_WHITE };
+
+// Its 1-5K are only allocated while a status is shown, see checkStatus()
+TFT_eSprite& TFTs::getStatusSprite(int16_t height) {
   if (statusSprite == NULL) {
     statusSprite = new StaticSprite(tfts);
+    statusSprite->setColorDepth(4);
+  }
+
+  if (statusSprite->created() && statusSprite->height() != height) {
+    if (statusSprite->height() > height) {
+      statusShrunk = true;
+    }
+    statusSprite->deleteSprite();
   }
 
   if (!statusSprite->created()) {
-    statusSprite->createSprite(width(), 16);	// If there isn't the memory, drawing on it does nothing
-
-    statusSprite->setTextDatum(BC_DATUM);
-    statusSprite->setTextColor(TFT_GOLD, TFT_BLACK, true);
-    statusSprite->setTextFont(2);
+    statusSprite->createSprite(width(), height);	// If there isn't the memory, drawing on it does nothing
+    statusSprite->createPalette(statusPalette);
   }
 
+  statusSprite->fillSprite(STATUS_BLACK);
   return *statusSprite;
 }
 
-// Returns true if a status message was just removed
+// Returns true if a status message was just removed, or replaced by a shorter one, so what it
+// covered needs drawing again
 bool TFTs::checkStatus() {
-  bool expired = false;
+  bool uncovered = false;
 
-  if (statusSet && millis() - statusTime > 5000) {
+  if (statusSet && millis() - statusTime > statusDuration) {
     claim();  // setStatus() is called by other tasks too
-    if (millis() - statusTime > 5000) {
+    if (millis() - statusTime > statusDuration) {
       statusSet = false;
       if (statusSprite != NULL) {
         statusSprite->deleteSprite();
       }
-      expired = true;
+      uncovered = true;
     }
     release();
   }
 
-  if (expired) {
+  if (statusShrunk) {
+    statusShrunk = false;
+    uncovered = true;
+  }
+
+  if (uncovered) {
     invalidateAllDigits();
   }
 
-  return expired;
+  return uncovered;
 }
 
 void TFTs::setStatus(const char* s) {
   claim();
 
+  TFT_eSprite& sprite = getStatusSprite(fontHeight(2));
+  sprite.setTextDatum(BC_DATUM);
+  sprite.setTextColor(STATUS_GOLD);
+  sprite.drawString(s, width()/2, sprite.height(), 2);
+
+  showStatus(5000);
+
+  release();
+}
+
+// Copies the nth of value's lines. A value with line breaks is split at them, otherwise into lines
+// of equal length.
+static void statusLine(const char *value, uint8_t lines, uint8_t n, char (&line)[64]) {
+  const char *start = value;
+  const char *end;
+
+  if (strchr(value, '\n') != NULL) {
+    for (uint8_t i = 0; i < n && *start; i++) {
+      start = strchr(start, '\n');
+      start = start != NULL ? start + 1 : value + strlen(value);
+    }
+    for (end = start; *end && *end != '\n'; end++);
+  } else {
+    size_t length = strlen(value);
+    size_t perLine = (length + lines - 1) / lines;
+    start += std::min(length, n * perLine);
+    end = start + std::min(perLine, strlen(start));
+  }
+
+  size_t count = std::min((size_t)(end - start), sizeof(line) - 1);
+  memcpy(line, start, count);
+  line[count] = 0;
+}
+
+// The width of the widest of value's lines in font
+static int16_t widestLine(TFT_eSPI& tft, const char *value, uint8_t lines, uint8_t font) {
+  char line[64];
+  int16_t widest = 0;
+
+  for (uint8_t n = 0; n < lines; n++) {
+    statusLine(value, lines, n, line);
+    widest = std::max(widest, tft.textWidth(line, font));
+  }
+
+  return widest;
+}
+
+void TFTs::setStatus(const char *label, const char *value, bool split) {
+  claim();
+
+  uint8_t font = 2, lines = 1;
+  char line[64];
+
+  if (strchr(value, '\n') != NULL) {
+    // Its lines as they are, in the bigger font if they fit
+    lines = 1 + std::count(value, value + strlen(value), '\n');
+    font = widestLine(*this, value, lines, 4) <= width() - 4 ? 4 : 2;
+  } else {
+    // The biggest font and fewest lines it fits in. If it doesn't fit, the ends are cut off.
+    static const struct { uint8_t font, lines; } layouts[] = { {4, 1}, {4, 2}, {2, 1}, {2, 2}, {2, 3}, {2, 4} };
+    for (auto& layout : layouts) {
+      if (layout.lines > 1 && !split) {
+        continue;
+      }
+
+      font = layout.font;
+      lines = layout.lines;
+      if (widestLine(*this, value, lines, font) <= width() - 4) {
+        break;
+      }
+    }
+  }
+
+  int16_t labelHeight = fontHeight(2);
+  int16_t lineHeight = fontHeight(font);
+  // At least two lines of font 4, so that changing to a value in fewer lines doesn't redraw the digits
+  int16_t valueHeight = std::max(lineHeight * lines, fontHeight(4) * 2);
+
+  TFT_eSprite& sprite = getStatusSprite(labelHeight + valueHeight);
+  sprite.setTextDatum(TC_DATUM);
+  sprite.setTextColor(STATUS_GOLD);
+  sprite.drawString(label, width()/2, 0, 2);
+
+  sprite.setTextColor(STATUS_WHITE);
+  int16_t y = labelHeight + (valueHeight - lineHeight * lines) / 2;
+  for (uint8_t n = 0; n < lines; n++, y += lineHeight) {
+    statusLine(value, lines, n, line);
+    sprite.drawString(line, width()/2, y, font);
+  }
+
+  showStatus(6000);  // Longer, as there's more to read
+
+  release();
+}
+
+// Shows the status sprite on every display, for duration milliseconds
+void TFTs::showStatus(unsigned long duration) {
   statusTime = millis();
+  statusDuration = duration;
   statusSet = true;
-  TFT_eSprite& sprite = getStatusSprite();
-  int16_t h = sprite.height();
-  sprite.fillRect(0, 0, width(), h, TFT_BLACK);
-  sprite.drawString(s, width()/2, h);
 
   uint8_t saved = chip_select.getDigitMap();
   chip_select.setAll();
@@ -285,8 +395,6 @@ void TFTs::setStatus(const char* s) {
   drawStatus();
 
   chip_select.setDigitMap(saved, true);
-
-  release();
 }
 
 void TFTs::printlnAll(const char* s) {
@@ -328,14 +436,13 @@ void TFTs::drawStatus() {
     return;
   }
   
-  if (statusSet) {
+  if (statusSet && statusSprite != NULL) {
 #ifdef USE_DMA
   while(dmaBusy()) {
     delay(1);
   }
 #endif
-    TFT_eSprite& sprite = getStatusSprite();
-    sprite.pushSprite(0, height() - sprite.height());
+    statusSprite->pushSprite(0, height() - statusSprite->height());
   }
 }
 

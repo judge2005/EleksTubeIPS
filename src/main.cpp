@@ -792,10 +792,16 @@ void showAccessPoint() {
 	static unsigned long lastShown = 0;
 	static bool showPassword = false;
 
-	if (wifiManager->isAP() && millis() - lastShown >= 4000) {
+	// Less than the 6 s a status with a label lasts, so it's replaced before it goes
+	if (wifiManager->isAP() && millis() - lastShown >= 5000) {
 		lastShown = millis();
-		String status = showPassword ? "Password " + apPassword.value : ssid;
-		tfts->setStatus(status.c_str());
+		if (showPassword) {
+			tfts->setStatus("WiFi password", apPassword.value.c_str(), true);
+		} else {
+			// The ID from createSSID() on a line of its own, so the name fits the bigger text
+			String name = ssid.substring(0, ssid.length() - 4) + "\n" + ssid.substring(ssid.length() - 4);
+			tfts->setStatus("WiFi network", name.c_str());
+		}
 		showPassword = !showPassword;
 	}
 }
