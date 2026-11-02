@@ -137,15 +137,18 @@ static void showError(const String &message) {
     broadcastUpdate("{\"type\":\"sv.update\",\"value\":{\"file_error\":\"" + html + "\"}}");
 }
 
+// Tells the clock's displays too, for a set chosen with the buttons
 static void failed(const String &name, int error) {
+    Serial.printf("Couldn't unpack %s, error %d\n", name.c_str(), error);
+
     if (outOfSpace(error)) {
         tfts->setStatus("Not enough space!");
         showError("Not enough space for " + name + ". Delete sets you don't use, then try again.");
     } else if (shortOfMemory(error)) {
-        tfts->setStatus("Reverting!");
+        tfts->setStatus("Not enough memory!");
         showError("The clock was too busy to unpack " + name + ". Try again.");
     } else {
-        tfts->setStatus("Reverting!");
+        tfts->setStatus("Couldn't unpack!");
         showError(name + " couldn't be unpacked. Try uploading it again.");
     }
 }

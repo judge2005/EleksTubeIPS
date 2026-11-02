@@ -38,7 +38,8 @@ Messages appear for a few seconds at the bottom of the displays, mostly while th
 | AP Destroyed... | The access point has closed. |
 | NTP time received... | It has set its time from the time server. |
 | Not enough space! | There isn't room for the clock face, weather icons or slide show it was changing to, so it kept the one it had. See [Files](#files). |
-| Reverting! | The clock face, weather icons or slide show it was changing to couldn't be loaded, so it went back to the one before. The [Files](#files) page says why. |
+| Not enough memory! | The clock was too busy serving web pages to load the clock face, weather icons or slide show it was changing to, so it kept the one it had. Wait a minute and try again. |
+| Couldn't unpack! | The clock face, weather icons or slide show it was changing to couldn't be loaded, so it's showing the one before. The [Files](#files) page says why. |
 
 ## The web UI
 
