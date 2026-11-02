@@ -412,6 +412,14 @@ bool OpenWeatherMapWeatherService::getWeatherInfo() {
         return false;
     }
 
+    // TLS mostly has the display buffer, but the client's few KB come from the heap, and running out
+    // aborts the program. Wi-Fi reconnecting while web pages are served has left nothing bigger than
+    // 220 bytes for a while.
+    if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 8192) {
+        Serial.println("Too little memory to get the weather");
+        return false;
+    }
+
     WiFiClientSecure client;
 
     const char *host = "api.openweathermap.org";
