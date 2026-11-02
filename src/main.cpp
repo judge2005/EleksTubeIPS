@@ -1839,7 +1839,9 @@ void upgradeEEPROM() {
 
 // From letters and digits that can't be mistaken for each other, so it's easy to copy off the displays
 String randomAPPassword() {
-	const char *characters = "abcdefghijkmnpqrstuvwxyz23456789";	// 32
+	// None that look alike, and none as wide as m and w, so that 8 always fit on a line of the
+	// displays in the bigger text. The fewest WPA2 allows, but it's only on while setting up.
+	const char *characters = "abcdefghijknpqrstuvxyz23456789";	// 30
 	String password;
 
 	// esp_random() is only really random while Wi-Fi is on, or with the bootloader's source, which
@@ -1848,8 +1850,8 @@ String randomAPPassword() {
 	if (wifiOff) {
 		bootloader_random_enable();
 	}
-	for (int i = 0; i < 10; i++) {
-		password += characters[esp_random() % 32];
+	for (int i = 0; i < 8; i++) {
+		password += characters[esp_random() % 30];
 	}
 	if (wifiOff) {
 		bootloader_random_disable();
