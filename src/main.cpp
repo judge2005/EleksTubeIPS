@@ -2110,6 +2110,9 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 		1	/*  */
 	);
 
+	// Not on core 0 with Wi-Fi and lwIP, which take it from this task whenever they need it. Drawing and
+	// unpacking images can keep this task busy for many seconds, and when that also kept core 0's idle
+	// task from running for 5 seconds, the task watchdog restarted the clock.
 	xTaskCreatePinnedToCore(
 		clockTaskFn, /* Function to implement the task */
 		"Clock task", /* Name of the task */
@@ -2117,7 +2120,7 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 		NULL,  /* Task input parameter */
 		tskIDLE_PRIORITY + 1,  /* More than background tasks */
 		&clockTask,  /* Task handle. */
-		0
+		1
 	);
 
 	xTaskCreatePinnedToCore(
