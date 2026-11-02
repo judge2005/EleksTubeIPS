@@ -10,7 +10,7 @@ public:
     static bool isValidName(const String &name);
 
 protected:
-    bool unpackImages(const String &faceName, const String &dest);
+    int unpackImages(const String &fileName, const String &dest);
 
     static bool newUnpack;
     static const char* unpackName;

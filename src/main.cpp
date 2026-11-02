@@ -705,7 +705,8 @@ void runMatrixAnimation() {
 	tfts->invalidateAllDigits();
 }
 
-// Set by the weather task when TLS has had the display buffer, see weatherTaskFn()
+// Set by the weather task when TLS has had the display buffer, see weatherTaskFn(), and when unpacking
+// images has, see ImageUnpacker
 volatile bool displayBufferLent = false;
 
 // Everything that draws, which uses the display buffer. Only call it holding memMutex.

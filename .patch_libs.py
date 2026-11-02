@@ -11,6 +11,10 @@ PATCHES = {
     # When the weather fetch left the clock short of memory, pages and files being sent lost data and
     # never finished, and a new connection could abort the program
     "ESP Async WebServer": "patches/ESPAsyncWebServer.patch",
+    # A face, icon set or slide show that ran out of space partway through unpacking was reported as
+    # unpacked, with the rest of its files left out. Too little memory in one piece for its buffers
+    # aborted the program, and now the clock can lend it them.
+    "ESP32-targz": "patches/ESP32-targz.patch",
 }
 
 def git(library, *args):

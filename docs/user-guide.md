@@ -37,7 +37,8 @@ Messages appear for a few seconds at the bottom of the displays, mostly while th
 | An IP address, such as 192.168.1.50 | It has joined your Wi-Fi network at that address. |
 | AP Destroyed... | The access point has closed. |
 | NTP time received... | It has set its time from the time server. |
-| Reverting! | The clock face, weather icons or slide show it was changing to couldn't be loaded, so it went back to the one before. |
+| Not enough space! | There isn't room for the clock face, weather icons or slide show it was changing to, so it kept the one it had. See [Files](#files). |
+| Reverting! | The clock face, weather icons or slide show it was changing to couldn't be loaded, so it went back to the one before. The [Files](#files) page says why. |
 
 ## The web UI
 
@@ -100,6 +101,8 @@ The clock's images come in sets, each in a `.tar.gz` file: clock faces, weather 
 * **Upload** adds a set from your phone or computer. One with the same name as a set already on the clock replaces it.
 * The trash button deletes a set. You can't delete the one in use.
 * **Free space** shows how much room is left for more.
+
+The set in use in each list is also kept unpacked, which takes more room than its file. For example, the maxclassic weather icons take about 450 KB unpacked, and monochrome about 8 KB. If there isn't room for the set you tap, the clock keeps the one it had, and the Files page says so. Delete sets you don't use, or switch to smaller weather icons or the blank slide show, then try again. If it says the clock was too busy, it was short of memory while serving web pages, so wait a minute and try again.
 
 You can also choose sets with the [clock's buttons](#clock-buttons), and upload and delete them over MQTT, see [Uploading files over MQTT](../README.md#uploading-files-over-mqtt).
 

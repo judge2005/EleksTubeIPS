@@ -1,0 +1,152 @@
+diff --git a/src/ESP32-targz-lib.cpp b/src/ESP32-targz-lib.cpp
+index c1f2190..11bdcad 100644
+--- a/src/ESP32-targz-lib.cpp
++++ b/src/ESP32-targz-lib.cpp
+@@ -45,6 +45,7 @@
+ #endif
+ 
+ #include "ESP32-targz-lib.hpp"
++#include <new>
+ 
+ struct TarGzIO
+ {
+@@ -89,6 +90,7 @@ static unsigned int (*gzReadDestByte)(int offset, unsigned char *out);
+ static const char* tarDestFolder = nullptr;
+ static unsigned char __attribute__((aligned(4))) *output_buffer = nullptr; // gz write buffer
+ static unsigned char *uzlib_gzip_dict = nullptr; // gz dictionnary buffer
++static unsigned char *lent_buffers = nullptr; // from setBuffers()
+ static struct GZ::TINF_DATA uzLibDecompressor; // uzlib object
+ 
+ static tarGzErrorCode _error = ESP32_TARGZ_OK;
+@@ -603,6 +605,7 @@ int TarUnpacker::tarHeaderCallBack( TAR::header_translated_t *header,  CC_UNUSED
+       if( freeBytes < header->filesize ) {
+         // Abort before the partition is smashed!
+         log_e("[TAR ERROR] Not enough space left on device (%llu bytes required / %d bytes available)!", header->filesize, freeBytes );
++        setError( ESP32_TARGZ_FS_FULL_ERROR );
+         return ESP32_TARGZ_FS_FULL_ERROR;
+       }
+     } else {
+@@ -928,6 +931,7 @@ int TarUnpacker::tarStreamWriteCallback(TAR::header_translated_t *header, int en
+     if( wlen != length ) {
+       //tgzLogger("\n");
+       log_e("[TAR ERROR] Written length differs from buffer length (unpacked bytes:%d, expected: %d, returned: %d)!\n", untarredBytesCount, length, wlen );
++      setError( ESP32_TARGZ_FS_WRITE_ERROR );
+       return ESP32_TARGZ_FS_ERROR;
+     }
+     untarredBytesCount+=wlen;
+@@ -1056,10 +1060,27 @@ void GzUnpacker::setDestByteReader( gzDestByteReader cb )
+   gzReadDestByte = cb;
+ }
+ 
++void GzUnpacker::setBuffers( unsigned char* buffer )
++{
++  lent_buffers = buffer;
++}
++
++
++static void freeOutputBuffer()
++{
++  if( lent_buffers == nullptr || output_buffer != lent_buffers + GZIP_DICT_SIZE ) {
++    free( output_buffer );
++  }
++  output_buffer = nullptr;
++}
++
++
+ void GzUnpacker::gzExpanderCleanup()
+ {
+   if( uzlib_gzip_dict != nullptr ) {
+-    if( tgz_use_psram ) {
++    if( uzlib_gzip_dict == lent_buffers ) {
++      // Not ours to free
++    } else if( tgz_use_psram ) {
+       free( uzlib_gzip_dict );
+     } else {
+       delete( uzlib_gzip_dict );
+@@ -1234,10 +1255,13 @@ int GzUnpacker::gzUncompress( bool isupdate, bool stream_to_tar, bool use_dict,
+ 
+   if ( use_dict == true && nodict == false ) {
+ 
+-    if( tgz_use_psram ) {
++    if( lent_buffers ) {
++      uzlib_gzip_dict = lent_buffers;
++    } else if( tgz_use_psram ) {
+       uzlib_gzip_dict = (unsigned char*)tgz_calloc(1, GZIP_DICT_SIZE);
+     } else {
+-      uzlib_gzip_dict = new unsigned char[GZIP_DICT_SIZE];
++      // Without nothrow, too little memory in one piece aborted the program instead of being caught below
++      uzlib_gzip_dict = new (std::nothrow) unsigned char[GZIP_DICT_SIZE];
+     }
+ 
+     if( uzlib_gzip_dict == NULL ) {
+@@ -1279,7 +1303,11 @@ int GzUnpacker::gzUncompress( bool isupdate, bool stream_to_tar, bool use_dict,
+ 
+   GZ::uzlib_uncompress_init(&uzLibDecompressor, uzlib_gzip_dict, uzlib_dict_size);
+ 
+-  output_buffer = (unsigned char *)tgz_calloc( output_buffer_size+1, sizeof(unsigned char) );
++  if( lent_buffers ) {
++    output_buffer = (unsigned char *)memset( lent_buffers + GZIP_DICT_SIZE, 0, output_buffer_size+1 );
++  } else {
++    output_buffer = (unsigned char *)tgz_calloc( output_buffer_size+1, sizeof(unsigned char) );
++  }
+   if( output_buffer == NULL ) {
+     log_e("[ERROR] can't alloc %d bytes for output buffer", output_buffer_size );
+     gzExpanderCleanup();
+@@ -1306,8 +1334,23 @@ int GzUnpacker::gzUncompress( bool isupdate, bool stream_to_tar, bool use_dict,
+       setError( (tarGzErrorCode)(ret-30) );
+       return (tarGzErrorCode)(ret-30);
+     }
+-    while( TAR::read_tar_step() == TAR_OK ) yield();
++    int tarResult;
++    while( (tarResult = TAR::read_tar_step()) == TAR_OK ) yield();
+     outlen = untarredBytesCount;
++    // TAR_ERROR means the data ran out between files, as it does at the end. Anything else stopped
++    // at a file that couldn't be written, which was taken for success with the rest left out.
++    if( tarResult != TAR_EXPANDING_DONE && tarResult != TAR_ERROR ) {
++      log_e("[ERROR] tar expanding stopped (return code #%d)", tarResult-30);
++      if( !tarGzHasError() ) {
++        setError( (tarGzErrorCode)(tarResult-30) );
++      }
++      if( untarredFile ) {
++        untarredFile.close();
++      }
++      freeOutputBuffer();
++      gzExpanderCleanup();
++      return _error;
++    }
+ 
+   } else {
+     // gz will fill a buffer and trigger a write callback
+@@ -1346,7 +1389,7 @@ int GzUnpacker::gzUncompress( bool isupdate, bool stream_to_tar, bool use_dict,
+ 
+     if (res != TINF_DONE) {
+       if( uzLibDecompressor.readSourceErrors > 0 ) {
+-        free( output_buffer );
++        freeOutputBuffer();
+         gzExpanderCleanup();
+         return ESP32_TARGZ_STREAM_ERROR;
+       }
+@@ -1379,7 +1422,7 @@ int GzUnpacker::gzUncompress( bool isupdate, bool stream_to_tar, bool use_dict,
+ 
+   log_d("decompressed %d bytes", outlen + output_position);
+ 
+-  free( output_buffer );
++  freeOutputBuffer();
+   gzExpanderCleanup();
+ 
+   return outlen > 0 ? ESP32_TARGZ_OK : ESP32_TARGZ_STREAM_ERROR;
+diff --git a/src/ESP32-targz-lib.hpp b/src/ESP32-targz-lib.hpp
+index 67c915a..0896fa5 100644
+--- a/src/ESP32-targz-lib.hpp
++++ b/src/ESP32-targz-lib.hpp
+@@ -263,6 +263,10 @@ struct GzUnpacker : virtual public BaseUnpacker
+   void    setStreamWriter( gzStreamWriter cb ); // optional, use with gzStreamExpander
+   void    setDestByteReader( gzDestByteReader cb );
+   void    gzExpanderCleanup();
++  // Use buffer, of at least GZIP_DICT_SIZE + GZIP_BUFF_SIZE + 1 bytes, for the dictionary and output
++  // buffer instead of the heap, which doesn't always have that much in one piece. nullptr goes back to
++  // the heap.
++  void    setBuffers( unsigned char* buffer );
+   int     gzUncompress( bool isupdate = false, bool stream_to_tar = false, bool use_dict = true, bool show_progress = true );
+   static bool         gzStreamWriteCallback( unsigned char* buff, size_t buffsize );
+   static bool         gzReadHeader(fs::File &gzFile);
