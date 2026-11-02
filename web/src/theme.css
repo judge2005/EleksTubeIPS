@@ -1,0 +1,832 @@
+/* The web UI's look over jQuery Mobile's widgets. By day it's paperheartdesign.com's "Blueberry Bliss"
+   palette, and by night color-meanings.com's "Purple Blur", with a stronger shade for what has to stand
+   out. It follows the browser's light or dark setting unless the header's button has picked one, see
+   theme.js. The firmware serves it, and the settings pages link it as well as app.html, so a clock
+   whose filesystem image is older than its firmware gets it too.
+
+   Selectors start with "html body" to outrank jQuery Mobile's theme, and colors that it sets in many
+   places are !important. Not the slider tracks' background-image or the handles' background-color,
+   which app.html sets on the color sliders as they move. */
+
+/* Day: Blueberry Bliss, #1c2127 #0b385f #3373b0 #bed4e9 #e7f1fb */
+:root {
+	color-scheme: light;
+	--font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	--bg: #e7f1fb;
+	--bg-glow: radial-gradient(700px 320px at 15% -140px, rgba(190, 212, 233, .95), transparent), radial-gradient(700px 320px at 90% -120px, rgba(51, 115, 176, .2), transparent);
+	--surface: #fff;
+	--field: #f3f8fd;
+	--track: #d6e4f2;
+	--hover: #edf4fb;
+	--line: #d9e6f2;
+	--text: #1c2127;
+	--muted: #566270;
+	--accent: #3373b0;
+	--accent-fill: linear-gradient(135deg, #3373b0, #0b385f);
+	--accent-soft: rgba(51, 115, 176, .12);
+	--on-accent: #fff;
+	--knob: #fff;
+	--glow: 0 2px 10px rgba(51, 115, 176, .3);
+	--shadow: 0 1px 2px rgba(11, 56, 95, .05), 0 6px 20px rgba(11, 56, 95, .07);
+	--header: rgba(231, 241, 251, .82);
+	--icon-filter: invert(1);
+	--icon-active-filter: none;
+	--theme-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'><path d='M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z'/></svg>");
+	--radius: 16px;
+}
+
+/* The same twice, as a media query can't share a rule with a class */
+@media (prefers-color-scheme: dark) {
+	:root:not(.light) {
+		color-scheme: dark;
+		--bg: #0b0820;
+		--bg-glow: radial-gradient(700px 340px at 15% -150px, rgba(129, 26, 113, .55), transparent), radial-gradient(700px 340px at 90% -130px, rgba(98, 24, 123, .55), transparent);
+		--surface: #151032;
+		--field: #1d1740;
+		--track: #2b2354;
+		--hover: #221b49;
+		--line: #2a2250;
+		--text: #f4efff;
+		--muted: #a99fcf;
+		--accent: #d58bff;
+		--accent-fill: linear-gradient(135deg, #7c3aed, #c026d3);
+		--accent-soft: rgba(192, 90, 255, .16);
+		--on-accent: #fff;
+		--knob: #f6f0ff;
+		--glow: 0 0 18px rgba(192, 38, 211, .55);
+		--shadow: 0 10px 30px rgba(0, 0, 0, .45);
+		--header: rgba(11, 8, 32, .78);
+		--icon-filter: none;
+		--icon-active-filter: none;
+		--theme-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><circle cx='12' cy='12' r='4'/><path d='M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/></svg>");
+	}
+}
+
+:root.dark {
+	color-scheme: dark;
+	--bg: #0b0820;
+	--bg-glow: radial-gradient(700px 340px at 15% -150px, rgba(129, 26, 113, .55), transparent), radial-gradient(700px 340px at 90% -130px, rgba(98, 24, 123, .55), transparent);
+	--surface: #151032;
+	--field: #1d1740;
+	--track: #2b2354;
+	--hover: #221b49;
+	--line: #2a2250;
+	--text: #f4efff;
+	--muted: #a99fcf;
+	--accent: #d58bff;
+	--accent-fill: linear-gradient(135deg, #7c3aed, #c026d3);
+	--accent-soft: rgba(192, 90, 255, .16);
+	--on-accent: #fff;
+	--knob: #f6f0ff;
+	--glow: 0 0 18px rgba(192, 38, 211, .55);
+	--shadow: 0 10px 30px rgba(0, 0, 0, .45);
+	--header: rgba(11, 8, 32, .78);
+	--icon-filter: none;
+	--icon-active-filter: none;
+	--theme-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><circle cx='12' cy='12' r='4'/><path d='M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/></svg>");
+}
+
+/* Page */
+
+html, body, .ui-mobile-viewport {
+	background-color: var(--bg) !important;
+}
+
+html body {
+	background-image: var(--bg-glow) !important;
+	background-repeat: no-repeat !important;
+	background-attachment: fixed !important;
+}
+
+html body * {
+	text-shadow: none !important;
+}
+
+html body, html body input, html body select, html body textarea, html body button, html body .ui-btn {
+	font-family: var(--font) !important;
+	-webkit-font-smoothing: antialiased;
+}
+
+html body .ui-page, html body .ui-page-theme-a, html body .ui-overlay-a {
+	background: transparent !important;
+	color: var(--text) !important;
+}
+
+html body .ui-content {
+	padding: 20px 16px 48px;
+}
+
+/* A setting's unit, after its name */
+html body .ui-content label .unit {
+	color: var(--muted);
+	font-size: .9em;
+	font-weight: 400;
+	white-space: nowrap;
+}
+
+html body .ui-content .hint {
+	margin: 2px 0;
+	color: var(--muted);
+	font-size: .9em;
+	line-height: 1.45;
+}
+
+html body .ui-content code {
+	padding: 1px 5px;
+	background: var(--field);
+	border: 1px solid var(--line);
+	border-radius: 5px;
+	color: var(--text);
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: .92em;
+	white-space: nowrap;
+}
+
+html body .ui-page a:not(.ui-btn) {
+	color: var(--accent) !important;
+	font-weight: 600;
+	text-decoration: none;
+}
+
+/* Header */
+
+html body .ui-page .ui-header {
+	background: var(--header) !important;
+	-webkit-backdrop-filter: saturate(1.4) blur(14px);
+	backdrop-filter: saturate(1.4) blur(14px);
+	border: 0 !important;
+	border-bottom: 1px solid var(--line) !important;
+	color: var(--text) !important;
+}
+
+html body .ui-page .ui-header .ui-title {
+	font-size: 1.05em;
+	font-weight: 650;
+	letter-spacing: .02em;
+	padding: 1em 0;
+}
+
+/* A glowing dot, like a lit tube */
+html body .ui-page .ui-header .ui-title::before {
+	content: "";
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	margin: 0 10px 2px 0;
+	border-radius: 50%;
+	background: var(--accent-fill);
+	box-shadow: 0 0 8px var(--accent);
+	vertical-align: middle;
+}
+
+html body .ui-page .ui-header .ui-btn.ui-btn-icon-notext {
+	width: 40px;
+	height: 40px;
+	top: 50%;
+	margin-top: -20px;
+	padding: 0;
+	background: transparent !important;
+	border: 0 !important;
+	border-radius: 12px !important;
+	box-shadow: none !important;
+}
+
+html body .ui-page .ui-header .ui-btn.ui-btn-icon-notext:hover {
+	background: var(--accent-soft) !important;
+}
+
+html body .ui-page .ui-header .ui-btn-icon-notext::after {
+	width: 22px;
+	height: 22px;
+	margin: -11px 0 0 -11px;
+	border-radius: 0;
+	background: var(--muted) !important;
+	-webkit-mask: var(--icon) center / 22px no-repeat;
+	mask: var(--icon) center / 22px no-repeat;
+	filter: none;
+	opacity: 1;
+}
+
+html body .ui-page .ui-header .ui-btn-icon-notext:hover::after {
+	background: var(--accent) !important;
+}
+
+/* The light or dark button is on the right, and the help link beside it */
+html body .ui-page .ui-header .ui-btn.ui-icon-info {
+	right: 48px;
+}
+
+.ui-icon-theme {
+	--icon: var(--theme-icon);
+}
+
+.ui-icon-bars {
+	--icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><path d='M4 7h16M4 12h16M4 17h10'/></svg>");
+}
+
+.ui-icon-info, #menuList a[pageid="Info"] {
+	--icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><circle cx='12' cy='12' r='9'/><path d='M12 11v5M12 8h.01'/></svg>");
+}
+
+/* Cards */
+
+html body .ui-content > form, html body #clock-info {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+	box-shadow: var(--shadow);
+	padding: 10px 18px 16px;
+}
+
+html body .ui-content label, html body .ui-content .ui-field-contain > label {
+	color: var(--text);
+	font-weight: 500;
+}
+
+html body .dispInlineLabel {
+	min-width: 27%;
+	padding: 8px 14px 8px 0;
+	box-sizing: border-box;
+}
+
+html body .dispInline {
+	padding: 4px 0;
+}
+
+/* jQuery Mobile's small controls have a margin all round, which indents them from the rows' left edge */
+html body .dispInline > [class*="ui-"] {
+	margin-left: 0;
+}
+
+/* Rows are separated by these, so they make the dividers */
+html body .ui-content form .clearFloats {
+	height: 0;
+	margin: 8px 0;
+	border-top: 1px solid var(--line);
+}
+
+html body .ui-content form > .clearFloats:last-child,
+html body .ui-content form > .clearFloats:first-child,
+html body .ui-content form .ui-field-contain > .clearFloats:first-child,
+html body .ui-collapsible-content > .clearFloats:first-child,
+html body .ui-collapsible-content > div:first-child > .clearFloats:first-child {
+	border-top: 0;
+	margin: 0;
+}
+
+html body .ui-field-contain {
+	padding: 14px 0;
+	border-bottom: 0 !important;
+	border-top: 1px solid var(--line);
+}
+
+/* Narrower than this, OpenWeatherMap in the Weather page's label is wider than the label column and runs under
+   its field, so labels go above their fields as on a phone, as jQuery Mobile puts them in a popup */
+@media (min-width: 28em) and (max-width: 37.99em) {
+	html body .ui-field-contain > label {
+		float: none;
+		width: auto;
+		margin: 0 0 .4em;
+	}
+
+	html body .ui-field-contain > label ~ [class*="ui-"]:not(.ui-flipswitch) {
+		float: none;
+		width: 100%;
+	}
+}
+
+/* Labels beside their fields, in the same column as the other rows' */
+@media (min-width: 38em) {
+	html body .ui-field-contain > label {
+		width: 25%;
+	}
+
+	html body .ui-field-contain > label ~ [class*="ui-"] {
+		width: 73%;
+	}
+}
+
+/* A slider's label goes above it, as it does for the sliders that aren't in a field */
+html body .ui-field-contain > label:has(+ .ui-slider) {
+	float: none;
+	display: block;
+	width: auto;
+	margin: 0 0 .5em;
+}
+
+html body .ui-field-contain > label + .ui-slider {
+	float: none;
+	width: auto;
+}
+
+html body .ui-content form > .ui-field-contain:first-child,
+html body .clearFloats + .ui-field-contain,
+html body .ui-collapsible-content .ui-field-contain {
+	border-top: 0;
+}
+
+/* A row of the other kind straight after a field */
+html body .ui-field-contain:has(+ .dispInlineLabel) {
+	border-bottom: 1px solid var(--line) !important;
+}
+
+/* A hint under a field belongs to it */
+html body .ui-content form .ui-field-contain + .clearFloats,
+html body .ui-content form .ui-collapsible-content .clearFloats {
+	border-top: 0;
+	margin: 4px 0;
+}
+
+/* Sections that open and close, inside a card */
+
+html body .ui-collapsible {
+	margin: 14px 0 4px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	overflow: hidden;
+}
+
+html body .ui-page .ui-collapsible-heading .ui-btn {
+	background: var(--field) !important;
+	border: 0 !important;
+	border-radius: 0 !important;
+	color: var(--text) !important;
+	font-weight: 650;
+}
+
+html body .ui-page .ui-collapsible-content {
+	background: transparent !important;
+	border: 0 !important;
+	color: var(--text) !important;
+	padding: 6px 16px 14px;
+}
+
+/* Buttons and icons */
+
+html body .ui-page .ui-btn:not(.ui-slider-handle), html body .ui-popup .ui-btn {
+	background-color: var(--field) !important;
+	border-color: var(--line) !important;
+	color: var(--text) !important;
+	box-shadow: none !important;
+	font-weight: 600;
+}
+
+html body .ui-page .ui-btn:not(.ui-slider-handle):hover, html body .ui-popup .ui-btn:hover {
+	background-color: var(--hover) !important;
+}
+
+html body .ui-page .ui-btn:focus, html body .ui-popup .ui-btn:focus {
+	box-shadow: 0 0 0 3px var(--accent-soft) !important;
+}
+
+html body .ui-page .ui-btn.ui-btn-active, html body .ui-popup .ui-btn.ui-btn-active {
+	background: var(--accent-fill) !important;
+	border-color: transparent !important;
+	color: var(--on-accent) !important;
+}
+
+html body .ui-content a[data-role="button"], html body .ui-content .ui-input-btn, html body .ui-popup .ui-btn {
+	border-radius: 12px !important;
+	padding-top: .8em;
+	padding-bottom: .8em;
+}
+
+/* The main action on its page */
+html body .ui-content > a[data-rel="popup"].ui-btn, html body .ui-content .ui-input-btn:has(#get_weather) {
+	background: var(--accent-fill) !important;
+	border-color: transparent !important;
+	color: var(--on-accent) !important;
+	box-shadow: var(--glow) !important;
+}
+
+html body #delete_face_popup .ui-btn-b {
+	background-color: #d4402f !important;
+	border-color: #d4402f !important;
+	color: #fff !important;
+}
+
+/* jQuery Mobile's icons are white on a grey disc. Without the disc, they're inverted where it's light. */
+html body .ui-btn::after {
+	background-color: transparent !important;
+	filter: var(--icon-filter);
+	opacity: .5;
+}
+
+html body .ui-btn.ui-btn-active::after, html body #delete_face_popup .ui-btn-b::after {
+	filter: var(--icon-active-filter);
+	opacity: .9;
+}
+
+html body .ui-icon-trash::after {
+	background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6'/></svg>") !important;
+	background-position: center !important;
+	background-size: 18px !important;
+}
+
+/* Text fields */
+
+html body .ui-page .ui-input-text, html body .ui-popup .ui-input-text {
+	background: var(--field) !important;
+	border: 1px solid var(--line) !important;
+	border-radius: 10px !important;
+	box-shadow: none !important;
+}
+
+html body .ui-page .ui-input-text.ui-focus, html body .ui-popup .ui-input-text.ui-focus {
+	border-color: var(--accent) !important;
+	box-shadow: 0 0 0 3px var(--accent-soft) !important;
+}
+
+/* The Network page's hidden field */
+html body .ui-page .ui-input-text:has(#__hidden__) {
+	display: none;
+}
+
+html body .ui-input-text input {
+	color: var(--text) !important;
+	background: transparent !important;
+	min-height: 2.4em;
+	margin: 0;
+	padding: .45em .75em;
+}
+
+/* Segmented buttons */
+
+html body .ui-controlgroup-horizontal .ui-controlgroup-controls {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 2px;
+	padding: 3px;
+	background: var(--field);
+	border: 1px solid var(--line);
+	border-radius: 12px;
+}
+
+html body .ui-page .ui-controlgroup-horizontal .ui-controlgroup-controls .ui-btn {
+	background: transparent !important;
+	border: 0 !important;
+	border-radius: 9px !important;
+	color: var(--muted) !important;
+	padding: .6em 1em;
+}
+
+/* The radio buttons are behind their labels, which are see-through here */
+html body .ui-controlgroup-horizontal .ui-radio input {
+	opacity: 0;
+}
+
+html body .ui-page .ui-controlgroup-horizontal .ui-controlgroup-controls .ui-btn:hover {
+	color: var(--text) !important;
+}
+
+html body .ui-page .ui-controlgroup-horizontal .ui-controlgroup-controls .ui-btn.ui-btn-active {
+	background: var(--accent-fill) !important;
+	color: var(--on-accent) !important;
+	box-shadow: var(--glow) !important;
+}
+
+/* Drop-down lists */
+
+html body .ui-page .ui-select .ui-btn {
+	border-width: 1px !important;
+	border-style: solid !important;
+	border-radius: 10px !important;
+	text-align: left;
+	padding-left: .9em;
+}
+
+/* Switches */
+
+html body .ui-page .ui-flipswitch {
+	background: var(--track) !important;
+	border: 1px solid var(--line) !important;
+	border-radius: 999px !important;
+	box-shadow: none !important;
+}
+
+html body .ui-page .ui-flipswitch.ui-flipswitch-active {
+	background: var(--accent-fill) !important;
+	border-color: transparent !important;
+	box-shadow: var(--glow) !important;
+}
+
+html body .ui-page .ui-flipswitch .ui-btn.ui-flipswitch-on {
+	background: var(--knob) !important;
+	border: 0 !important;
+	border-radius: 50% !important;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, .3) !important;
+	color: var(--on-accent) !important;
+}
+
+html body .ui-page .ui-flipswitch .ui-flipswitch-off {
+	color: var(--muted);
+	font-weight: 600;
+}
+
+/* Sliders */
+
+/* Wide enough for four digits beside the up and down arrows, which jQuery Mobile hides in Chrome and
+   Safari by turning off the field's own appearance */
+html body .ui-page input.ui-slider-input {
+	-webkit-appearance: auto;
+	appearance: auto;
+	width: 58px;
+	padding: 4px 4px 4px 6px;
+	background: var(--field) !important;
+	border: 1px solid var(--line) !important;
+	border-radius: 8px !important;
+	box-shadow: none !important;
+	color: var(--text) !important;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+html body .ui-page input.ui-slider-input::-webkit-inner-spin-button {
+	-webkit-appearance: inner-spin-button;
+}
+
+html body .ui-page .ui-slider-track {
+	background-color: var(--track) !important;
+	border: 0 !important;
+	border-radius: 999px !important;
+	box-shadow: none !important;
+	height: 8px;
+	top: 11px;
+	margin-left: 82px;
+}
+
+html body .ui-page .hue + .ui-slider-track,
+html body .ui-page .saturation + .ui-slider-track,
+html body .ui-page .value + .ui-slider-track {
+	height: 12px;
+	top: 9px;
+}
+
+html body .ui-page .ui-slider-track .ui-slider-bg {
+	background: var(--accent-fill) !important;
+	border: 0 !important;
+	border-radius: 999px !important;
+	box-shadow: var(--glow) !important;
+}
+
+html body .ui-page .ui-slider-track .ui-slider-handle {
+	box-sizing: border-box;
+	width: 24px;
+	height: 24px;
+	margin: -12px 0 0 -12px;
+	background-color: var(--knob);
+	border: 3px solid var(--accent) !important;
+	border-radius: 50% !important;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, .3) !important;
+}
+
+html body .ui-page .hue + .ui-slider-track .ui-slider-handle,
+html body .ui-page .saturation + .ui-slider-track .ui-slider-handle,
+html body .ui-page .value + .ui-slider-track .ui-slider-handle {
+	border-color: #fff !important;
+}
+
+/* The Display On hours */
+
+html body .rs-control .rs-range-color {
+	background: var(--accent-fill);
+}
+
+html body .rs-control .rs-path-color {
+	background-color: var(--track);
+}
+
+html body .rs-control .rs-bg-color {
+	background-color: var(--surface);
+}
+
+html body .rs-control .rs-border {
+	border-color: transparent;
+}
+
+html body .rs-control .rs-handle {
+	background-color: var(--knob);
+	border: 3px solid var(--accent);
+	box-shadow: 0 1px 4px rgba(0, 0, 0, .3);
+}
+
+html body .rs-tooltip-text {
+	color: var(--text);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+html body .rs-tooltip, html body .rs-tooltip.hover, html body .rs-tooltip.edit {
+	background: transparent !important;
+}
+
+/* Color pickers */
+
+html body .ui-page .ui-input-text.spectrum {
+	width: auto !important;
+	background: transparent !important;
+	border: 0 !important;
+}
+
+html body .sp-replacer {
+	background: var(--field);
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	color: var(--text);
+	padding: 5px 6px;
+}
+
+html body .sp-replacer:hover, html body .sp-replacer.sp-active {
+	border-color: var(--accent);
+}
+
+html body .sp-dd {
+	color: var(--muted);
+}
+
+html body .sp-container {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	box-shadow: var(--shadow);
+}
+
+/* Lists */
+
+html body .ui-listview-inset {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: var(--radius) !important;
+	box-shadow: var(--shadow);
+	overflow: hidden;
+}
+
+html body .ui-page .ui-listview > li > .ui-btn {
+	background: transparent !important;
+	border-color: var(--line) !important;
+	color: var(--text) !important;
+	font-weight: 500;
+}
+
+html body .ui-page .ui-listview > li > .ui-btn:hover {
+	background: var(--hover) !important;
+}
+
+html body .ui-page .ui-listview > li > .ui-btn.ui-btn-active {
+	background: var(--accent-soft) !important;
+	color: var(--accent) !important;
+	font-weight: 650;
+}
+
+html body .ui-page .ui-listview > li > .ui-btn.ui-btn-active::after {
+	filter: var(--icon-filter);
+	opacity: .5;
+}
+
+/* Navigation */
+
+html body #mainMenu {
+	background: var(--surface) !important;
+	border-right: 1px solid var(--line);
+	color: var(--text) !important;
+}
+
+html body #mainMenu .ui-header {
+	background: transparent !important;
+	border: 0 !important;
+}
+
+html body #mainMenu .ui-header .ui-title {
+	margin: 0 1em;
+	padding: 1.4em 0 .6em;
+	color: var(--muted) !important;
+	font-size: .72em;
+	font-weight: 700;
+	letter-spacing: .16em;
+	text-align: left;
+	text-transform: uppercase;
+}
+
+html body #mainMenu .ui-listview-inset {
+	margin: 0;
+	background: transparent;
+	border: 0;
+	box-shadow: none;
+}
+
+html body #mainMenu .ui-listview > li > .ui-btn {
+	margin: 2px 0;
+	padding: .85em 1em .85em 3.1em;
+	background: transparent !important;
+	border: 0 !important;
+	border-radius: 10px !important;
+	color: var(--text) !important;
+	font-weight: 550;
+}
+
+html body #mainMenu .ui-listview > li > .ui-btn:hover {
+	background: var(--hover) !important;
+}
+
+html body #mainMenu .ui-listview > li > .ui-btn.ui-btn-active {
+	background: var(--accent-soft) !important;
+	color: var(--accent) !important;
+}
+
+html body #mainMenu .ui-listview > li > .ui-btn::after {
+	display: none;
+}
+
+html body #menuList a::before {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 1em;
+	width: 20px;
+	height: 20px;
+	margin-top: -10px;
+	background: currentColor;
+	-webkit-mask: var(--icon) center / 20px no-repeat;
+	mask: var(--icon) center / 20px no-repeat;
+	opacity: .8;
+}
+
+#menuList a[pageid="Clock"] {
+	--icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><circle cx='12' cy='12' r='9'/><path d='M12 7v5l3 2'/></svg>");
+}
+
+#menuList a[pageid="LEDs"] {
+	--icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><circle cx='12' cy='12' r='4'/><path d='M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/></svg>");
+}
+
+#menuList a[pageid="Files"] {
+	--icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'><path d='M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/></svg>");
+}
+
+#menuList a[pageid="Weather"] {
+	--icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'><path d='M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.1 11.1 3.5 3.5 0 0 0 7 18z'/></svg>");
+}
+
+#menuList a[pageid="Screen Saver"] {
+	--icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'><path d='M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z'/></svg>");
+}
+
+#menuList a[pageid="MQTT"] {
+	--icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><circle cx='12' cy='12' r='2'/><path d='M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8'/></svg>");
+}
+
+#menuList a[pageid="Network"] {
+	--icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><path d='M2 8.5a15 15 0 0 1 20 0M5 12a10.5 10.5 0 0 1 14 0M8.5 15.5a5.5 5.5 0 0 1 7 0M12 19h.01'/></svg>");
+}
+
+/* Pop-ups */
+
+html body .ui-popup {
+	background: var(--surface) !important;
+	border: 1px solid var(--line) !important;
+	border-radius: var(--radius) !important;
+	box-shadow: 0 24px 60px rgba(0, 0, 0, .35) !important;
+	color: var(--text) !important;
+}
+
+html body .ui-popup-screen.in {
+	background: rgba(10, 7, 4, .5);
+}
+
+/* The Info page */
+
+html body #clock-info {
+	width: 100%;
+	padding: 0;
+	border-collapse: separate;
+	border-spacing: 0;
+	overflow: hidden;
+}
+
+html body #clock-info thead {
+	display: none;
+}
+
+html body #clock-info th, html body #clock-info td {
+	padding: .7em 1.1em;
+	background: transparent !important;
+	border-bottom: 1px solid var(--line);
+	font-size: .93em;
+}
+
+html body #clock-info tbody th {
+	color: var(--muted);
+	font-weight: 500;
+	text-align: left;
+	white-space: nowrap;
+}
+
+html body #clock-info tbody td {
+	color: var(--text);
+	font-variant-numeric: tabular-nums;
+	word-break: break-word;
+}
+
+html body #clock-info tbody tr:last-child > * {
+	border-bottom: 0;
+}

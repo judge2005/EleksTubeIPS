@@ -27,7 +27,8 @@ function buildfs_inline() {
             base: srcFolder,
             js: uglify,
             css: [cleancss],
-            disabledTypes: ['svg', 'img']
+            disabledTypes: ['svg', 'img'],
+            ignore: ['/theme.css']   // The firmware serves it, see buildfs_theme()
         }))
     	.pipe(inlineImages({
             webRoot: srcFolder
@@ -42,5 +43,14 @@ function buildfs_inline() {
         .pipe(dest(dataFolder));
 }
 
+// Linked rather than inlined, and built into the firmware, so that the pages and app.html share it and a
+// clock that's only had its firmware updated gets it too
+function buildfs_theme() {
+    return src(srcFolder + '/theme.css')
+        .pipe(cleancss())
+        .pipe(gzip())
+        .pipe(dest(dataFolder));
+}
+
 exports.clean = clean;
-exports.default = series(clean, buildfs_inline);
+exports.default = series(clean, buildfs_inline, buildfs_theme);

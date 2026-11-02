@@ -1560,6 +1560,11 @@ static const SettingsPage settingsPages[] = {
 	{ "/info.html", infoPageStart, infoPageEnd }
 };
 
+// The web UI's look. The settings pages link it as well as app.html, so a clock with an older filesystem
+// image, and so an older app.html, gets it too.
+extern const uint8_t themeStart[] asm("_binary_data_theme_css_gz_start");
+extern const uint8_t themeEnd[] asm("_binary_data_theme_css_gz_end");
+
 void configureWebServer() {
 	// Before serveStatic(), which would find the copies in the filesystem
 	for (const SettingsPage &page : settingsPages) {
@@ -1570,6 +1575,12 @@ void configureWebServer() {
 			request->send(response);
 		});
 	}
+
+	server->on("/theme.css", HTTP_GET, [](AsyncWebServerRequest *request) {
+		AsyncWebServerResponse *response = request->beginResponse_P(200, "text/css", themeStart, themeEnd - themeStart);
+		response->addHeader("Content-Encoding", "gzip");
+		request->send(response);
+	});
 
 	// The page that opens the web socket. It's in the filesystem, but served here to set the login cookie.
 	server->on("/app.html", HTTP_GET, [](AsyncWebServerRequest *request) {

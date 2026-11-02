@@ -1,13 +1,16 @@
         <div data-role="page" id="Screen Saver">
+            <link rel="stylesheet" href="/theme.css">
+            <script src="/theme.js"></script>
             <div data-role="header" data-position="fixed">
                 <h1>Screen Saver</h1>
 				<a href="#mainMenu" data-rel="main-menu-panel" class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
 				<a href="https://github.com/judge2005/EleksTubeIPS/wiki/User-Guide#screen-saver" target="_blank" class="ui-btn ui-btn-right ui-btn-icon-notext ui-icon-info ui-corner-all"></a>
+				<a href="#" onclick="toggleTheme();return false;" title="Light or dark" class="ui-btn ui-btn-right ui-btn-icon-notext ui-icon-theme ui-corner-all"></a>
             </div>
             <div data-role="content">
                 <form action="/set_matrix" method="POST" id="matrix_form">
 					<label for="screen_saver_delay">Delay (mins) 0=never</label>
-					<input onchange="elementChange(this)" type="range" name="screen_saver_delay" id="screen_saver_delay" min="0" max="120" value="20">
+					<input onchange="elementChange(this)" type="range" data-highlight="true" name="screen_saver_delay" id="screen_saver_delay" min="0" max="120" value="20">
 					<div class="clearFloats"></div>
 					<div class="dispInlineLabel">
 						<label>Off State</label>
@@ -23,7 +26,7 @@
 					<div id="matrix_container" style="display: none;">
 						<div data-role="fieldcontain">
 							<label for="matrix_speed">Animation frames/sec</label>
-							<input onchange="elementChange(this)" type="range" name="matrix_speed" id="matrix_speed" min="1" max="50" value="40">
+							<input onchange="elementChange(this)" type="range" data-highlight="true" name="matrix_speed" id="matrix_speed" min="1" max="50" value="40">
 							<div class="clearFloats"></div>
 							<div class="dispInlineLabel">
 								<label for="matrix_hue_cycling">Hue Cycling</label>
@@ -37,7 +40,7 @@
 							<div id="mct_container" style="display: block;">
 								<div class="clearFloats"></div>
 								<label for="matrix_hue_cycle_time">Cycle Time(s)</label>
-								<input onchange="elementChange(this)" type="range" name="matrix_hue_cycle_time" id="matrix_hue_cycle_time" min="12" max="1200" value="139">
+								<input onchange="elementChange(this)" type="range" data-highlight="true" name="matrix_hue_cycle_time" id="matrix_hue_cycle_time" min="12" max="1200" value="139">
 							</div>
 						</div>
 						<div class="clearFloats"></div>
