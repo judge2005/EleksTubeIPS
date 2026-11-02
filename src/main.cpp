@@ -1623,6 +1623,11 @@ static const String &appEtag() {
 	return etag;
 }
 
+// Sending app.html takes several KB for the few seconds it lasts. Several at once left Wi-Fi so little
+// memory that it could stop sending for good. A browser only needs one, so more than two wait.
+static uint8_t appSends = 0;	// Only used on async_tcp
+static const uint8_t maxAppSends = 2;
+
 // Answers the request if the browser's copy is current. Otherwise returns NULL.
 static AsyncWebServerResponse *notModified(AsyncWebServerRequest *request, const String &etag) {
 	AsyncWebHeader *match = request->getHeader("If-None-Match");
@@ -1667,11 +1672,19 @@ void configureWebServer() {
 	server->on("/app.html", HTTP_GET, [](AsyncWebServerRequest *request) {
 		AsyncWebServerResponse *response = notModified(request, appEtag());
 		if (response == NULL) {
+			if (appSends >= maxAppSends) {
+				response = request->beginResponse(503);
+				response->addHeader("Retry-After", "1");
+				request->send(response);
+				return;
+			}
 			response = request->beginResponse(LittleFS, "/app.html", "text/html");
 			if (response == NULL) {
 				request->send(404);	// The filesystem image is missing
 				return;
 			}
+			appSends++;
+			request->onDisconnect([]() { appSends--; });
 		}
 		addEtag(response, appEtag());
 		addWebLoginCookie(request, response);
