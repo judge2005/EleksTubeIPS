@@ -36,6 +36,7 @@
 #include "IRAMPtrArray.h"
 #include "Uptime.h"
 #include "TLSArena.h"
+#include "WiFiWatchdog.h"
 
 //#define DEBUG(...) { Serial.println(__VA_ARGS__); }
 #ifndef DEBUG
@@ -2019,6 +2020,8 @@ void wifiManagerTaskFn(void *pArg) {
 		xSemaphoreTake(wsMutex, portMAX_DELAY);
 		wifiManager->loop();
 		xSemaphoreGive(wsMutex);
+
+		WiFiWatchdog::loop();
 
 		delay(50);
 	}
