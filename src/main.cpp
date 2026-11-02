@@ -1311,7 +1311,7 @@ void wsHandler(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
 
 void mainHandler(AsyncWebServerRequest *request) {
 	DEBUG("Got request")
-	request->send(LittleFS, "/index.html");
+	request->redirect("/app.html");	// Straight there, rather than through index.html and its refresh
 }
 
 void timeHandler(AsyncWebServerRequest *request) {
