@@ -15,6 +15,9 @@ PATCHES = {
     # unpacked, with the rest of its files left out. Too little memory in one piece for its buffers
     # aborted the program, and now the clock can lend it them.
     "ESP32-targz": "patches/ESP32-targz.patch",
+    # A web connection that came in when there wasn't the memory for it was freed, then used by lwIP,
+    # which stopped the program with "tcp_receive: wrong state"
+    "AsyncTCP": "patches/AsyncTCP.patch",
 }
 
 def git(library, *args):
