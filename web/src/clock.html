@@ -27,7 +27,7 @@
 				</fieldset>
 			</div>
 			<div class="clearFloats"></div>
-			<label for="display_cycle">Cycle Time, Date, Weather (secs) 0=off</label>
+			<label for="display_cycle">Cycle Time, Date, Weather <span class="unit">(seconds each, 0 = off)</span></label>
 			<input onchange="elementChange(this)" type="range" data-highlight="true" name="display_cycle" id="display_cycle" min="0" max="240" value="0">
 			<div id="time_container" style="display: none;">
 				<div class="clearFloats"></div>
@@ -112,8 +112,9 @@
 					data-mini="true" />
 			</div>
 			<div class="clearFloats"></div>
-			Look <a target="_blank" rel="noopener noreferrer" href="https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv">here</a>
-			for a full list of strings (use the value in the second column)
+			<p class="hint">Find your area in <a target="_blank" rel="noopener noreferrer" href="https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv">this list</a>
+			and copy the text from its second column, without the quotes, such as <code>EST5EDT,M3.2.0,M11.1.0</code>
+			for America/New_York. It tells the clock its offset from UTC and when daylight saving time starts and ends.</p>
 		</form>
 	</div>
 </div>

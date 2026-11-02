@@ -9,7 +9,7 @@
             </div>
             <div data-role="content">
                 <form action="/set_matrix" method="POST" id="matrix_form">
-					<label for="screen_saver_delay">Delay (mins) 0=never</label>
+					<label for="screen_saver_delay">Delay <span class="unit">(minutes, 0 = never)</span></label>
 					<input onchange="elementChange(this)" type="range" data-highlight="true" name="screen_saver_delay" id="screen_saver_delay" min="0" max="120" value="20">
 					<div class="clearFloats"></div>
 					<div class="dispInlineLabel">
@@ -25,7 +25,7 @@
 					</div>
 					<div id="matrix_container" style="display: none;">
 						<div data-role="fieldcontain">
-							<label for="matrix_speed">Animation frames/sec</label>
+							<label for="matrix_speed">Animation Speed <span class="unit">(frames per second)</span></label>
 							<input onchange="elementChange(this)" type="range" data-highlight="true" name="matrix_speed" id="matrix_speed" min="1" max="50" value="40">
 							<div class="clearFloats"></div>
 							<div class="dispInlineLabel">
@@ -39,7 +39,7 @@
 							</div>
 							<div id="mct_container" style="display: block;">
 								<div class="clearFloats"></div>
-								<label for="matrix_hue_cycle_time">Cycle Time(s)</label>
+								<label for="matrix_hue_cycle_time">Hue Cycle Time <span class="unit">(seconds)</span></label>
 								<input onchange="elementChange(this)" type="range" data-highlight="true" name="matrix_hue_cycle_time" id="matrix_hue_cycle_time" min="12" max="1200" value="139">
 							</div>
 						</div>
