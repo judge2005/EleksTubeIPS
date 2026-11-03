@@ -73,7 +73,7 @@ There's no Save button. A change takes effect on the clock straight away, and th
   * **Leading Zero** shows a 0 before single-digit hours, such as 09:30 rather than 9:30.
 * **Date Format** is shown when Display is Date: DD-MM-YY, MM-DD-YY or YY-MM-DD.
 * **Display On** sets the hours the displays are on. Drag the two handles. In "7 - 23", the displays come on at 7:00 and go off at 23:00. If the two numbers are the same, the displays are always on.
-* **Off State** chooses what the displays do outside those hours: **Blank** turns them off, **Dim** shows the time more dimly, and **Matrix** shows the digital rain animation, in the colors set on the [Screen Saver](#screen-saver) page.
+* **Off State** chooses what the displays do outside those hours: **Blank** turns them off, **Dim** carries on showing the same things more dimly, still cycling through the time, date and weather if Cycle Time, Date, Weather is set, and **Matrix** shows the digital rain animation, in the colors set on the [Screen Saver](#screen-saver) page.
 * **Brightness** sets how bright the displays are, from 10 to 255.
 * **Timezone Definition** tells the clock its offset from UTC and when daylight saving time starts and ends. Find your area in [this list](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv) and copy the text from its second column, without the quotes, such as `EST5EDT,M3.2.0,M11.1.0` for America/New_York.
 

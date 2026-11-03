@@ -750,7 +750,8 @@ void updateDisplays() {
 				break;
 		}
 	} else {
-		if (ipsClock->clockOn()) {
+		// Dim is still showing, so keeps cycling. Blank isn't, so waits for the displays to come on
+		if (ipsClock->clockOn() || (ipsClock->getDimming() == IPSClock::DIM)) {
 			cycleDisplays();
 		}
 
