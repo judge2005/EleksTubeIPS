@@ -1,0 +1,60 @@
+# Publishes the web installer (installer/index.html) to GitHub Pages with the
+# firmware from a release. Runs when a release is published, or by hand for
+# any release tag.
+#
+# One-time setup:
+# - Settings > Pages > Build and deployment > Source: GitHub Actions.
+# - Settings > Environments > github-pages > Deployment branches and tags: add a
+#   Tag rule for v*. Release runs are on the tag, and only the default branch can deploy otherwise.
+
+name: Web installer
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish, such as v2.0.0. Leave empty for the latest release.
+        required: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Pre-releases don't replace the installer
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build site
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          if [ -z "$TAG" ]; then
+            TAG=$(gh release view --json tagName --jq .tagName)
+          fi
+          installer/build.sh "$TAG" _site
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
