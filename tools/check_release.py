@@ -18,6 +18,7 @@ import shutil
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+NOTES = os.path.join(".github", "release-notes.md")
 FLASH_SIZES = {"4MB": 4 * 1024 * 1024, "8MB": 8 * 1024 * 1024}
 
 problems = []
@@ -84,6 +85,10 @@ def check_docs_name_version(version):
         for mention in sorted(set(mentions) - {version}):
             problem(f"README.md still names version {mention}, but version.py says {version}")
 
+    notes = read(NOTES)
+    for clock in clocks():
+        if f"firmware-{clock}-$version$.bin" not in notes:
+            problem(f"{NOTES} doesn't list {clock}")
 
 
 def check_manifests(version):

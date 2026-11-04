@@ -1,0 +1,78 @@
+# Pushing a tag such as v2.0.0 builds every clock from scratch and makes a draft release with the files.
+# Publishing the draft is what releases it, and updates the web installer, see web-installer.yml.
+# docs/releasing.md has the steps.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Check the tag and version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - run: python3 tools/check_release.py --tag "$GITHUB_REF_NAME"
+
+  build:
+    needs: version
+    uses: ./.github/workflows/build.yml
+    with:
+      use-cache: false
+
+  draft:
+    name: Make the draft release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-files
+          path: dist
+
+      - name: Create it, or update it if this is a re-run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$GITHUB_REF_NAME
+          version=${tag#v}
+
+          if is_draft=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$is_draft" != true ]; then
+              echo "::error::Release $tag is already published, so its files stay as they are"
+              exit 1
+            fi
+            gh release upload "$tag" dist/* --clobber
+            exit 0
+          fi
+
+          installer="https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPOSITORY#*/}/"
+          sed -e 's|\$version\$|'"$version"'|g' -e 's|\$installer\$|'"$installer"'|g' \
+              .github/release-notes.md > notes.md
+          if grep -n '\$[a-z]*\$' notes.md; then
+            echo "::error::.github/release-notes.md has a placeholder that wasn't filled in"
+            exit 1
+          fi
+
+          # A tag such as v2.0.0-rc.1 is a pre-release, which doesn't replace the web installer
+          prerelease=()
+          if [[ "$tag" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+
+          gh release create "$tag" dist/* --draft --verify-tag --title "$version" \
+            --notes-file notes.md --generate-notes "${prerelease[@]}"
