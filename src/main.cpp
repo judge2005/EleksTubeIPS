@@ -69,8 +69,8 @@ IRAMPtrArray<const char*> manifest {
 #else
 	"Unknown clock hardware",
 #endif
-	// Firmware version
-	"1.9.5",
+	// Firmware version, from version.py
+	FIRMWARE_VERSION,
 	// Hardware chip/variant
 	"ESP32",
 	// Device name
