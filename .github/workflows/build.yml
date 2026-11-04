@@ -1,0 +1,132 @@
+# Builds every clock in platformio.ini with its filesystem image, then checks the files together.
+# CI and Release both call this, so a release is built the same way as every pull request.
+
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      use-cache:
+        description: Reuse the downloaded toolchains. Releases build without them.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  clocks:
+    name: List the clocks
+    runs-on: ubuntu-latest
+    outputs:
+      clocks: ${{ steps.list.outputs.clocks }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - id: list
+        run: echo "clocks=$(sed -n 's/^\[env:\(.*\)\]$/\1/p' platformio.ini | jq -Rcn '[inputs]')" >> "$GITHUB_OUTPUT"
+
+  clock:
+    name: ${{ matrix.clock }}
+    needs: clocks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        clock: ${{ fromJSON(needs.clocks.outputs.clocks) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - uses: actions/cache@v6
+        if: ${{ inputs.use-cache }}
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install platformio==6.2.0
+
+      - name: Build the firmware and filesystem image
+        shell: bash
+        env:
+          CLOCK: ${{ matrix.clock }}
+        run: |
+          # release needs the filesystem image, which PlatformIO only builds when it's asked for by name
+          pio run -e "$CLOCK" -t buildfs
+          pio run -e "$CLOCK" -t release | tee build.log
+          if grep 'warning:' build.log; then
+            echo "::error::The build has compiler warnings"
+            exit 1
+          fi
+          echo "$CLOCK: $(grep -o '[0-9]* bytes free in the app partition' build.log)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the debug symbols
+        env:
+          CLOCK: ${{ matrix.clock }}
+        run: |
+          version=$(sed -n 's/^version *= *"\(.*\)"/\1/p' version.py)
+          mkdir symbols
+          cp ".pio/build/$CLOCK/firmware.elf" "symbols/firmware-$CLOCK-$version.elf"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: files-${{ matrix.clock }}
+          path: releases/*.bin
+          if-no-files-found: error
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: symbols-${{ matrix.clock }}
+          path: symbols
+          if-no-files-found: error
+          retention-days: 7
+
+  release-files:
+    name: Check the release files
+    needs: clock
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: files-*
+          path: built
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: symbols-*
+          path: symbols
+          merge-multiple: true
+
+      - name: Combine and check them
+        run: |
+          python3 tools/check_release.py --merge built --files dist
+          version=$(sed -n 's/^version *= *"\(.*\)"/\1/p' version.py)
+          zip -jq "dist/firmware-symbols-$version.zip" symbols/*.elf
+          (cd dist && sha256sum -- * > SHA256SUMS)
+          ls -l dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-files
+          path: dist
+          if-no-files-found: error
