@@ -1,0 +1,18 @@
+<!-- An EleksTube clock: six tubes with glowing digits, lit from below by the LEDs in its base. favicon.png
+     and apple-touch-icon.png are exported from it, for browsers that don't show SVG icons. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<defs>
+<linearGradient id="bg" x2="0" y2="1"><stop offset="0" stop-color="#010e54"/><stop offset="1" stop-color="#00022b"/></linearGradient>
+<linearGradient id="tube" x2="0" y2="1"><stop offset=".55" stop-color="#05081a"/><stop offset="1" stop-color="#0e3a73"/></linearGradient>
+<filter id="glow" x="-1" y="-1" width="3" height="3"><feGaussianBlur stdDeviation="1.1"/></filter>
+</defs>
+<rect width="64" height="64" rx="14" fill="url(#bg)"/>
+<g fill="url(#tube)" stroke="#a9d1f2" stroke-opacity=".4" stroke-width=".7"><rect x="6.2" y="12" width="7.6" height="33" rx="3.4"/><rect x="15.0" y="12" width="7.6" height="33" rx="3.4"/><rect x="23.8" y="12" width="7.6" height="33" rx="3.4"/><rect x="32.6" y="12" width="7.6" height="33" rx="3.4"/><rect x="41.4" y="12" width="7.6" height="33" rx="3.4"/><rect x="50.2" y="12" width="7.6" height="33" rx="3.4"/></g>
+<path d="M7.7 15.5v9M16.5 15.5v9M25.3 15.5v9M34.1 15.5v9M42.9 15.5v9M51.7 15.5v9" stroke="#fff" stroke-opacity=".18" stroke-width=".9" stroke-linecap="round"/>
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path d="M8.7 23.6l1.6-1.6v13M18.8 22c-2.9 0-2.9 13 0 13s2.9-13 0-13zM27.6 22c-2.9 0-2.9 13 0 13s2.9-13 0-13zM36.4 28.0c-2.5 0-2.5-6.0 0-6.0s2.5 6.0 0 6.0zm0 0c-2.9 0-2.9 7.0 0 7.0s2.9-7.0 0-7.0zM43.1 23.2c1.4-2.2 4.4-1.4 4.1 1.4-.2 2-1.9 3-3.1 3 2.1 0 3.7 1.3 3.5 3.8-.3 3.2-3.8 3.9-4.7 1.6M54.0 22c-2.9 0-2.9 13 0 13s2.9-13 0-13z" stroke="#ff7b1c" stroke-width="2.4" filter="url(#glow)"/>
+<path d="M8.7 23.6l1.6-1.6v13M18.8 22c-2.9 0-2.9 13 0 13s2.9-13 0-13zM27.6 22c-2.9 0-2.9 13 0 13s2.9-13 0-13zM36.4 28.0c-2.5 0-2.5-6.0 0-6.0s2.5 6.0 0 6.0zm0 0c-2.9 0-2.9 7.0 0 7.0s2.9-7.0 0-7.0zM43.1 23.2c1.4-2.2 4.4-1.4 4.1 1.4-.2 2-1.9 3-3.1 3 2.1 0 3.7 1.3 3.5 3.8-.3 3.2-3.8 3.9-4.7 1.6M54.0 22c-2.9 0-2.9 13 0 13s2.9-13 0-13z" stroke="#ffd29a" stroke-width="1"/>
+</g>
+<rect x="3.5" y="45" width="57" height="8" rx="2.4" fill="#151a30"/>
+<rect x="3.5" y="45" width="57" height="1.3" fill="#4fa5d8"/>
+</svg>

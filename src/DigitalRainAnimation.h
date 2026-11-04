@@ -49,6 +49,7 @@ private:
   uint32_t lastDrawTime;         //checking last drawing time
   uint32_t lastUpdatedKeyTime;   //checking last generating key time
   uint32_t lastCycleTime;
+  uint32_t lastNotifyTime = 0;    //last time a hue change was sent to the web UI and MQTT
   uint32_t cycleMs;
   std::vector<int8_t> line_length;  //dynamic array for each line of vertical length
   std::vector<int8_t> line_pos;     //dynamic array for each line Y position

@@ -1,10 +1,13 @@
 
 <div data-role="page" id="MQTT">
+	<link rel="stylesheet" href="/theme.css">
+	<script src="/theme.js"></script>
 	<div data-role="header" data-position="fixed">
 		<h1>MQTT</h1>
 		<a href="#mainMenu" data-rel="main-menu-panel"
 			class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
-		    <a href="https://github.com/judge2005/EleksTubeIPS/wiki/User-Guide#mqtthome-assistant" target="_blank" class="ui-btn ui-btn-right ui-btn-icon-notext ui-icon-info ui-corner-all"></a>
+		    <a href="https://github.com/judge2005/EleksTubeIPS/blob/main/docs/user-guide.md#mqtt-and-home-assistant" target="_blank" title="Help" class="ui-btn ui-btn-right ui-btn-icon-notext ui-icon-info ui-corner-all"></a>
+		    <a href="#" onclick="toggleTheme();return false;" title="Light or dark" class="ui-btn ui-btn-right ui-btn-icon-notext ui-icon-theme ui-corner-all"></a>
 	</div>
 	<div data-role="content">
 		<form action="/set_mqtt" method="POST" id="mqtt_form">
@@ -43,8 +46,10 @@
 					<label for="mqtt_password">Password</label>
 				</div>
 				<div class="dispInline">
+					<!-- onchange, because the clock only sends a placeholder for the password -->
 					<input maxlength="25"
-						onblur="elementBlur(this)" type="text" id="mqtt_password"
+						onchange="elementBlur(this, 'Use only letters, digits, spaces and punctuation, without accents')" pattern="[ -~]*"
+						type="password" id="mqtt_password" autocomplete="new-password"
 						data-mini="true" />
 				</div>
 			</div>

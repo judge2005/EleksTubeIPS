@@ -1,0 +1,13 @@
+diff --git a/src/AsyncTCP.cpp b/src/AsyncTCP.cpp
+index 5a172e1..0b77151 100644
+--- a/src/AsyncTCP.cpp
++++ b/src/AsyncTCP.cpp
+@@ -1607,7 +1607,7 @@ int8_t AsyncTCP_detail::tcp_accept(void *arg, tcp_pcb *pcb, int8_t err) {
+     async_tcp_log_e("_accept failed: no onConnect callback");
+   }
+   tcp_abort(pcb);
+-  return ERR_OK;
++  return ERR_ABRT;  // Not ERR_OK, which has lwIP go on using the pcb it just freed
+ }
+ 
+ int8_t AsyncServer::_accepted(AsyncClient *client) {

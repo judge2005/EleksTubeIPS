@@ -168,7 +168,7 @@ var state = {
 		'dimming': 1,
 		'four_digit_display': 2,
 		'brightness_config': 200,
-		'time_server':  'http://niobo.us/blah',
+		'display_cycle': 30,
 		'set_icon_clock': 'Foo'
 	},
 	"2": {
@@ -210,10 +210,14 @@ var state = {
 		'wifi_ssid' : "STC-Wonderful"
 	},
 	"6": {
-		'hostname' : 'localhost'
+		'hostname' : 'localhost',
+		'time_server' : 'pool.ntp.org',
+		'web_user' : '',
+		'web_password' : '',
+		'ap_password' : 'abcd2345'
 	},
 	"7": {
-		"weather_token":"462cf98d57c30f4cc3698a70a63bd3bb",
+		"weather_token":"********",
 		"weather_latitude":"21.2",
 		"weather_longitude":"-37.1",
 		"units":"imperial",

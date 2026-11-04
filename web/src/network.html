@@ -1,14 +1,34 @@
         <div data-role="page" id="Network">
+            <link rel="stylesheet" href="/theme.css">
+            <script src="/theme.js"></script>
             <div data-role="header" data-position="fixed">
                 <h1>Network</h1>
 				<a href="#mainMenu" data-rel="main-menu-panel" class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
-			    <a href="https://github.com/judge2005/EleksTubeIPS/wiki/User-Guide#network" target="_blank" class="ui-btn ui-btn-right ui-btn-icon-notext ui-icon-info ui-corner-all"></a>
+			    <a href="https://github.com/judge2005/EleksTubeIPS/blob/main/docs/user-guide.md#network" target="_blank" title="Help" class="ui-btn ui-btn-right ui-btn-icon-notext ui-icon-info ui-corner-all"></a>
+			    <a href="#" onclick="toggleTheme();return false;" title="Light or dark" class="ui-btn ui-btn-right ui-btn-icon-notext ui-icon-theme ui-corner-all"></a>
             </div>
             <div data-role="content">
                 <form action="/set_network" method="POST" id="network_form">
 					<div data-role="fieldcontain">
 						<label for="hostname">Hostname</label>
 						<input maxlength="63" onblur="elementBlur(this)" type="text" id="hostname" data-mini="true" />
+					</div>
+					<div data-role="fieldcontain">
+						<label for="time_server">Time Server</label>
+						<input maxlength="63" onblur="elementBlur(this)" type="text" id="time_server" data-mini="true" />
+					</div>
+					<div data-role="fieldcontain">
+						<label for="web_user">Web UI User</label>
+						<input maxlength="31" onblur="elementBlur(this, 'Use only letters, digits and . _ - @')" pattern="[A-Za-z0-9._@\-]*" type="text" id="web_user" autocomplete="off" data-mini="true" />
+					</div>
+					<!-- onchange, because the clock only sends a placeholder for the password -->
+					<div data-role="fieldcontain">
+						<label for="web_password">Web UI Password</label>
+						<input maxlength="63" onchange="elementBlur(this, 'Use only letters, digits, spaces and punctuation, without accents')" pattern="[ -~]*" type="password" id="web_password" autocomplete="new-password" data-mini="true" />
+					</div>
+					<div data-role="fieldcontain">
+						<label for="ap_password">WiFi AP Password</label>
+						<input maxlength="63" onblur="elementBlur(this, 'Use 8 to 63 letters, digits, spaces and punctuation, without accents, or clear it for a new random one')" pattern="([ -~]{8,63})?" type="text" id="ap_password" autocomplete="off" data-mini="true" />
 					</div>
 					<div class="dispInlineLabel">
 						<label for="wifi_ap">WiFi AP</label>

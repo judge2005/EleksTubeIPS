@@ -19,7 +19,7 @@ public:
   void pushImageWithAlpha(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t *data, uint8_t *alpha, uint8_t opaque);
   void init();
 
-  static uint8_t output_buffer[];
+  static uint8_t output_buffer[(TFT_HEIGHT * TFT_WIDTH + 1) * sizeof(uint16_t)];
 };
 
 struct MaskData {
@@ -85,7 +85,10 @@ public:
 
   void setStatus(const char*);
   void setStatus(const String& s) { setStatus(s.c_str()); }
-  void checkStatus();
+  // A small label above a value in bigger text. The value can have line breaks, or if split, a value
+  // too long for one line can go on more.
+  void setStatus(const char *label, const char *value, bool split = false);
+  bool checkStatus();
   void printlnAll(const char* s);
   void printAll(const char* s);
   void drawMeter(int val, bool first, const char *legend);
@@ -96,7 +99,8 @@ public:
 private:
   static SemaphoreHandle_t tftMutex;
 
-  TFT_eSprite& getStatusSprite();
+  TFT_eSprite& getStatusSprite(int16_t height);
+  void showStatus(unsigned long duration);
 #ifdef SMOOTH_FONT
   DigitalRainAnim& getMatrixAnimator();
 #else
@@ -112,13 +116,14 @@ private:
   int monochromeColor = -1;
 
   unsigned long statusTime = 0;
+  unsigned long statusDuration = 5000;
   bool statusSet = false;
+  bool statusShrunk = false;
 
   uint16_t defaultTextColor = TFT_WHITE;
   uint16_t defaultTextBackground = TFT_BLACK;
   uint8_t current_graphic = 1;
   char icons[NUM_DIGITS][16];
-  char loadedFilename[255];
 
   bool enabled;
   fs::FS* fs;

@@ -1,11 +1,16 @@
 #ifndef _IPSCLOCK_WEATHER_SERVICE
 #define _IPSCLOCK_WEATHER_SERVICE
 #include <WString.h>
+#include <time.h>
 
 class WeatherService {
 public:
     WeatherService() {}
     virtual ~WeatherService() {}
+
+    // The forecast is split into days, so it needs the date. Until NTP or the RTC sets it, the clock
+    // thinks it is 1970, or 2000 if the RTC has never been set.
+    static bool timeIsSet() { return time(nullptr) > 1704067200; }   // 2024-01-01
 
     static StringConfigItem& getWeatherToken() { static StringConfigItem weather_token("weather_token", 63, ""); return weather_token; }	// openweathermap.org API token
     static StringConfigItem& getUnits() { static StringConfigItem units("units", 10, "imperial"); return units; }

@@ -2,7 +2,9 @@
 #include "ColorConversion.h"
 
 unsigned long DigitalRainAnimation::getMsDelay() {
-  return 1000UL / getMatrixSpeed();
+  // The web UI limits the speed to 1-50, but a speed of 0 would divide by zero
+  uint8_t speed = getMatrixSpeed();
+  return 1000UL / (speed > 0 ? speed : 1);
 }
 
 void DigitalRainAnimation::prepareAnim()
@@ -35,9 +37,9 @@ void DigitalRainAnimation::prepareAnim()
     // Second drop in line
     line_length[line + 1] = getRandomNum(line_len_min, line_len_max);
     line_pos[line + 1] = line_pos[line] - line_length[line] - random(line_len_min, line_len_max);
+    line_chars[line >> 1] = std::vector<char>(numOfRows);
     for (int row = 0; row < numOfRows; row++)
     {
-      line_chars[line >> 1] = std::vector<char>(numOfRows);
       line_chars[line >> 1][row] = isAlphabetOnly ? getAbcASCIIChar() : getASCIIChar();
     }
   }
@@ -202,7 +204,11 @@ boolean DigitalRainAnimation::loop()
       lastCycleTime = currentTime;
       IntConfigItem& hue = getMatrixHue();
       hue = (hue + 1) % 256;
-      hue.notify();
+      // Each notify is sent to the web UI and MQTT, which can't keep up with fast cycling
+      if (currentTime - lastNotifyTime >= 1000) {
+        lastNotifyTime = currentTime;
+        hue.notify();
+      }
     }
   }
 

@@ -51,13 +51,17 @@ public:
     static IntConfigItem& getDimming() { static IntConfigItem dimming("dimming", MATRIX); return dimming; }
     static ByteConfigItem& getBrightnessConfig() { static ByteConfigItem brightness_config("brightness_config", 255); return brightness_config; }
     static StringConfigItem& getCustomData() { static StringConfigItem custom_data("custom_data", 10, ""); return custom_data; }	// Custom data for MQTT
+    static ByteConfigItem& getDisplayCycle() { static ByteConfigItem display_cycle("display_cycle", 0); return display_cycle; }	// Seconds on each of time, date and weather, 0 to stay on one
+    static bool setCustomData(const String &value);
 
     void init();
     void loop();
     void checkIconPack();
+    void reloadClockFace() { reloadFace = true; }   // Unpack the clock face again, e.g. after it was replaced
     void setTimeSync(TimeSync *pTimeSync) { this->pTimeSync = pTimeSync; }
     void setImageUnpacker(ImageUnpacker *imageUnpacker) { this->imageUnpacker = imageUnpacker; }
 
+    void updateSchedule();
     bool clockOn();
     void setOnOverride() { onOverride = millis(); };
     void overrideUntilNextChange() { prevScheduleOn = clockOn(); temporaryOverride = true; }
@@ -68,7 +72,10 @@ private:
 
     byte brightness = 255;
     ClockTimer::Timer displayTimer;
+    ClockTimer::Timer scheduleTimer;
+    bool scheduledOn = true;
     String oldClockFace;
+    bool reloadFace = false;
 	TimeSync *pTimeSync = 0;
     ImageUnpacker *imageUnpacker;
     unsigned long onOverride = 0;

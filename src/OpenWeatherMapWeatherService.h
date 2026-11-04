@@ -34,7 +34,6 @@ private:
     JsonDocument todayFilter;
     JsonDocument forecastFilter;
 
-    String conditions = "unknown";
     String iconNames[6] {
         String("unknown"),
         String("unknown"),
@@ -57,8 +56,6 @@ private:
     };
 
     float temp = NAN;
-
-    int humidity;
 #ifndef USE_SYNC_CLIENT
 	AsyncHTTPClient httpClient;
 #endif

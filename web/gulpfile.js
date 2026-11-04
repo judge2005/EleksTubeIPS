@@ -4,7 +4,6 @@ const htmlmin = require('gulp-htmlmin');
 const cleancss = require('gulp-clean-css');
 const uglify = require('gulp-uglify');
 const gzip = require('gulp-gzip');
-const del = require('del');
 const inline = require('gulp-inline');
 const inlineImages = require('gulp-css-inline-images');
 const favicon = require('gulp-base64-favicon');
@@ -12,8 +11,13 @@ const favicon = require('gulp-base64-favicon');
 const dataFolder = '../data';
 const srcFolder = 'src';
 
-function clean() {
-    return del([ dataFolder + '/*.gz'], {force: true});
+function clean(done) {
+    for (const file of fs.readdirSync(dataFolder)) {
+        if (file.endsWith('.gz')) {
+            fs.rmSync(dataFolder + '/' + file);
+        }
+    }
+    done();
 }
 
 function buildfs_inline() {
@@ -23,7 +27,8 @@ function buildfs_inline() {
             base: srcFolder,
             js: uglify,
             css: [cleancss],
-            disabledTypes: ['svg', 'img']
+            disabledTypes: ['svg', 'img'],
+            ignore: ['/theme.css']   // The firmware serves it, see buildfs_theme()
         }))
     	.pipe(inlineImages({
             webRoot: srcFolder
@@ -38,5 +43,23 @@ function buildfs_inline() {
         .pipe(dest(dataFolder));
 }
 
+// Linked rather than inlined, and built into the firmware, so that the pages and app.html share it and a
+// clock that's only had its firmware updated gets it too
+function buildfs_theme() {
+    return src(srcFolder + '/theme.css')
+        .pipe(cleancss())
+        .pipe(gzip())
+        .pipe(dest(dataFolder));
+}
+
 exports.clean = clean;
-exports.default = series(clean, buildfs_inline);
+// Built into the firmware like the stylesheet. Gzipped like everything else here, though the PNGs barely shrink,
+// so the firmware serves them all the same way.
+function buildfs_icons() {
+    // Not as text, which is gulp's default and mangles the PNGs
+    return src([srcFolder + '/favicon.svg', srcFolder + '/favicon.png', srcFolder + '/apple-touch-icon.png'], { encoding: false })
+        .pipe(gzip())
+        .pipe(dest(dataFolder));
+}
+
+exports.default = series(clean, buildfs_inline, buildfs_theme, buildfs_icons);

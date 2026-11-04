@@ -16,12 +16,6 @@ Weather::Weather(WeatherService *weatherService) {
 	displayTimer.init(millis(), 0);
 }
 
-void drawCross(int x, int y, unsigned int color)
-{
-}
-
-const int tzOffset = -18000;
-
 void Weather::drawDisplay(int index, int display, bool showDay) {
     if (!tfts->isEnabled() || IPSClock::getCustomData().value.length() > 0) {
         return;
@@ -45,10 +39,11 @@ void Weather::drawDisplay(int index, int display, bool showDay) {
     uint16_t HILO_COLOR = TEMP_COLOR;
     uint16_t DAY_FG_COLOR = tfts->dimColor(TFT_GOLD);
     uint16_t DAY_BG_COLOR = tfts->dimColor(TFT_RED);
+    // Monochrome icons are drawn in the weather color, but nothing else is
 	tfts->setMonochromeColor(rgb565);
-
     tfts->setDigit(indexToScreen[display], weatherService->getIconName(index).c_str(), TFTs::no);
     tfts->drawImage(indexToScreen[display]);
+    tfts->setMonochromeColor(-1);
 
     float val = NAN;
 
@@ -158,9 +153,8 @@ void Weather::drawDisplay(int index, int display, bool showDay) {
 }
 
 void Weather::drawSingleDay(uint8_t dimming, int day, int display) {
-    unsigned long nowMs = millis();
-
-    if (preDraw(dimming)) {
+    // Every 10 seconds so the date it shows changes promptly at midnight
+    if (preDraw(dimming, 10000)) {
         // day is indexed from 0 thru 5 with 0 being today
         drawDisplay(5-day, display, false);
 
@@ -169,7 +163,8 @@ void Weather::drawSingleDay(uint8_t dimming, int day, int display) {
 }
 
 void Weather::checkIconPack() {
-    if (getIconPack().value != oldIcons) {
+    if (reloadIcons || getIconPack().value != oldIcons) {
+        reloadIcons = false;
         getIconPack() = imageUnpacker->unpackImages("/ips/weather/", "/ips/weather_cache", getIconPack(), oldIcons);
 		getIconPack().put();
 		broadcastUpdate(getIconPack());
@@ -182,18 +177,24 @@ void Weather::checkIconPack() {
     }
 }
 
-bool Weather::preDraw(uint8_t dimming) {
+/*
+ * Returns true, with the displays claimed, if it is time to redraw.
+ * Redraws are requested when the weather, its colors or the brightness change, so the
+ * timer is just a backstop.
+ */
+bool Weather::preDraw(uint8_t dimming, unsigned long redrawMs) {
     unsigned long nowMs = millis();
 
-    if (_redraw || displayTimer.expired(nowMs)) {
+    if (_redraw || dimming != lastDimming || displayTimer.expired(nowMs)) {
         _redraw = false;
+        lastDimming = dimming;
 
         tfts->claim();
     	tfts->setShowDigits(IPSClock::WEATHER);
         // tfts->invalidateAllDigits();
         tfts->setDimming(dimming);
 
-        displayTimer.init(nowMs, 10000);
+        displayTimer.init(nowMs, redrawMs);
 
         return true;
     }
@@ -206,7 +207,7 @@ void Weather::postDraw() {
 }
 
 void Weather::loop(uint8_t dimming) {
-    if (preDraw(dimming)) {
+    if (preDraw(dimming, 60000)) {
         tfts->checkStatus();
         tfts->enableAllDisplays();
 

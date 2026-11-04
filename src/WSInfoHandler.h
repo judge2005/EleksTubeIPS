@@ -54,6 +54,10 @@ public:
 		this->ssid = ssid;
 	}
 
+	void setMqttId(const String& mqttId) {
+		this->mqttId = mqttId;
+	}
+
 	void setHostname(const String& hostname) {
 		this->hostname = hostname;
 	}
@@ -75,6 +79,7 @@ private:
 
 	// BlankTimeMonitor *pBlankingMonitor;
 	String ssid;
+	String mqttId;
     String fsSize;
     String fsFree;
 	String brightness;

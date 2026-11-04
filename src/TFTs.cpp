@@ -181,12 +181,13 @@ void StaticSprite::init() {
   setPivot(_iwidth/2, _iheight/2);
 }
 
+// Recursive, because code holding it calls things that claim it too, such as checkStatus()
 void TFTs::claim() {
-  xSemaphoreTake(tftMutex, portMAX_DELAY);
+  xSemaphoreTakeRecursive(tftMutex, portMAX_DELAY);
 }
 
 void TFTs::release(){
-  xSemaphoreGive(tftMutex);
+  xSemaphoreGiveRecursive(tftMutex);
 }
 
 #ifdef SMOOTH_FONT
@@ -226,42 +227,167 @@ StaticSprite& TFTs::getSprite() {
   return *sprite;
 }
 
-TFT_eSprite& TFTs::getStatusSprite() {
-  static bool initialized = false;
-  static TFT_eSprite *sprite;
+static TFT_eSprite *statusSprite = NULL;
 
-  if (!initialized) {
-    initialized = true;
+// The status sprite has four bits a pixel, so it's drawn in indexes into this
+enum { STATUS_BLACK, STATUS_GOLD, STATUS_WHITE };
+static const uint16_t statusPalette[16] = { TFT_BLACK, TFT_GOLD, TFT_WHITE };
 
-    sprite = new StaticSprite(tfts);
-    sprite->createSprite(width(), 16);
-
-    sprite->setTextDatum(BC_DATUM);
-    sprite->setTextColor(TFT_GOLD, TFT_BLACK, true);
-    sprite->setTextFont(2);
+// Its 1-5K are only allocated while a status is shown, see checkStatus()
+TFT_eSprite& TFTs::getStatusSprite(int16_t height) {
+  if (statusSprite == NULL) {
+    statusSprite = new StaticSprite(tfts);
+    statusSprite->setColorDepth(4);
   }
 
-  return *sprite;
+  if (statusSprite->created() && statusSprite->height() != height) {
+    if (statusSprite->height() > height) {
+      statusShrunk = true;
+    }
+    statusSprite->deleteSprite();
+  }
+
+  if (!statusSprite->created()) {
+    statusSprite->createSprite(width(), height);	// If there isn't the memory, drawing on it does nothing
+    statusSprite->createPalette(statusPalette);
+  }
+
+  statusSprite->fillSprite(STATUS_BLACK);
+  return *statusSprite;
 }
 
-void TFTs::checkStatus() {
-  if (millis() - statusTime > 5000) {
-    if (statusSet)  {
+// Returns true if a status message was just removed, or replaced by a shorter one, so what it
+// covered needs drawing again
+bool TFTs::checkStatus() {
+  bool uncovered = false;
+
+  if (statusSet && millis() - statusTime > statusDuration) {
+    claim();  // setStatus() is called by other tasks too
+    if (millis() - statusTime > statusDuration) {
       statusSet = false;
-      invalidateAllDigits();
+      if (statusSprite != NULL) {
+        statusSprite->deleteSprite();
+      }
+      uncovered = true;
     }
+    release();
   }
+
+  if (statusShrunk) {
+    statusShrunk = false;
+    uncovered = true;
+  }
+
+  if (uncovered) {
+    invalidateAllDigits();
+  }
+
+  return uncovered;
 }
 
 void TFTs::setStatus(const char* s) {
   claim();
 
+  TFT_eSprite& sprite = getStatusSprite(fontHeight(2));
+  sprite.setTextDatum(BC_DATUM);
+  sprite.setTextColor(STATUS_GOLD);
+  sprite.drawString(s, width()/2, sprite.height(), 2);
+
+  showStatus(5000);
+
+  release();
+}
+
+// Copies the nth of value's lines. A value with line breaks is split at them, otherwise into lines
+// of equal length.
+static void statusLine(const char *value, uint8_t lines, uint8_t n, char (&line)[64]) {
+  const char *start = value;
+  const char *end;
+
+  if (strchr(value, '\n') != NULL) {
+    for (uint8_t i = 0; i < n && *start; i++) {
+      start = strchr(start, '\n');
+      start = start != NULL ? start + 1 : value + strlen(value);
+    }
+    for (end = start; *end && *end != '\n'; end++);
+  } else {
+    size_t length = strlen(value);
+    size_t perLine = (length + lines - 1) / lines;
+    start += std::min(length, n * perLine);
+    end = start + std::min(perLine, strlen(start));
+  }
+
+  size_t count = std::min((size_t)(end - start), sizeof(line) - 1);
+  memcpy(line, start, count);
+  line[count] = 0;
+}
+
+// The width of the widest of value's lines in font
+static int16_t widestLine(TFT_eSPI& tft, const char *value, uint8_t lines, uint8_t font) {
+  char line[64];
+  int16_t widest = 0;
+
+  for (uint8_t n = 0; n < lines; n++) {
+    statusLine(value, lines, n, line);
+    widest = std::max(widest, tft.textWidth(line, font));
+  }
+
+  return widest;
+}
+
+void TFTs::setStatus(const char *label, const char *value, bool split) {
+  claim();
+
+  uint8_t font = 2, lines = 1;
+  char line[64];
+
+  if (strchr(value, '\n') != NULL) {
+    // Its lines as they are, in the bigger font if they fit
+    lines = 1 + std::count(value, value + strlen(value), '\n');
+    font = widestLine(*this, value, lines, 4) <= width() - 4 ? 4 : 2;
+  } else {
+    // The biggest font and fewest lines it fits in. If it doesn't fit, the ends are cut off.
+    static const struct { uint8_t font, lines; } layouts[] = { {4, 1}, {4, 2}, {2, 1}, {2, 2}, {2, 3}, {2, 4} };
+    for (auto& layout : layouts) {
+      if (layout.lines > 1 && !split) {
+        continue;
+      }
+
+      font = layout.font;
+      lines = layout.lines;
+      if (widestLine(*this, value, lines, font) <= width() - 4) {
+        break;
+      }
+    }
+  }
+
+  int16_t labelHeight = fontHeight(2);
+  int16_t lineHeight = fontHeight(font);
+  // At least two lines of font 4, so that changing to a value in fewer lines doesn't redraw the digits
+  int16_t valueHeight = std::max(lineHeight * lines, fontHeight(4) * 2);
+
+  TFT_eSprite& sprite = getStatusSprite(labelHeight + valueHeight);
+  sprite.setTextDatum(TC_DATUM);
+  sprite.setTextColor(STATUS_GOLD);
+  sprite.drawString(label, width()/2, 0, 2);
+
+  sprite.setTextColor(STATUS_WHITE);
+  int16_t y = labelHeight + (valueHeight - lineHeight * lines) / 2;
+  for (uint8_t n = 0; n < lines; n++, y += lineHeight) {
+    statusLine(value, lines, n, line);
+    sprite.drawString(line, width()/2, y, font);
+  }
+
+  showStatus(6000);  // Longer, as there's more to read
+
+  release();
+}
+
+// Shows the status sprite on every display, for duration milliseconds
+void TFTs::showStatus(unsigned long duration) {
   statusTime = millis();
+  statusDuration = duration;
   statusSet = true;
-  TFT_eSprite& sprite = getStatusSprite();
-  int16_t h = sprite.height();
-  sprite.fillRect(0, 0, width(), h, TFT_BLACK);
-  sprite.drawString(s, width()/2, h);
 
   uint8_t saved = chip_select.getDigitMap();
   chip_select.setAll();
@@ -269,8 +395,6 @@ void TFTs::setStatus(const char* s) {
   drawStatus();
 
   chip_select.setDigitMap(saved, true);
-
-  release();
 }
 
 void TFTs::printlnAll(const char* s) {
@@ -312,14 +436,13 @@ void TFTs::drawStatus() {
     return;
   }
   
-  if (statusSet) {
+  if (statusSet && statusSprite != NULL) {
 #ifdef USE_DMA
   while(dmaBusy()) {
     delay(1);
   }
 #endif
-    TFT_eSprite& sprite = getStatusSprite();
-    sprite.pushSprite(0, height() - sprite.height());
+    statusSprite->pushSprite(0, height() - statusSprite->height());
   }
 }
 
@@ -429,7 +552,6 @@ void TFTs::setDimming(uint8_t dimming) {
 }
 
 void TFTs::invalidateAllDigits() {
-  loadedFilename[0] = 0;
   for (uint8_t digit=0; digit < NUM_DIGITS; digit++) {
     setDigit(digit, INVALID_DIGIT, TFTs::no);
   }
@@ -437,7 +559,7 @@ void TFTs::invalidateAllDigits() {
 
 void TFTs::begin(fs::FS& fs) {
   if (tftMutex == 0) {
-    tftMutex = xSemaphoreCreateMutex();
+    tftMutex = xSemaphoreCreateRecursiveMutex();
   }
 
   this->fs = &fs;
@@ -564,8 +686,16 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
   bmpFile.seek(8, fs::SeekCur); // Skip file size and a reserved word
   bmpStart = read32(bmpFile); // start of bitmap
   headerSize = read32(bmpFile); // header size
-  w = read32(bmpFile); // width
-  h = read32(bmpFile); // height
+  int32_t bmpWidth = read32(bmpFile); // width
+  int32_t bmpHeight = read32(bmpFile); // height, negative if the rows are top down
+
+  // Images come from uploaded archives so don't trust the header. Anything bigger than
+  // the display would overflow the row buffers in LoadImageBytesIntoSprite().
+  if (bmpWidth <= 0 || bmpWidth > TFT_WIDTH || bmpHeight == 0 || abs(bmpHeight) > TFT_HEIGHT) {
+    return false;
+  }
+  w = bmpWidth;
+  h = bmpHeight;
   uint16_t planes = read16(bmpFile); // color planes (must be 1)
   if (planes != 1) {
 #ifdef DEBUG_OUTPUT
@@ -596,13 +726,24 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
   Serial.print("dimming: ");
   Serial.println(dimming);
 #endif
-  uint32_t palette[256];
+  uint32_t *palette = NULL;
   MaskData maskData;
   if (bitDepth <= 8) // 1,2,4,8 bit bitmap: read color palette
   {
     read32(bmpFile); read32(bmpFile); read32(bmpFile); // size, w resolution, h resolution
     paletteSize = read32(bmpFile);
     if (paletteSize == 0) paletteSize = 1 << bitDepth; // if 0, size is 2^bitDepth
+    if (paletteSize > (1u << bitDepth)) {
+      return false;   // A pixel can't index more colors than this
+    }
+
+    // On the heap because the clock task doesn't have 1K of stack to spare. Room for every
+    // color a pixel can index, even if the palette is shorter.
+    palette = (uint32_t*)calloc(1 << bitDepth, sizeof(uint32_t));
+    if (palette == NULL) {
+      return false;
+    }
+
     if (compression == 3) {
       bmpFile.seek(14 + 12 + headerSize); // start of color palette
     } else if (compression == 6) {
@@ -622,7 +763,7 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
       maskData.gMask = read32(bmpFile);
       maskData.gShift = (calc_shift(maskData.gMask) - (6 - __builtin_popcount(maskData.gMask))) % 16;
       maskData.bMask = read32(bmpFile);
-      maskData.bShift = (calc_shift(maskData.bMask) - (5 - __builtin_popcount(maskData.rMask))) % 16;
+      maskData.bShift = (calc_shift(maskData.bMask) - (5 - __builtin_popcount(maskData.bMask))) % 16;
       if (maskData.gMask != 0x07e0) {  // 0x07e0 is the green mask for RGB565
         // We have either ARGB4444 or ARGB1555
         maskData.aMask = read32(bmpFile);
@@ -638,7 +779,10 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
 
   bmpFile.seek(bmpStart);
 
-  return LoadImageBytesIntoSprite(w, abs(h), bitDepth, ((bitDepth * w +31) >> 5) * 4, h > 0, &maskData, palette, bmpFile);
+  bool loaded = LoadImageBytesIntoSprite(w, abs(h), bitDepth, ((bitDepth * w +31) >> 5) * 4, h > 0, &maskData, palette, bmpFile);
+  free(palette);
+
+  return loaded;
 }
 
 bool TFTs::LoadCLKImageIntoBuffer(fs::File &clkFile) {
@@ -647,6 +791,11 @@ bool TFTs::LoadCLKImageIntoBuffer(fs::File &clkFile) {
   // First two bytes should already have been read
   w = read16(clkFile);
   h = read16(clkFile);
+
+  // Don't trust the header, see LoadBMPImageIntoBuffer()
+  if (w <= 0 || w > TFT_WIDTH || h <= 0 || h > TFT_HEIGHT) {
+    return false;
+  }
 #ifdef DEBUG_OUTPUT
   Serial.print("image W, H: ");
   Serial.print(w); 
@@ -729,6 +878,9 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
 
   if (bitDepth < 16) {
     inputBuffer = (uint8_t*)malloc(inputBufferSize);
+    if (inputBuffer == NULL) {
+      return false;
+    }
   }
 
 #ifdef DEBUG_OUTPUT  
@@ -769,7 +921,8 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
       pushImageDMA(0, spriteRow, sprite.width(), sprite.height() - spriteRow, (uint16_t const*)(&StaticSprite::output_buffer[sprite.width() * spriteRow * 2]));
   }
 #endif
-  int oneBitColor = dimColor(monochromeColor);
+  // dimColor() takes a uint16_t, so keep -1 meaning 'use the palette'
+  int oneBitColor = monochromeColor >= 0 ? dimColor(monochromeColor) : -1;
 
   for (int row = 0; row < h; row++) {
     size_t read = file.read(inputBuffer, inputBufferSize);
@@ -935,30 +1088,26 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
 bool TFTs::LoadImageIntoBuffer(const char* filename) {
   bool loaded = false;
 
-  if (fs->exists(filename)) {
-    fs::File file;
-    file = fs->open(filename, "r");
-    if (file) {
-      uint16_t magic = read16(file);
- 
-      if (magic == 0x4B43) { // look for "CK" header
-        loaded = LoadCLKImageIntoBuffer(file);
-      }
+  // No exists() check first, it opens the file too
+  fs::File file = fs->open(filename, "r");
+  if (file) {
+    uint16_t magic = read16(file);
 
-      if (magic == 0x4D42) {
-        loaded = LoadBMPImageIntoBuffer(file);
-      }
-
-      file.close();
-
-      strcpy(loadedFilename, filename);
+    if (magic == 0x4B43) { // look for "CK" header
+      loaded = LoadCLKImageIntoBuffer(file);
     }
+
+    if (magic == 0x4D42) {
+      loaded = LoadBMPImageIntoBuffer(file);
+    }
+
+    file.close();
   }
 
   if (!loaded) {
     getSprite().fillSprite(0);
   }
-  return false;
+  return loaded;
 }
 
 TFT_eSprite& TFTs::drawImage(uint8_t digit) {

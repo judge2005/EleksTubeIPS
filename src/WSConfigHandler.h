@@ -11,13 +11,16 @@ public:
 	WSConfigHandler(BaseConfigItem& rootConfig, const char *name) :
 		cbFunc(NULL),
 		rootConfig(rootConfig),
-		name(name) {
+		name(name),
+		excludes(NULL) {
 	}
 
-	WSConfigHandler(BaseConfigItem& rootConfig, const char *name, CbFunc cbFunc) :
+	// excludes are the names of settings to leave out, ending with 0
+	WSConfigHandler(BaseConfigItem& rootConfig, const char *name, CbFunc cbFunc, const char **excludes = NULL) :
 		cbFunc(cbFunc),
 		rootConfig(rootConfig),
-		name(name) {
+		name(name),
+		excludes(excludes) {
 	}
 
 	virtual void handle(AsyncWebSocketClient *client, char *data);
@@ -30,6 +33,7 @@ private:
 	
 	BaseConfigItem& rootConfig;
 	const char *name;
+	const char **excludes;
 };
 
 #endif /* WSCONFIGHANDLER_H_ */

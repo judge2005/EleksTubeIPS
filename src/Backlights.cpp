@@ -11,6 +11,12 @@ byte Backlights::underlightSaturation = 128;
 byte Backlights::underlightBrightness = 128;
 #endif
 
+// The web UI limits the speed to 1-20 but MQTT can send anything, and 21 would make
+// rainbow and aurora divide by zero
+static uint8_t getSpeed() {
+  return constrain(Backlights::getBreathPerMin().value, 1, 20);
+}
+
 void Backlights::begin()  {
   pixels.Begin(); // This initializes the NeoPixel library.
   pixels.Show();
@@ -55,7 +61,7 @@ void Backlights::loop() {
 }
 
 void Backlights::pulsePattern() {
-  float pulse_length_millis = (60.0f * 1000) / getBreathPerMin().value;
+  float pulse_length_millis = (60.0f * 1000) / getSpeed();
   float valAdjust = 1 + abs(sin(2 * M_PI * millis() / pulse_length_millis)) * 254;
   uint16_t val = valAdjust * getLEDValue().value / 256;
   val = val * brightness / 255;
@@ -68,7 +74,7 @@ void Backlights::pulsePattern() {
 void Backlights::breathPattern() {
   // https://sean.voisen.org/blog/2011/10/breathing-led-with-arduino/
   // Avoid a 0 value as it shuts off the LEDs and we have to re-initialize.
-  float pulse_length_millis = (60.0f * 1000) / getBreathPerMin().value;
+  float pulse_length_millis = (60.0f * 1000) / getSpeed();
   float val = (exp(sin(2 * M_PI * millis() / pulse_length_millis)) - 0.36787944f) * 108.0f;
   val = val * getLEDValue().value / 256;
   val = val * brightness / 255;
@@ -81,7 +87,7 @@ void Backlights::breathPattern() {
 void Backlights::rainbowPattern() {
   const uint16_t hue_per_digit = (256/NUM_DIGITS)/2;
 
-  uint16_t hue = millis()/((21-getBreathPerMin().value) * 10) % 256;  
+  uint16_t hue = millis()/((21-getSpeed()) * 10) % 256;  
   
   uint16_t val = getLEDValue();
 
@@ -99,7 +105,7 @@ void Backlights::auroraPattern()
 {
   const uint16_t hue_per_led = getHuePerLed().value; //(256/NUM_LEDS)/2;
 
-  uint16_t hue = millis()/((21-getBreathPerMin().value) * 10) % 256;  
+  uint16_t hue = millis()/((21-getSpeed()) * 10) % 256;  
   
   uint16_t val = getLEDValue();
 
