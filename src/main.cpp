@@ -2052,6 +2052,9 @@ void apChange(AsyncWiFiManager *wifiManager) {
 		uint32_t value = WEATHER_UPDATE;
 		xQueueSend(weatherQueue, &value, 0);	// Not enough memory to make an HTTPS request while AP is active
 	}
+
+	// So the Network page's switch doesn't go on saying otherwise when the access point closes by itself
+	broadcastUpdate(String("{\"type\":\"sv.update\",\"value\":{\"wifi_ap\":") + (wifiManager->isAP() ? "true" : "false") + "}}");
 }
 
 void setWiFiAP(bool on) {
