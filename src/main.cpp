@@ -2057,6 +2057,33 @@ void apChange(AsyncWiFiManager *wifiManager) {
 	broadcastUpdate(String("{\"type\":\"sv.update\",\"value\":{\"wifi_ap\":") + (wifiManager->isAP() ? "true" : "false") + "}}");
 }
 
+// An access point that's forgotten about keeps the weather from updating and its name and password on
+// the displays, so it closes when nobody has been on it for a while. Not if the clock isn't on a
+// network, when the access point is the only way to reach it.
+void closeIdleAccessPoint() {
+	static const unsigned long CHECK_MS = 5000;
+	static const unsigned long IDLE_MS = 10 * 60 * 1000;
+	static unsigned long lastChecked = 0;
+	static unsigned long lastInUse = 0;
+
+	if (!wifiManager->isAP() || !WiFi.isConnected()) {
+		lastInUse = millis();
+		return;
+	}
+
+	if (millis() - lastChecked < CHECK_MS) {
+		return;
+	}
+	lastChecked = millis();
+
+	if (WiFi.softAPgetStationNum() > 0) {
+		lastInUse = millis();
+	} else if (millis() - lastInUse >= IDLE_MS) {
+		lastInUse = millis();
+		wifiManager->stopConfigPortal();
+	}
+}
+
 void setWiFiAP(bool on) {
 	if (on) {
 		wifiManager->startConfigPortal(ssid.c_str(), apPassword.value.c_str());
@@ -2138,6 +2165,7 @@ void wifiManagerTaskFn(void *pArg) {
 		wifiManager->loop();
 		xSemaphoreGive(wsMutex);
 
+		closeIdleAccessPoint();
 		WiFiWatchdog::loop();
 
 		delay(50);
