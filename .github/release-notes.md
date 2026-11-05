@@ -1,5 +1,5 @@
 # What's new #
-Write what's changed here before publishing this draft. Say whether installing only the firmware is enough, and whether going back to an earlier version keeps the clock's settings.
+This should be equivalent of v2.1.4 from kedube. The [fixes and changes are extensive](https://github.com/kedube/EleksTubeIPS#whats-different-from-upstream)
 
 # Installation #
 This firmware can't update itself over Wi-Fi, so flash it over USB. The easiest way is the [web installer]($installer$), which works in Chrome or Edge on a computer. The [installation guide](https://github.com/judge2005/EleksTubeIPS/wiki/Installation) covers connecting the clock and backing up its original firmware.
