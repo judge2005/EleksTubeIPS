@@ -2286,7 +2286,6 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 	wifiManager->addParameter(hostnameParam);
 	wifiManager->setSaveConfigCallback(SetupServer);
 	wifiManager->setConnectedCallback(connectedHandler);
-	wifiManager->setConnectTimeout(5000);	// milliseconds
 	wifiManager->setAPCallback(apChange);
 	wifiManager->setAPCredentials(ssid.c_str(), apPassword.value.c_str());
 	server->addHandler(new WebLoginHandler());	// Before any other handler, so it sees every request first
@@ -2298,7 +2297,11 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 	// which does nothing until Wi-Fi's start event has been handled.
 	WiFi.mode(WIFI_STA);
 	esp_wifi_set_max_tx_power(WIFI_POWER_19_5dBm);
+	// When this runs out, opening the access point cancels the connection and starts it again, so allow
+	// for a slow router. A clock with no network saved doesn't wait.
+	wifiManager->setConnectTimeout(10000);	// milliseconds
 	wifiManager->start();
+	wifiManager->setConnectTimeout(5000);	// Later ones hold up the Wi-Fi manager's task, and the web UI with it
 	esp_wifi_set_max_tx_power(WIFI_POWER_19_5dBm);
 
 	configureWebServer();
