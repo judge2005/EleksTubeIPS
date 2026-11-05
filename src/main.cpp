@@ -1202,6 +1202,22 @@ void setAPPassword(const String &value) {
 	broadcastToWebUI(apPassword);	// Also puts back anything refused
 }
 
+// A name that works everywhere the hostname is used: DHCP, mDNS and the web UI's JSON. Letters, digits
+// and hyphens, without a hyphen at either end.
+bool validHostname(const String &name) {
+	if (name.length() == 0 || name.length() > hostName.maxSize || name[0] == '-' || name[name.length() - 1] == '-') {
+		return false;
+	}
+
+	for (int i = 0; i < name.length(); i++) {
+		if (!isalnum((unsigned char)name[i]) && name[i] != '-') {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 // A group of settings, like "web_login". Setting one does nothing, but would send what's in it to the
 // web UI, passwords too.
 bool isSettingsGroup(const BaseConfigItem *item) {
@@ -1236,6 +1252,8 @@ void updateValue(int screen, String pair) {
 		setSecret(*(StringConfigItem*)item, value);
 	} else if (item == &apPassword) {
 		setAPPassword(value);
+	} else if (item == &hostName && !validHostname(value)) {
+		broadcastToWebUI(hostName);	// Puts back what was refused
 	} else if (item != 0 && !isSettingsGroup(item)) {
 		item->fromString(value);
 		item->put();
@@ -1842,9 +1860,9 @@ String wifiCallback() {
 	}
 
 	wifiStatus += ",";
-	wifiStatus += "\"hostname\":\"";
-	wifiStatus += hostName.value;
-	wifiStatus += "\",";
+	wifiStatus += "\"hostname\":";
+	wifiStatus += hostName.toJSON();	// Escaped, as one saved before names were checked could have anything in it
+	wifiStatus += ",";
 	wifiStatus += webLoginJSON();
 	wifiStatus += ",\"ap_password\":";
 	wifiStatus += apPassword.toJSON();
@@ -2006,7 +2024,9 @@ void initFromEEPROM() {
 		config.commit();
 	}
 
-	hostnameParam = new AsyncWiFiManagerParameter("Hostname", "clock host name", hostName.value.c_str(), 63);
+	// The browser's check is for the message. SetupServer() checks again.
+	hostnameParam = new AsyncWiFiManagerParameter("Hostname", "Hostname", hostName.value.c_str(), 63,
+		"required pattern='[A-Za-z0-9]([A-Za-z0-9\\-]*[A-Za-z0-9])?' title='Letters, digits and hyphens, without a hyphen at either end'");
 }
 
 void connectedHandler() {
@@ -2087,8 +2107,11 @@ void setStaticAddress() {
 
 void SetupServer() {
 	DEBUG("SetupServer()");
-	hostName = String(hostnameParam->getValue());
-	hostName.put();
+	String name(hostnameParam->getValue());
+	if (validHostname(name)) {
+		hostName = name;
+		hostName.put();
+	}
 	if (staticAddressChanged) {
 		// The portal has already reconnected with the old address, and it can't go back to DHCP.
 		// Restart so the new address is used.

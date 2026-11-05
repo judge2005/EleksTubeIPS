@@ -11,7 +11,7 @@
                 <form action="/set_network" method="POST" id="network_form">
 					<div data-role="fieldcontain">
 						<label for="hostname">Hostname</label>
-						<input maxlength="63" onblur="elementBlur(this)" type="text" id="hostname" data-mini="true" />
+						<input maxlength="63" onblur="elementBlur(this, 'Use only letters, digits and hyphens, without a hyphen at either end')" pattern="[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?" type="text" id="hostname" data-mini="true" />
 					</div>
 					<div data-role="fieldcontain">
 						<label for="time_server">Time Server</label>
