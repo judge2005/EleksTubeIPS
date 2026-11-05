@@ -11,7 +11,7 @@ How to set up and use a clock running [this firmware](https://github.com/judge20
 
 ## Connecting to Wi-Fi
 
-After installing, the web installer may offer to connect the clock to your Wi-Fi network. Otherwise, whenever the clock can't join a network, it starts its own access point:
+After installing, the web installer may offer to connect the clock to your Wi-Fi network. Otherwise, if the clock can't join a network when it starts, it opens its own access point:
 
 1. The bottom of the displays takes turns showing the access point's **WiFi network** name, such as `EleksTubeB2C3`, and its **WiFi password**. If the clock tried to join a network and couldn't, it also shows why, as a **WiFi problem**.
 2. Join that network from your phone or computer, using that password. A page from the clock should open by itself. If it doesn't, go to http://192.168.4.1.
@@ -26,6 +26,8 @@ The page has other buttons too:
 * **Info** says whether the clock has joined a network, or why it can't, and shows details of the clock. **Reset** restarts it.
 
 Each clock makes up its own access point password the first time it starts. The [Network](#network) page shows it and can change it. To move the clock to a different network later, turn on **WiFi AP** on the Network page and follow the steps above.
+
+If the clock loses its network while it's running, it keeps trying to rejoin, but doesn't open its access point by itself. So if it can't get back on, for example because your router's password changed, unplug it and plug it back in. It opens the access point when it finds it can't join.
 
 ## Status messages
 
