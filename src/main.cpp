@@ -2043,25 +2043,22 @@ void setAddress(StringConfigItem &item, const String &value) {
 
 // The Wi-Fi portal keeps the static address it is given to itself, and forgets it when the clock
 // restarts. This sees the portal's form before the portal does, so SetupServer() can save it with
-// the other settings. It always returns false, so the request goes on to the portal.
-bool captureStaticAddress(AsyncWebServerRequest *request) {
-	// Only the Configure Static WiFi page has the address fields, and the portal only answers on its access point
-	if (request->url() == "/wifisave" && request->hasArg("ip") && ON_AP_FILTER(request)) {
+// the other settings.
+void captureStaticAddress(AsyncWebServerRequest *request) {
+	// Only the Configure Static WiFi page has the address fields
+	if (request->hasArg("ip")) {
 		setAddress(staticIP, request->arg("ip"));
 		setAddress(staticGateway, request->arg("gw"));
 		setAddress(staticSubnet, request->arg("sn"));
 		setAddress(staticDNS1, request->arg("dns1"));
 		setAddress(staticDNS2, request->arg("dns2"));
 	}
-
-	return false;
 }
 
 // Gives the Wi-Fi portal the saved static address, if there is one. The portal uses it to connect
 // and shows it on the Configure Static WiFi page.
 void setStaticAddress() {
-	// Registered before the portal's own handler, so it sees the form first
-	server->on("/wifisave", HTTP_GET, [](AsyncWebServerRequest *request) {}).setFilter(captureStaticAddress);
+	wifiManager->setSaveFormCallback(captureStaticAddress);
 
 	IPAddress ip, gateway, subnet, dns1, dns2;
 	if (ip.fromString(staticIP.value)) {
