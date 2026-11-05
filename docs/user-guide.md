@@ -13,17 +13,17 @@ How to set up and use a clock running [this firmware](https://github.com/judge20
 
 After installing, the web installer may offer to connect the clock to your Wi-Fi network. Otherwise, whenever the clock can't join a network, it starts its own access point:
 
-1. The bottom of the displays takes turns showing the access point's **WiFi network** name, such as `EleksTubeB2C3`, and its **WiFi password**.
+1. The bottom of the displays takes turns showing the access point's **WiFi network** name, such as `EleksTubeB2C3`, and its **WiFi password**. If the clock tried to join a network and couldn't, it also shows why, as a **WiFi problem**.
 2. Join that network from your phone or computer, using that password. A page from the clock should open by itself. If it doesn't, go to http://192.168.4.1.
 3. Choose **Configure WiFi**, choose your network from the list and enter its password. **Scan** refreshes the list. You can change the clock's hostname here too, which you'll need to if you have more than one clock. Then choose **save**.
-4. The clock joins your network and shows its IP address for a few seconds. The access point closes 30 seconds later.
+4. The clock joins your network and shows its IP address for a few seconds. The access point closes 30 seconds later. If the clock can't join, the displays and the **Info** page say why: **Wrong password?**, **Network not found** or **Can't connect**. The access point stays on so you can try again.
 
 The page has other buttons too:
 
 * **Configure Static WiFi** is the same as Configure WiFi, but also gives the clock a fixed IP address. An empty Subnet means 255.255.255.0, and an empty DNS1 means the gateway.
 * **Set Clock Time** sets the clock to your phone's or computer's time, for a clock with no internet connection.
 * **Configure Clock** opens the [web UI](#the-web-ui) over the access point.
-* **Info** shows details of the clock, and **Reset** restarts it.
+* **Info** says whether the clock has joined a network, or why it can't, and shows details of the clock. **Reset** restarts it.
 
 Each clock makes up its own access point password the first time it starts. The [Network](#network) page shows it and can change it. To move the clock to a different network later, turn on **WiFi AP** on the Network page and follow the steps above.
 
@@ -36,6 +36,7 @@ Messages appear for a few seconds at the bottom of the displays, mostly while th
 | setup... | The clock is starting. |
 | Connecting... | It's joining your Wi-Fi network. |
 | WiFi network and WiFi password | The access point is on, see [Connecting to Wi-Fi](#connecting-to-wi-fi). |
+| WiFi problem | The access point is on, and this is why the clock can't join a network: Wrong password?, Network not found or Can't connect. |
 | An IP address, such as 192.168.1.50 | It has joined your Wi-Fi network at that address. |
 | AP Destroyed... | The access point has closed. |
 | NTP time received... | It has set its time from the time server. |

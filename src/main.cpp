@@ -793,22 +793,33 @@ void updateDisplays() {
 }
 
 // While the access point is on, its name and password take turns in the status line, so whoever can
-// see the clock can join it. Each is shown before the last expires, so the digits aren't redrawn.
+// see the clock can join it, along with why the clock can't join a network if it tried and failed.
+// Each is shown before the last expires, so the digits aren't redrawn.
 void showAccessPoint() {
 	static unsigned long lastShown = 0;
-	static bool showPassword = false;
+	static uint8_t showing = 0;
 
 	// Less than the 6 s a status with a label lasts, so it's replaced before it goes
 	if (wifiManager->isAP() && millis() - lastShown >= 5000) {
 		lastShown = millis();
-		if (showPassword) {
-			tfts->setStatus("WiFi password", apPassword.value.c_str(), true);
-		} else {
+		const char *problem = wifiManager->connectProblem();
+		if (showing == 2 && problem == NULL) {
+			showing = 0;
+		}
+
+		if (showing == 0) {
 			// The ID from createSSID() on a line of its own, so the name fits the bigger text
 			String name = ssid.substring(0, ssid.length() - 4) + "\n" + ssid.substring(ssid.length() - 4);
 			tfts->setStatus("WiFi network", name.c_str());
+		} else if (showing == 1) {
+			tfts->setStatus("WiFi password", apPassword.value.c_str(), true);
+		} else {
+			// Split at the first space, so the words stay whole in the bigger text
+			String text(problem);
+			text.setCharAt(text.indexOf(' '), '\n');
+			tfts->setStatus("WiFi problem", text.c_str());
 		}
-		showPassword = !showPassword;
+		showing = (showing + 1) % 3;
 	}
 }
 
