@@ -8,6 +8,5 @@ __pycache__
 releases
 scratch
 web/node_modules
-web/package-lock.json
 data/*.gz
 

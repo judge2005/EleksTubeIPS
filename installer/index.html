@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EleksTubeIPS Installer</title>
+<meta name="description" content="Install the EleksTubeIPS replacement firmware on your clock over USB, from the browser.">
+<script type="module" src="https://unpkg.com/esp-web-tools@10.4.0/dist/web/install-button.js?module"></script>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f5f2;
+    --surface: #ffffff;
+    --text: #1f1c19;
+    --muted: #5e5852;
+    --border: #e2ddd6;
+    --accent: #b3540c;
+    --accent-hover: #96450a;
+    --on-accent: #ffffff;
+    --selected-bg: #fdf3ea;
+    --note-bg: #fff6e8;
+    --note-border: #e9c38f;
+    --disabled-bg: #e8e4df;
+    --disabled-text: #8c857d;
+    --esp-tools-button-color: var(--accent);
+    --esp-tools-button-text-color: var(--on-accent);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151311;
+      --surface: #1e1b18;
+      --text: #f2eee9;
+      --muted: #aba49c;
+      --border: #36312c;
+      --accent: #f19a3e;
+      --accent-hover: #f6b169;
+      --on-accent: #1c1208;
+      --selected-bg: #2c2117;
+      --note-bg: #2a2016;
+      --note-border: #6e4c22;
+      --disabled-bg: #2c2824;
+      --disabled-text: #7b746c;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 16px 64px;
+  }
+  a { color: var(--accent); }
+  a:hover { color: var(--accent-hover); }
+  code {
+    font: 0.9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow-wrap: anywhere;
+  }
+
+  h1 {
+    margin: 0 0 8px;
+    font-size: 2rem;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  .lede { margin: 0; color: var(--muted); }
+
+  .notice {
+    margin: 24px 0 0;
+    padding: 12px 16px;
+    border: 1px solid var(--note-border);
+    border-radius: 8px;
+    background: var(--note-bg);
+  }
+
+  section { margin-top: 40px; }
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 16px;
+    font-size: 1.25rem;
+  }
+  .step {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: 0.9rem;
+  }
+  section > ul { margin: 0; padding-left: 20px; }
+  section > ul li + li { margin-top: 8px; }
+  section > p { margin: 0; }
+
+  fieldset { margin: 0; padding: 0; border: 0; }
+  legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .models {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+  }
+  .model {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    cursor: pointer;
+  }
+  .model:hover { border-color: var(--muted); }
+  .model:has(input:checked) {
+    border-color: var(--accent);
+    background: var(--selected-bg);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  .model:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .model input { margin: 4px 0 0; accent-color: var(--accent); }
+  .model span { display: block; }
+  .model .detail { font-size: 0.875rem; color: var(--muted); }
+
+  .options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .option {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .option h3 { margin: 0; font-size: 1.1rem; }
+  .option p { margin: 0; }
+  .option .note {
+    padding: 10px 12px;
+    border-left: 3px solid var(--note-border);
+    border-radius: 4px;
+    background: var(--note-bg);
+    font-size: 0.9375rem;
+  }
+  .option .files { font-size: 0.875rem; color: var(--muted); }
+  .option esp-web-install-button { margin-top: auto; }
+
+  [slot="activate"] {
+    padding: 10px 20px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  [slot="activate"]:hover:not(:disabled) { background: var(--accent-hover); }
+  [slot="activate"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  [slot="activate"]:disabled {
+    background: var(--disabled-bg);
+    color: var(--disabled-text);
+    cursor: not-allowed;
+  }
+  [slot="unsupported"], [slot="not-allowed"] { color: var(--muted); font-size: 0.9375rem; }
+  /* Until the install button script loads, only show the button */
+  esp-web-install-button:not(:defined) > :not([slot="activate"]) { display: none; }
+
+  .hint { margin-top: 12px; color: var(--muted); font-size: 0.9375rem; }
+
+  footer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.9375rem;
+  }
+  footer p { margin: 0; }
+  footer p + p { margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Install EleksTubeIPS firmware</h1>
+    <p class="lede">Version $version$ of <a href="https://github.com/$repository$">$repository$</a>, replacement firmware for the EleksTube IPS clock and its clones. Flash it to your clock over USB from this page.</p>
+    <p class="notice" id="browser-notice" hidden>This browser can't connect to USB devices. Open this page in Chrome or Edge on a computer.</p>
+  </header>
+
+  <section>
+    <h2><span class="step">1</span>Before you start</h2>
+    <ul>
+      <li>Use Chrome or Edge on a computer. Phones and most other browsers can't connect to USB devices.</li>
+      <li>Connect the clock to the computer with a USB cable that carries data, not just power.</li>
+      <li>To keep a copy of the clock's original firmware, back it up with esptool.py first. This page can't. The <a href="https://github.com/judge2005/EleksTubeIPS/wiki/Installation">installation guide</a> shows how.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="step">2</span>Choose your clock</h2>
+    <fieldset class="models">
+      <legend>Clock</legend>
+      <label class="model"><input type="radio" name="model" value="elekstubev1"><span><span>EleksTube IPS V1</span><span class="detail">and Xunfeng IPS</span></span></label>
+      <label class="model"><input type="radio" name="model" value="elekstubev2"><span><span>EleksTube IPS V2</span></span></label>
+      <label class="model"><input type="radio" name="model" value="novellifese"><span><span>NovelLife SE</span></span></label>
+      <label class="model"><input type="radio" name="model" value="sihai"><span><span>Si Hai</span></span></label>
+      <label class="model"><input type="radio" name="model" value="punkcyber"><span><span>PCBWay PunkCyber</span><span class="detail">RGB Glow Tube DIY Clock</span></span></label>
+      <label class="model"><input type="radio" name="model" value="ipstube"><span><span>IPSTube</span><span class="detail">H401, H402</span></span></label>
+      <label class="model"><input type="radio" name="model" value="ipstube_dim"><span><span>IPSTube with hardware dimming</span></span></label>
+    </fieldset>
+    <p class="hint">Some clocks sold as an EleksTube IPS V2 need the V1 firmware. If every display shows the same digit after installing, install the other EleksTube version with Upgrade. Your settings are kept.</p>
+  </section>
+
+  <section>
+    <h2><span class="step">3</span>Install</h2>
+    <div class="options">
+      <div class="option">
+        <h3>Upgrade</h3>
+        <p>For a clock that already runs this firmware, 1.9.4 or later. Installs only the firmware, so your settings, Wi-Fi details and uploaded images are kept.</p>
+        <p class="note">When asked, leave <strong>Erase device</strong> unticked. Erasing removes everything, and the clock won't start again until you do a full install.</p>
+        <p class="files" data-files="firmware-only"></p>
+        <esp-web-install-button data-kind="firmware-only">
+          <button slot="activate" disabled>Upgrade</button>
+          <span slot="unsupported">Needs Chrome or Edge on a computer.</span>
+          <span slot="not-allowed">Needs an HTTPS page.</span>
+        </esp-web-install-button>
+      </div>
+      <div class="option">
+        <h3>Full install</h3>
+        <p>For a clock running its original firmware, or to start over. Also installs the default clock faces, weather icons and slide shows, replacing any you've uploaded.</p>
+        <p class="note">On a first install, tick <strong>Erase device</strong> when asked. Leave it unticked to keep your settings and Wi-Fi details.</p>
+        <p class="files" data-files="full"></p>
+        <esp-web-install-button data-kind="full">
+          <button slot="activate" disabled>Full install</button>
+          <span slot="unsupported">Needs Chrome or Edge on a computer.</span>
+          <span slot="not-allowed">Needs an HTTPS page.</span>
+        </esp-web-install-button>
+      </div>
+    </div>
+    <p class="hint" id="choose-hint">Choose your clock to turn on these buttons.</p>
+  </section>
+
+  <section>
+    <h2><span class="step">4</span>Connect to Wi-Fi</h2>
+    <p>If the clock doesn't have your Wi-Fi details yet, <a href="https://github.com/judge2005/EleksTubeIPS/wiki/Connecting-to-WiFi">Connecting to WiFi</a> in the wiki walks you through it. After that, open the clock's web page to set it up.</p>
+  </section>
+
+  <footer>
+    <p>Prefer the command line? Download the files from the <a href="https://github.com/$repository$/releases/tag/v$version$">$version$ release</a> and flash them with esptool.py as the <a href="https://github.com/judge2005/EleksTubeIPS/wiki/Installation">installation guide</a> describes.</p>
+    <p>Installs use <a href="https://esphome.github.io/esp-web-tools/">ESP Web Tools</a>.</p>
+  </footer>
+</main>
+
+<script>
+  const version = "$version$";
+  const eightMB = ["ipstube", "ipstube_dim"];
+  const radios = document.querySelectorAll('input[name="model"]');
+
+  if (!("serial" in navigator)) {
+    document.getElementById("browser-notice").hidden = false;
+  }
+
+  function choose(model) {
+    for (const el of document.querySelectorAll("esp-web-install-button")) {
+      const suffix = el.dataset.kind === "firmware-only" ? "-firmware-only" : "";
+      el.setAttribute("manifest", `firmware/esp-web-tools-manifest-${model}${suffix}.json`);
+      el.querySelector('[slot="activate"]').disabled = false;
+    }
+
+    const firmware = `firmware-${model}-${version}.bin`;
+    const size = eightMB.includes(model) ? "8MB" : "";
+    document.querySelector('[data-files="firmware-only"]').innerHTML =
+      `Writes <code>${firmware}</code>`;
+    document.querySelector('[data-files="full"]').innerHTML =
+      `Writes <code>${firmware}</code>, <code>littlefs${size}-${version}.bin</code>, the bootloader and the partition table`;
+    document.getElementById("choose-hint").hidden = true;
+  }
+
+  for (const radio of radios) {
+    radio.addEventListener("change", () => {
+      choose(radio.value);
+      history.replaceState(null, "", `#${radio.value}`);
+    });
+  }
+
+  // A link such as …/#ipstube opens with that clock chosen
+  const linked = [...radios].find((radio) => radio.value === location.hash.slice(1));
+  if (linked) {
+    linked.checked = true;
+    choose(linked.value);
+  }
+</script>
+</body>
+</html>

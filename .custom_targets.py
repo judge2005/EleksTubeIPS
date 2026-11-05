@@ -21,6 +21,7 @@ def copy_and_replace(src, dest):
             dest_file.write(file_contents)
 
 def copy_manifests_to_release(*args, **kwargs):
+    os.makedirs(os.path.join(env["PROJECT_DIR"], 'releases'), exist_ok=True)
     src = os.path.join(env["PROJECT_DIR"], "web", "esp-web-tools-manifest-" + env["PIOENV"] + "-firmware-only.json")
     dst = os.path.join(env["PROJECT_DIR"], 'releases', "esp-web-tools-manifest-" + env["PIOENV"] + "-firmware-only.json")
     copy_and_replace(src, dst)
@@ -43,6 +44,12 @@ def copy_firmware_to_release(*args, **kwargs):
     #partitions
     src = os.path.join(env["PROJECT_DIR"], env.GetBuildPath("$BUILD_DIR"), env.GetBuildPath("partitions.bin"))
     dst = os.path.join(env["PROJECT_DIR"], 'releases', manifest["builds"][0]["parts"][1]["path"])
+    print(src + " " + dst)
+    shutil.copy(src, dst)
+
+    #boot_app0, which the framework supplies rather than the build
+    src = os.path.join(env.PioPlatform().get_package_dir("framework-arduinoespressif32"), "tools", "partitions", "boot_app0.bin")
+    dst = os.path.join(env["PROJECT_DIR"], 'releases', manifest["builds"][0]["parts"][2]["path"])
     print(src + " " + dst)
     shutil.copy(src, dst)
 

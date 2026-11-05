@@ -1,0 +1,32 @@
+# Builds every clock on every pull request and push. A run's "release-files" artifact has the same files
+# a release would, for anyone who wants to flash a change before it's merged.
+
+name: CI
+
+on:
+  push:
+    branches: [main, v2]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sources:
+    name: Check the sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - run: python3 tools/check_release.py
+
+  build:
+    needs: sources
+    uses: ./.github/workflows/build.yml
