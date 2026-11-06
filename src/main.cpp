@@ -793,22 +793,33 @@ void updateDisplays() {
 }
 
 // While the access point is on, its name and password take turns in the status line, so whoever can
-// see the clock can join it. Each is shown before the last expires, so the digits aren't redrawn.
+// see the clock can join it, along with why the clock can't join a network if it tried and failed.
+// Each is shown before the last expires, so the digits aren't redrawn.
 void showAccessPoint() {
 	static unsigned long lastShown = 0;
-	static bool showPassword = false;
+	static uint8_t showing = 0;
 
 	// Less than the 6 s a status with a label lasts, so it's replaced before it goes
 	if (wifiManager->isAP() && millis() - lastShown >= 5000) {
 		lastShown = millis();
-		if (showPassword) {
-			tfts->setStatus("WiFi password", apPassword.value.c_str(), true);
-		} else {
+		const char *problem = wifiManager->connectProblem();
+		if (showing == 2 && problem == NULL) {
+			showing = 0;
+		}
+
+		if (showing == 0) {
 			// The ID from createSSID() on a line of its own, so the name fits the bigger text
 			String name = ssid.substring(0, ssid.length() - 4) + "\n" + ssid.substring(ssid.length() - 4);
 			tfts->setStatus("WiFi network", name.c_str());
+		} else if (showing == 1) {
+			tfts->setStatus("WiFi password", apPassword.value.c_str(), true);
+		} else {
+			// Split at the first space, so the words stay whole in the bigger text
+			String text(problem);
+			text.setCharAt(text.indexOf(' '), '\n');
+			tfts->setStatus("WiFi problem", text.c_str());
 		}
-		showPassword = !showPassword;
+		showing = (showing + 1) % 3;
 	}
 }
 
@@ -1191,6 +1202,22 @@ void setAPPassword(const String &value) {
 	broadcastToWebUI(apPassword);	// Also puts back anything refused
 }
 
+// A name that works everywhere the hostname is used: DHCP, mDNS and the web UI's JSON. Letters, digits
+// and hyphens, without a hyphen at either end.
+bool validHostname(const String &name) {
+	if (name.length() == 0 || name.length() > hostName.maxSize || name[0] == '-' || name[name.length() - 1] == '-') {
+		return false;
+	}
+
+	for (int i = 0; i < name.length(); i++) {
+		if (!isalnum((unsigned char)name[i]) && name[i] != '-') {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 // A group of settings, like "web_login". Setting one does nothing, but would send what's in it to the
 // web UI, passwords too.
 bool isSettingsGroup(const BaseConfigItem *item) {
@@ -1225,6 +1252,8 @@ void updateValue(int screen, String pair) {
 		setSecret(*(StringConfigItem*)item, value);
 	} else if (item == &apPassword) {
 		setAPPassword(value);
+	} else if (item == &hostName && !validHostname(value)) {
+		broadcastToWebUI(hostName);	// Puts back what was refused
 	} else if (item != 0 && !isSettingsGroup(item)) {
 		item->fromString(value);
 		item->put();
@@ -1831,9 +1860,9 @@ String wifiCallback() {
 	}
 
 	wifiStatus += ",";
-	wifiStatus += "\"hostname\":\"";
-	wifiStatus += hostName.value;
-	wifiStatus += "\",";
+	wifiStatus += "\"hostname\":";
+	wifiStatus += hostName.toJSON();	// Escaped, as one saved before names were checked could have anything in it
+	wifiStatus += ",";
 	wifiStatus += webLoginJSON();
 	wifiStatus += ",\"ap_password\":";
 	wifiStatus += apPassword.toJSON();
@@ -1995,7 +2024,9 @@ void initFromEEPROM() {
 		config.commit();
 	}
 
-	hostnameParam = new AsyncWiFiManagerParameter("Hostname", "clock host name", hostName.value.c_str(), 63);
+	// The browser's check is for the message. SetupServer() checks again.
+	hostnameParam = new AsyncWiFiManagerParameter("Hostname", "Hostname", hostName.value.c_str(), 63,
+		"required pattern='[A-Za-z0-9]([A-Za-z0-9\\-]*[A-Za-z0-9])?' title='Letters, digits and hyphens, without a hyphen at either end'");
 }
 
 void connectedHandler() {
@@ -2021,6 +2052,36 @@ void apChange(AsyncWiFiManager *wifiManager) {
 		uint32_t value = WEATHER_UPDATE;
 		xQueueSend(weatherQueue, &value, 0);	// Not enough memory to make an HTTPS request while AP is active
 	}
+
+	// So the Network page's switch doesn't go on saying otherwise when the access point closes by itself
+	broadcastUpdate(String("{\"type\":\"sv.update\",\"value\":{\"wifi_ap\":") + (wifiManager->isAP() ? "true" : "false") + "}}");
+}
+
+// An access point that's forgotten about keeps the weather from updating and its name and password on
+// the displays, so it closes when nobody has been on it for a while. Not if the clock isn't on a
+// network, when the access point is the only way to reach it.
+void closeIdleAccessPoint() {
+	static const unsigned long CHECK_MS = 5000;
+	static const unsigned long IDLE_MS = 10 * 60 * 1000;
+	static unsigned long lastChecked = 0;
+	static unsigned long lastInUse = 0;
+
+	if (!wifiManager->isAP() || !WiFi.isConnected()) {
+		lastInUse = millis();
+		return;
+	}
+
+	if (millis() - lastChecked < CHECK_MS) {
+		return;
+	}
+	lastChecked = millis();
+
+	if (WiFi.softAPgetStationNum() > 0) {
+		lastInUse = millis();
+	} else if (millis() - lastInUse >= IDLE_MS) {
+		lastInUse = millis();
+		wifiManager->stopConfigPortal();
+	}
 }
 
 void setWiFiAP(bool on) {
@@ -2043,25 +2104,22 @@ void setAddress(StringConfigItem &item, const String &value) {
 
 // The Wi-Fi portal keeps the static address it is given to itself, and forgets it when the clock
 // restarts. This sees the portal's form before the portal does, so SetupServer() can save it with
-// the other settings. It always returns false, so the request goes on to the portal.
-bool captureStaticAddress(AsyncWebServerRequest *request) {
-	// Only the Configure Static WiFi page has the address fields, and the portal only answers on its access point
-	if (request->url() == "/wifisave" && request->hasArg("ip") && ON_AP_FILTER(request)) {
+// the other settings.
+void captureStaticAddress(AsyncWebServerRequest *request) {
+	// Only the Configure Static WiFi page has the address fields
+	if (request->hasArg("ip")) {
 		setAddress(staticIP, request->arg("ip"));
 		setAddress(staticGateway, request->arg("gw"));
 		setAddress(staticSubnet, request->arg("sn"));
 		setAddress(staticDNS1, request->arg("dns1"));
 		setAddress(staticDNS2, request->arg("dns2"));
 	}
-
-	return false;
 }
 
 // Gives the Wi-Fi portal the saved static address, if there is one. The portal uses it to connect
 // and shows it on the Configure Static WiFi page.
 void setStaticAddress() {
-	// Registered before the portal's own handler, so it sees the form first
-	server->on("/wifisave", HTTP_GET, [](AsyncWebServerRequest *request) {}).setFilter(captureStaticAddress);
+	wifiManager->setSaveFormCallback(captureStaticAddress);
 
 	IPAddress ip, gateway, subnet, dns1, dns2;
 	if (ip.fromString(staticIP.value)) {
@@ -2079,8 +2137,11 @@ void setStaticAddress() {
 
 void SetupServer() {
 	DEBUG("SetupServer()");
-	hostName = String(hostnameParam->getValue());
-	hostName.put();
+	String name(hostnameParam->getValue());
+	if (validHostname(name)) {
+		hostName = name;
+		hostName.put();
+	}
 	if (staticAddressChanged) {
 		// The portal has already reconnected with the old address, and it can't go back to DHCP.
 		// Restart so the new address is used.
@@ -2104,6 +2165,7 @@ void wifiManagerTaskFn(void *pArg) {
 		wifiManager->loop();
 		xSemaphoreGive(wsMutex);
 
+		closeIdleAccessPoint();
 		WiFiWatchdog::loop();
 
 		delay(50);
@@ -2224,7 +2286,6 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 	wifiManager->addParameter(hostnameParam);
 	wifiManager->setSaveConfigCallback(SetupServer);
 	wifiManager->setConnectedCallback(connectedHandler);
-	wifiManager->setConnectTimeout(5000);	// milliseconds
 	wifiManager->setAPCallback(apChange);
 	wifiManager->setAPCredentials(ssid.c_str(), apPassword.value.c_str());
 	server->addHandler(new WebLoginHandler());	// Before any other handler, so it sees every request first
@@ -2236,7 +2297,11 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 	// which does nothing until Wi-Fi's start event has been handled.
 	WiFi.mode(WIFI_STA);
 	esp_wifi_set_max_tx_power(WIFI_POWER_19_5dBm);
+	// When this runs out, opening the access point cancels the connection and starts it again, so allow
+	// for a slow router. A clock with no network saved doesn't wait.
+	wifiManager->setConnectTimeout(10000);	// milliseconds
 	wifiManager->start();
+	wifiManager->setConnectTimeout(5000);	// Later ones hold up the Wi-Fi manager's task, and the web UI with it
 	esp_wifi_set_max_tx_power(WIFI_POWER_19_5dBm);
 
 	configureWebServer();
