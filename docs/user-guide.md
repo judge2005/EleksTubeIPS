@@ -11,21 +11,23 @@ How to set up and use a clock running [this firmware](https://github.com/judge20
 
 ## Connecting to Wi-Fi
 
-After installing, the web installer may offer to connect the clock to your Wi-Fi network. Otherwise, whenever the clock can't join a network, it starts its own access point:
+After installing, the web installer may offer to connect the clock to your Wi-Fi network. Otherwise, if the clock can't join a network when it starts, it opens its own access point:
 
-1. The bottom of the displays takes turns showing the access point's **WiFi network** name, such as `EleksTubeB2C3`, and its **WiFi password**.
+1. The bottom of the displays takes turns showing the access point's **WiFi network** name, such as `EleksTubeB2C3`, and its **WiFi password**. If the clock tried to join a network and couldn't, it also shows why, as a **WiFi problem**.
 2. Join that network from your phone or computer, using that password. A page from the clock should open by itself. If it doesn't, go to http://192.168.4.1.
 3. Choose **Configure WiFi**, choose your network from the list and enter its password. **Scan** refreshes the list. You can change the clock's hostname here too, which you'll need to if you have more than one clock. Then choose **save**.
-4. The clock joins your network and shows its IP address for a few seconds. The access point closes 30 seconds later.
+4. The clock joins your network and shows its IP address for a few seconds. The access point closes 30 seconds later. If the clock can't join, the displays and the **Info** page say why: **Wrong password?**, **Network not found** or **Can't connect**. The access point stays on so you can try again.
 
 The page has other buttons too:
 
 * **Configure Static WiFi** is the same as Configure WiFi, but also gives the clock a fixed IP address. An empty Subnet means 255.255.255.0, and an empty DNS1 means the gateway.
 * **Set Clock Time** sets the clock to your phone's or computer's time, for a clock with no internet connection.
 * **Configure Clock** opens the [web UI](#the-web-ui) over the access point.
-* **Info** shows details of the clock, and **Reset** restarts it.
+* **Info** says whether the clock has joined a network, or why it can't, and shows details of the clock. **Reset** restarts it.
 
 Each clock makes up its own access point password the first time it starts. The [Network](#network) page shows it and can change it. To move the clock to a different network later, turn on **WiFi AP** on the Network page and follow the steps above.
+
+If the clock loses its network while it's running, it keeps trying to rejoin, but doesn't open its access point by itself. So if it can't get back on, for example because your router's password changed, unplug it and plug it back in. It opens the access point when it finds it can't join.
 
 ## Status messages
 
@@ -36,6 +38,7 @@ Messages appear for a few seconds at the bottom of the displays, mostly while th
 | setup... | The clock is starting. |
 | Connecting... | It's joining your Wi-Fi network. |
 | WiFi network and WiFi password | The access point is on, see [Connecting to Wi-Fi](#connecting-to-wi-fi). |
+| WiFi problem | The access point is on, and this is why the clock can't join a network: Wrong password?, Network not found or Can't connect. |
 | An IP address, such as 192.168.1.50 | It has joined your Wi-Fi network at that address. |
 | AP Destroyed... | The access point has closed. |
 | NTP time received... | It has set its time from the time server. |
@@ -171,11 +174,11 @@ The clock publishes its state on `clock/<id>/volatile/state` (brightness, displa
 
 <img src="ui/network.webp" alt="The Network page" width="400">
 
-* **Hostname** is the clock's name on your network, so the web UI is at http://*hostname*.local. Give each clock its own. The clock restarts when you change it.
+* **Hostname** is the clock's name on your network, so the web UI is at http://*hostname*.local. Give each clock its own. It can have letters, digits and hyphens, without a hyphen at either end. The clock restarts when you change it.
 * **Time Server** is where the clock gets the time, by name or IP address, such as a server on your own network. The default is pool.ntp.org.
 * **Web UI User** and **Web UI Password** set a login for the web UI. Set both and the clock asks for them before every page, upload and `/custom` request. Clear either one to turn the login off. The user can have letters, digits and `. _ - @`, and the password letters, digits, spaces and punctuation, without accents. Setting or changing the login disconnects any web UI that's open, so reload it and log in. If you forget the login, start the clock where it can't join your Wi-Fi, connect to its access point, choose **Configure Clock** and change it here, since the clock doesn't ask for it over its access point.
 * **WiFi AP Password** is the access point's password. Type your own, at least 8 characters, or clear it for a new random one. A new password is used the next time the access point starts.
-* **WiFi AP** turns the access point on or off, for example to move the clock to a different network, see [Connecting to Wi-Fi](#connecting-to-wi-fi).
+* **WiFi AP** turns the access point on or off, for example to move the clock to a different network, see [Connecting to Wi-Fi](#connecting-to-wi-fi). If the clock is on your network, the access point closes by itself once nobody has been on it for 10 minutes.
 
 ## Info
 
