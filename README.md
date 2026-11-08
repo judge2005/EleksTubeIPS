@@ -23,12 +23,12 @@ This firmware uses the WiFi support that your clock already has to sync the time
 * It has a screen saver.
 * There is also a tool to convert images in to a format that can be displayed on the clock
 * It can connect to a MQTT broker, primarily to allow use of movement and luminance sensors and setting a custom display value. The full state of the clock is published too. See the [User Guide](https://github.com/judge2005/EleksTubeIPS/wiki/User-Guide#mqtthome-assistant) for details.
-* There are specific variants for:
-  * The [EleksTube v1 clock](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1/)
-  * The [Si Hai](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-3/) clock
-  * The [NovelLife SE](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-2/) clock
-  * The [PCBWay 'Punkcyber'](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-4/) clock
-  * The [IPSTube](https://www.nixies.us/projects/elekstubeips-clock/elekstube-ips-v1-2-2/) clock
+* There are specific variants for these clocks:
+  * EleksTube v1
+  * Si Hai
+  * NovelLife SE
+  * PCBWay 'Punkcyber'
+  * IPSTube
 
 This image shows the clock running in 4 digit mode with weather forecast
 
