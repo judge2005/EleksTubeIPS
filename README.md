@@ -18,11 +18,12 @@ This firmware uses the WiFi support that your clock already has to sync the time
   * Upload, delete and select the images used for the clock display
   * Configure the weather forecast
   * Upload, delete and select the icons used for the weather display
+  * Upload, delete and select images for slide show mode
 * Clock faces and weather icons can be selected using the buttons.
-* You can switch between time, date and weather using the buttons.
+* You can switch between time, date, weather and slide show using the buttons.
 * It has a screen saver.
 * There is also a tool to convert images in to a format that can be displayed on the clock
-* It can connect to a MQTT broker, primarily to allow use of movement and luminance sensors and setting a custom display value. The full state of the clock is published too. See the [User Guide](https://github.com/judge2005/EleksTubeIPS/wiki/User-Guide#mqtthome-assistant) for details.
+* It can connect to a MQTT broker, primarily to allow use of movement and luminance sensors, setting a custom display value and controlling all aspects of the clock - including uploading image packs. See the [User Guide](https://github.com/judge2005/EleksTubeIPS/wiki/User-Guide#mqtthome-assistant) for details.
 * There are specific variants for these clocks:
   * EleksTube v1
   * Si Hai
