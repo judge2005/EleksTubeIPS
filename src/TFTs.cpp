@@ -545,13 +545,42 @@ void TFTs::animateRain() {
   #endif
     animator.animate(dimming);
   #ifndef SMOOTH_FONT
-    sprite.pushSprite(0,0);
+    pushRain(sprite);
   #endif
     drawStatusEverywhere();
 
     chip_select.setDigitMap(saved, true);
 
     release();
+  }
+}
+
+// Pushes a frame of rain to every display, except where a status is on the displays that show one.
+// Rain there would cover the status until drawStatusEverywhere() draws it again, which flickers, and
+// more so on the displays it draws last. Call it with every display selected.
+void TFTs::pushRain(TFT_eSprite &sprite) {
+  if (!statusSet || statusSprite == NULL || !statusSprite->created()) {
+    sprite.pushSprite(0, 0);
+    return;
+  }
+
+  int16_t statusTop = height() - statusSprite->height();
+  sprite.pushSprite(0, 0, 0, 0, width(), statusTop);
+
+  // The rest of the rain goes on the displays without a status
+  uint8_t all = chip_select.getDigitMap();
+  uint8_t without = 0;
+  if (statusCount > 0) {
+    without = all;
+    for (uint8_t n = 0; n < statusCount; n++) {
+      without &= ~(1 << displaysFromLeft[n]);
+    }
+  }
+
+  if (without != 0) {
+    chip_select.setDigitMap(without);
+    sprite.pushSprite(0, statusTop, 0, statusTop, width(), height() - statusTop);
+    chip_select.setDigitMap(all);
   }
 }
 

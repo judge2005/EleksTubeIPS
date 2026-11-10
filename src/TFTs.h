@@ -112,6 +112,7 @@ private:
 #endif
   void drawStatus(uint8_t digit);
   void drawStatusEverywhere();
+  void pushRain(TFT_eSprite &sprite);
 
   byte showDigits = 0;
   image_justification_t imageJustification = MIDDLE_CENTER;
