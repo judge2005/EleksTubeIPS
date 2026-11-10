@@ -288,6 +288,7 @@ bool TFTs::checkStatus() {
 void TFTs::setStatus(const char* s) {
   claim();
 
+  statusCount = 0;
   TFT_eSprite& sprite = getStatusSprite(fontHeight(2));
   sprite.setTextDatum(BC_DATUM);
   sprite.setTextColor(STATUS_GOLD);
@@ -335,16 +336,15 @@ static int16_t widestLine(TFT_eSPI& tft, const char *value, uint8_t lines, uint8
   return widest;
 }
 
-void TFTs::setStatus(const char *label, const char *value, bool split) {
-  claim();
-
-  uint8_t font = 2, lines = 1;
-  char line[64];
+// The font and number of lines that a status with a label shows value in
+static void labelledLayout(TFT_eSPI& tft, const char *value, bool split, uint8_t& font, uint8_t& lines) {
+  font = 2;
+  lines = 1;
 
   if (strchr(value, '\n') != NULL) {
     // Its lines as they are, in the bigger font if they fit
     lines = 1 + std::count(value, value + strlen(value), '\n');
-    font = widestLine(*this, value, lines, 4) <= width() - 4 ? 4 : 2;
+    font = widestLine(tft, value, lines, 4) <= tft.width() - 4 ? 4 : 2;
   } else {
     // The biggest font and fewest lines it fits in. If it doesn't fit, the ends are cut off.
     static const struct { uint8_t font, lines; } layouts[] = { {4, 1}, {4, 2}, {2, 1}, {2, 2}, {2, 3}, {2, 4} };
@@ -355,45 +355,97 @@ void TFTs::setStatus(const char *label, const char *value, bool split) {
 
       font = layout.font;
       lines = layout.lines;
-      if (widestLine(*this, value, lines, font) <= width() - 4) {
+      if (widestLine(tft, value, lines, font) <= tft.width() - 4) {
         break;
       }
     }
   }
+}
 
-  int16_t labelHeight = fontHeight(2);
-  int16_t lineHeight = fontHeight(font);
+// The height of a status with a label
+static int16_t labelledHeight(TFT_eSPI& tft, const char *value, bool split) {
+  uint8_t font, lines;
+  labelledLayout(tft, value, split, font, lines);
+
   // At least two lines of font 4, so that changing to a value in fewer lines doesn't redraw the digits
-  int16_t valueHeight = std::max(lineHeight * lines, fontHeight(4) * 2);
+  int16_t valueHeight = std::max(tft.fontHeight(font) * lines, tft.fontHeight(4) * 2);
+  return tft.fontHeight(2) + valueHeight;
+}
 
-  TFT_eSprite& sprite = getStatusSprite(labelHeight + valueHeight);
+// Draws label at the top of sprite, and value in the middle of the space below it
+static void drawLabelled(TFT_eSPI& tft, TFT_eSprite& sprite, const char *label, const char *value, bool split) {
+  uint8_t font, lines;
+  char line[64];
+  labelledLayout(tft, value, split, font, lines);
+
+  int16_t labelHeight = tft.fontHeight(2);
+  int16_t lineHeight = tft.fontHeight(font);
+
   sprite.setTextDatum(TC_DATUM);
   sprite.setTextColor(STATUS_GOLD);
-  sprite.drawString(label, width()/2, 0, 2);
+  sprite.drawString(label, tft.width()/2, 0, 2);
 
   sprite.setTextColor(STATUS_WHITE);
-  int16_t y = labelHeight + (valueHeight - lineHeight * lines) / 2;
+  int16_t y = labelHeight + (sprite.height() - labelHeight - lineHeight * lines) / 2;
   for (uint8_t n = 0; n < lines; n++, y += lineHeight) {
     statusLine(value, lines, n, line);
-    sprite.drawString(line, width()/2, y, font);
+    sprite.drawString(line, tft.width()/2, y, font);
   }
+}
+
+void TFTs::setStatus(const char *label, const char *value, bool split) {
+  claim();
+
+  statusCount = 0;
+  TFT_eSprite& sprite = getStatusSprite(labelledHeight(*this, value, split));
+  drawLabelled(*this, sprite, label, value, split);
 
   showStatus(6000);  // Longer, as there's more to read
 
   release();
 }
 
-// Shows the status sprite on every display, for duration milliseconds
+// The displays in order from the left. Their numbers run the other way on some clocks, see GLOBAL_DEFINES.h.
+static const uint8_t displaysFromLeft[NUM_DIGITS] =
+  { HOURS_TENS, HOURS_ONES, MINUTES_TENS, MINUTES_ONES, SECONDS_TENS, SECONDS_ONES };
+
+void TFTs::setStatus(const DisplayStatus *statuses, uint8_t count) {
+  count = std::min(count, (uint8_t)NUM_DIGITS);
+  if (count == 0) {
+    return;
+  }
+
+  claim();
+
+  // Displays that had a status and won't now need their digits drawing again
+  if (statusSet && (statusCount == 0 || count < statusCount)) {
+    statusShrunk = true;
+  }
+
+  // One sprite, drawn for each display in turn, as each takes up to 5K. All are as high as the highest.
+  int16_t height = 0;
+  for (uint8_t n = 0; n < count; n++) {
+    strlcpy(statusTexts[n].label, statuses[n].label, sizeof(statusTexts[n].label));
+    strlcpy(statusTexts[n].value, statuses[n].value, sizeof(statusTexts[n].value));
+    statusTexts[n].split = statuses[n].split;
+    height = std::max(height, labelledHeight(*this, statusTexts[n].value, statusTexts[n].split));
+  }
+  statusCount = count;
+  getStatusSprite(height);
+
+  showStatus(6000);
+
+  release();
+}
+
+// Shows the status for duration milliseconds
 void TFTs::showStatus(unsigned long duration) {
   statusTime = millis();
   statusDuration = duration;
   statusSet = true;
 
   uint8_t saved = chip_select.getDigitMap();
-  chip_select.setAll();
-
-  drawStatus();
-
+  drawStatusEverywhere();
   chip_select.setDigitMap(saved, true);
 }
 
@@ -431,18 +483,46 @@ void TFTs::printAll(const char* s) {
   release();
 }
 
-void TFTs::drawStatus() {
+// Draws the status on digit's display, which is selected. One status on every display can be drawn on
+// several at once.
+void TFTs::drawStatus(uint8_t digit) {
   if (!enabled) {
     return;
   }
-  
+
   if (statusSet && statusSprite != NULL) {
+    if (statusCount > 0) {
+      uint8_t n = 0;
+      while (n < statusCount && displaysFromLeft[n] != digit) {
+        n++;
+      }
+      if (n == statusCount) {
+        return;  // It has none
+      }
+
+      statusSprite->fillSprite(STATUS_BLACK);
+      drawLabelled(*this, *statusSprite, statusTexts[n].label, statusTexts[n].value, statusTexts[n].split);
+    }
+
 #ifdef USE_DMA
   while(dmaBusy()) {
     delay(1);
   }
 #endif
     statusSprite->pushSprite(0, height() - statusSprite->height());
+  }
+}
+
+// Draws the status on every display it's on. Changes which displays are selected.
+void TFTs::drawStatusEverywhere() {
+  if (statusCount == 0) {
+    chip_select.setAll();
+    drawStatus(HOURS_TENS);  // The same on all of them
+  } else {
+    for (uint8_t n = 0; n < statusCount; n++) {
+      chip_select.setDigit(displaysFromLeft[n]);
+      drawStatus(displaysFromLeft[n]);
+    }
   }
 }
 
@@ -467,7 +547,7 @@ void TFTs::animateRain() {
   #ifndef SMOOTH_FONT
     sprite.pushSprite(0,0);
   #endif
-    drawStatus();
+    drawStatusEverywhere();
 
     chip_select.setDigitMap(saved, true);
 
@@ -632,7 +712,7 @@ void TFTs::showDigit(uint8_t digit) {
 #endif
     chip_select.setDigit(digit);
     fillScreen(TFT_BLACK);
-    drawStatus();
+    drawStatus(digit);
   } else {
     unsigned long start = millis();
     TFT_eSprite& sprite = drawImage(digit);
@@ -642,7 +722,7 @@ void TFTs::showDigit(uint8_t digit) {
 #ifndef USE_DMA
     sprite.pushSprite(0,0);
 #endif
-    drawStatus();
+    drawStatus(digit);
   }
 }
 

@@ -88,6 +88,10 @@ public:
   // A small label above a value in bigger text. The value can have line breaks, or if split, a value
   // too long for one line can go on more.
   void setStatus(const char *label, const char *value, bool split = false);
+  // A different one of those on each of the first count displays from the left, so all of them can be read
+  // at once. The displays after them show as they are.
+  struct DisplayStatus { const char *label; const char *value; bool split; };
+  void setStatus(const DisplayStatus *statuses, uint8_t count);
   bool checkStatus();
   void printlnAll(const char* s);
   void printAll(const char* s);
@@ -106,7 +110,8 @@ private:
 #else
   DigitalRainAnimation& getMatrixAnimator();
 #endif
-  void drawStatus();
+  void drawStatus(uint8_t digit);
+  void drawStatusEverywhere();
 
   byte showDigits = 0;
   image_justification_t imageJustification = MIDDLE_CENTER;
@@ -119,6 +124,10 @@ private:
   unsigned long statusDuration = 5000;
   bool statusSet = false;
   bool statusShrunk = false;
+  // Copies of the statuses from setStatus(statuses, count), 0 of them when one status is on every display
+  struct StatusText { char label[24]; char value[64]; bool split; };
+  StatusText statusTexts[NUM_DIGITS];
+  uint8_t statusCount = 0;
 
   uint16_t defaultTextColor = TFT_WHITE;
   uint16_t defaultTextBackground = TFT_BLACK;
