@@ -207,6 +207,11 @@ void Weather::postDraw() {
 }
 
 void Weather::loop(uint8_t dimming) {
+    // Drawing turns the displays on, e.g. after the blank screen saver or the hours the clock is off
+    if (!tfts->isEnabled()) {
+        _redraw = true;
+    }
+
     if (preDraw(dimming, 60000)) {
         tfts->checkStatus();
         tfts->enableAllDisplays();
