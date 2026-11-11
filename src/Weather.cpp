@@ -153,8 +153,27 @@ void Weather::drawDisplay(int index, int display, bool showDay) {
 }
 
 void Weather::drawSingleDay(uint8_t dimming, int day, int display) {
-    // Every 10 seconds so the date it shows changes promptly at midnight
-    if (preDraw(dimming, 10000)) {
+    // Nothing can be drawn while the displays are off or show custom data, so redraw once they don't
+    if (!tfts->isEnabled() || IPSClock::getCustomData().value.length() > 0) {
+        _redraw = true;
+        return;
+    }
+
+    // It shows the date too, so redraw when that changes. Checking every 10 seconds is soon enough.
+    unsigned long nowMs = millis();
+    if (dateTimer.expired(nowMs)) {
+        dateTimer.init(nowMs, 10000);
+
+        struct tm now;
+        suseconds_t uSec;
+        pTimeSync->getLocalTime(&now, &uSec);
+        if (now.tm_mday != shownDay) {
+            shownDay = now.tm_mday;
+            _redraw = true;
+        }
+    }
+
+    if (preDraw(dimming, 60000)) {
         // day is indexed from 0 thru 5 with 0 being today
         drawDisplay(5-day, display, false);
 
@@ -179,8 +198,8 @@ void Weather::checkIconPack() {
 
 /*
  * Returns true, with the displays claimed, if it is time to redraw.
- * Redraws are requested when the weather, its colors or the brightness change, so the
- * timer is just a backstop.
+ * Redraws are requested when the weather, its colors, the brightness or the date change, or
+ * something else was drawn over it, so the timer is just a backstop.
  */
 bool Weather::preDraw(uint8_t dimming, unsigned long redrawMs) {
     unsigned long nowMs = millis();
