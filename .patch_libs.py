@@ -9,7 +9,8 @@ import sys
 # first. One that still doesn't fit stops the build, because the library has changed under it.
 PATCHES = {
     # When the weather fetch left the clock short of memory, pages and files being sent lost data and
-    # never finished, and a new connection could abort the program
+    # never finished, and a new connection could abort the program. Dropping the headers no handler asked
+    # for read memory it had just freed.
     "ESP Async WebServer": "patches/ESPAsyncWebServer.patch",
     # A face, icon set or slide show that ran out of space partway through unpacking was reported as
     # unpacked, with the rest of its files left out. Too little memory in one piece for its buffers
