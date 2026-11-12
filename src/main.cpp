@@ -798,7 +798,11 @@ void updateDisplays() {
 
 // An RTC with a flat battery forgets the time whenever the clock is unplugged, and says so, so its time isn't
 // used and the clock waits for NTP or the setup page before it can show the time. This says why.
-static const TFTs::DisplayStatus rtcBatteryStatus = { "RTC battery", "May be\nflat", false };
+static const char *const rtcBatteryText = "Check RTC battery";
+
+// The same, for one display among the access point's statuses. Whole, "RTC battery" is a pixel too wide for
+// the bigger text.
+static const TFTs::DisplayStatus rtcBatteryStatus = { "Check", "RTC\nbattery", false };
 
 bool waitingForTimeWithFlatRTCBattery() {
 	return rtcTimeSync->lostPower() && !timeSync->initialized() && !rtcTimeSync->initialized();
@@ -815,7 +819,7 @@ void showRTCBattery() {
 	}
 
 	shownWithTime = timeSync->initialized() || rtcTimeSync->initialized();
-	tfts->setStatus(rtcBatteryStatus.label, rtcBatteryStatus.value);
+	tfts->setStatus(rtcBatteryText);
 }
 
 // While the access point is on, its name, password and address are in the status line, each on a display of
