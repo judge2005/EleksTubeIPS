@@ -709,6 +709,7 @@ void runMatrixAnimation() {
 	tfts->setDimming(ipsClock->getBrightness());
 	tfts->animateRain();
 	tfts->invalidateAllDigits();
+	weather->redraw();	// So the rain doesn't stay on the weather when it stops
 }
 
 // Set by the weather task when TLS has had the display buffer, see weatherTaskFn(), and when unpacking

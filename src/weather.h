@@ -61,6 +61,8 @@ private:
     String oldIcons;
     bool reloadIcons = false;
     ClockTimer::Timer displayTimer;
+    ClockTimer::Timer dateTimer;
+    int shownDay = -1;      // Day of the month drawSingleDay() last saw
     ImageUnpacker *imageUnpacker;
     bool _redraw = false;
     uint8_t lastDimming = 0;
