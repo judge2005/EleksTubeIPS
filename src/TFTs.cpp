@@ -104,7 +104,7 @@ void StaticSprite::pushImageWithTransparency(int32_t x, int32_t y, int32_t w, in
 
 void StaticSprite::pushImageWithAlpha(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t *data, uint8_t *alpha, uint8_t opaque)
 {
-  if (data == nullptr) return;
+  if (data == nullptr || alpha == nullptr) return;
 
   PI_CLIP;
 
@@ -127,10 +127,11 @@ void StaticSprite::pushImageWithAlpha(int32_t x, int32_t y, int32_t w, int32_t h
         if (alphaValue == opaque) {
           ptrs[pixelX] = __bswap_16(oPixel);
         } else if (alphaValue != 0) {
-          fastBlend(alphaValue, __bswap_16(oPixel), ptrs[pixelX]);
+          ptrs[pixelX] = __bswap_16(fastBlend(alphaValue, oPixel, __bswap_16(ptrs[pixelX])));
         }
       }
       ptro += w;
+      ptra += w;
       ptrs += _iwidth;
     }
   }
@@ -144,10 +145,11 @@ void StaticSprite::pushImageWithAlpha(int32_t x, int32_t y, int32_t w, int32_t h
         if (alphaValue == opaque) {
           ptrs[pixelX] = oPixel;
         } else if (alphaValue != 0) {
-          fastBlend(alphaValue, oPixel, ptrs[pixelX]);
+          ptrs[pixelX] = fastBlend(alphaValue, oPixel, ptrs[pixelX]);
         }
       }
       ptro += w;
+      ptra += w;
       ptrs += _iwidth;
     }
   }
@@ -879,7 +881,7 @@ bool TFTs::LoadBMPImageIntoBuffer(fs::File &bmpFile) {
         maskData.aShift = calc_shift(maskData.aMask);
       }
 #ifdef DEBUG_OUTPUT
-      Serial.printf("rMask=%d, rShift=%d, gMask=%d, gShift=%d, bMask=%d, bShift=%d, aMask=%d, aShift=%d\n",
+      Serial.printf("rMask=%04x, rShift=%04x, gMask=%04x, gShift=%04x, bMask=%04x, bShift=%04x, aMask=%04x, aShift=%04x\n",
         maskData.rMask, maskData.rShift, maskData.gMask, maskData.gShift, maskData.bMask, maskData.bShift, maskData.aMask, maskData.aShift
       );
 #endif
@@ -992,22 +994,14 @@ bool TFTs::LoadImageBytesIntoSprite(int16_t w, int16_t h, uint8_t bitDepth, int1
     }
   }
 
-#ifdef DEBUG_OUTPUT  
-  Serial.print("image W, H: ");
-  Serial.print(w); 
-  Serial.print(", "); 
-  Serial.println(h);
-  Serial.print("dimming: ");
-  Serial.println(dimming);
-  Serial.print("input size, output size: ");
-  Serial.print(inputBufferSize); 
-  Serial.print(", "); 
-  Serial.println(outputBufferSize);
-#endif
   uint8_t opaque = rotate_right(pMaskData->aMask, pMaskData->aShift);
   if (bitDepth == 1 && monochromeColor >= 0) {
     opaque = 1;
   }
+#ifdef DEBUG_OUTPUT
+  Serial.printf("image w=%d, h=%d, dimming=%d, rowSize=%d, reversed=%d, inputBufferSize=%d, outputBufferSize=%d\n", w, h, dimming, rowSize, reversed, inputBufferSize, outputBufferSize);
+  Serial.printf("bitDepth=%d, opaque=%d, aMask=%04x, aShift=%d\n", bitDepth, opaque, pMaskData->aMask, pMaskData->aShift);
+#endif
   StaticSprite& sprite = getSprite();
   bool leaveBackground = opaque != 0;
   leaveBackground = leaveBackground || (w == TFT_WIDTH && h == TFT_HEIGHT);
