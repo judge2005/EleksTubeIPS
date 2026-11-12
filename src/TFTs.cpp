@@ -1091,6 +1091,9 @@ bool TFTs::LoadImageIntoBuffer(const char* filename) {
   // No exists() check first, it opens the file too
   fs::File file = fs->open(filename, "r");
   if (file) {
+    // The C library would read it through a 4 KB buffer, for every digit that changes. Its rows are a few
+    // hundred bytes, and LittleFS has its own 512 byte cache.
+    file.setBufferSize(512);
     uint16_t magic = read16(file);
 
     if (magic == 0x4B43) { // look for "CK" header

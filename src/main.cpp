@@ -13,6 +13,9 @@
 #include <bootloader_random.h>
 #include <esp_ota_ops.h>
 #include <esp_rom_crc.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #ifndef DS1302
 #include <EspRTCTimeSync.h>
 #else
@@ -1658,6 +1661,43 @@ static const String &appEtag() {
 static uint8_t appSends = 0;	// Only used on async_tcp
 static const uint8_t maxAppSends = 2;
 
+// Where LittleFS is mounted, for calls that take a full path, like open()
+static const char *const fsMountPoint = "/littlefs";
+
+// app.html, read with open() and read(). Through a File, the C library gave each send a 4 KB buffer to read
+// it through, on top of the web server's own. Closes the file once the browser has disconnected. Returns NULL
+// if the file is missing.
+static AsyncWebServerResponse *appResponse(AsyncWebServerRequest *request) {
+	// Whichever the filesystem image has, as AsyncFileResponse did
+	bool gzipped = !LittleFS.exists("/app.html");
+	String path = String(fsMountPoint) + (gzipped ? "/app.html.gz" : "/app.html");
+	struct stat info;
+	if (stat(path.c_str(), &info) != 0 || info.st_size <= 0) {
+		return NULL;
+	}
+	int fd = open(path.c_str(), O_RDONLY);
+	if (fd < 0) {
+		return NULL;
+	}
+
+	// Called in order, each time for the next part
+	AsyncWebServerResponse *response = request->beginResponse("text/html", info.st_size, [fd](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+		ssize_t n = read(fd, buffer, maxLen);
+		return n > 0 ? n : 0;
+	});
+	if (gzipped) {
+		response->addHeader("Content-Encoding", "gzip");
+	}
+
+	appSends++;
+	request->onDisconnect([fd]() {
+		close(fd);
+		appSends--;
+	});
+
+	return response;
+}
+
 // Answers the request if the browser's copy is current. Otherwise returns NULL.
 static AsyncWebServerResponse *notModified(AsyncWebServerRequest *request, const String &etag) {
 	AsyncWebHeader *match = request->getHeader("If-None-Match");
@@ -1708,13 +1748,11 @@ void configureWebServer() {
 				request->send(response);
 				return;
 			}
-			response = request->beginResponse(LittleFS, "/app.html", "text/html");
+			response = appResponse(request);
 			if (response == NULL) {
 				request->send(404);	// The filesystem image is missing
 				return;
 			}
-			appSends++;
-			request->onDisconnect([]() { appSends--; });
 		}
 		addEtag(response, appEtag());
 		addWebLoginCookie(request, response);
@@ -2189,7 +2227,7 @@ void setup() {
     wsPendingQueue = xQueueCreate(8, sizeof(String*));
 	tfts = new TFTs();
 
-	LittleFS.begin();
+	LittleFS.begin(false, fsMountPoint);
 
 	// Setup TFTs
 	tfts->begin(LittleFS);
