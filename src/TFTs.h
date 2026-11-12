@@ -93,6 +93,7 @@ public:
   struct DisplayStatus { const char *label; const char *value; bool split; };
   void setStatus(const DisplayStatus *statuses, uint8_t count);
   bool checkStatus();
+  bool hasStatus() { return statusSet; }  // Until checkStatus() finds it has run out
   void printlnAll(const char* s);
   void printAll(const char* s);
   void drawMeter(int val, bool first, const char *legend);

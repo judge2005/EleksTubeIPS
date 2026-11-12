@@ -796,10 +796,37 @@ void updateDisplays() {
 	}
 }
 
+// An RTC with a flat battery forgets the time whenever the clock is unplugged, and says so, so its time isn't
+// used and the clock waits for NTP or the setup page before it can show the time. This says why.
+static const char *const rtcBatteryText = "Check RTC battery";
+
+// The same, for one display among the access point's statuses. Whole, "RTC battery" is a pixel too wide for
+// the bigger text.
+static const TFTs::DisplayStatus rtcBatteryStatus = { "Check", "RTC\nbattery", false };
+
+bool waitingForTimeWithFlatRTCBattery() {
+	return rtcTimeSync->lostPower() && !timeSync->initialized() && !rtcTimeSync->initialized();
+}
+
+// While the clock waits for the time, and once more when it comes, as on most networks that's only a few
+// seconds later. Not over any other status, such as the address the clock connected with. The access point
+// has its own statuses, and adds this one to them while the clock waits, see showAccessPoint().
+void showRTCBattery() {
+	static bool shownWithTime = false;
+
+	if (shownWithTime || !rtcTimeSync->lostPower() || wifiManager->isAP() || tfts->hasStatus()) {
+		return;
+	}
+
+	shownWithTime = timeSync->initialized() || rtcTimeSync->initialized();
+	tfts->setStatus(rtcBatteryText);
+}
+
 // While the access point is on, its name, password and address are in the status line, each on a display of
 // its own, so whoever can see the clock can join it and find the setup page. If the clock tried to join a
-// network and failed, why is on the next display. The address is for when the setup page doesn't open by
-// itself, as often happens on iPhones. They're shown again before they expire, so the digits aren't redrawn.
+// network and failed, why is on the next display, and then why the time isn't showing if the RTC's battery
+// may be flat. The address is for when the setup page doesn't open by itself, as often happens on iPhones.
+// They're shown again before they expire, so the digits aren't redrawn.
 void showAccessPoint() {
 	static unsigned long lastShown = 0;
 
@@ -817,11 +844,10 @@ void showAccessPoint() {
 			address = address.substring(0, dot + 1) + "\n" + address.substring(dot + 1);
 		}
 
-		TFTs::DisplayStatus statuses[] = {
+		TFTs::DisplayStatus statuses[5] = {
 			{ "WiFi network", name.c_str(), false },
 			{ "WiFi password", apPassword.value.c_str(), true },
 			{ "Setup page", address.c_str(), false },
-			{ "WiFi problem", "", false },
 		};
 		uint8_t count = 3;
 
@@ -831,7 +857,12 @@ void showAccessPoint() {
 			// Split at the first space, so the words stay whole in the bigger text
 			text = problem;
 			text.setCharAt(text.indexOf(' '), '\n');
-			statuses[count++].value = text.c_str();
+			statuses[count++] = { "WiFi problem", text.c_str(), false };
+		}
+
+		// Why the displays don't show the time, see showRTCBattery()
+		if (waitingForTimeWithFlatRTCBattery()) {
+			statuses[count++] = rtcBatteryStatus;
 		}
 
 		tfts->setStatus(statuses, count);
@@ -916,6 +947,7 @@ void clockTaskFn(void *pArg) {
 		uptime.loop();
 		ipsClock->updateSchedule();
 		showAccessPoint();
+		showRTCBattery();
 		readButtons();
 
 		// Memory is an issue if the displays need a .gz.tar file unpacked and the weather task
