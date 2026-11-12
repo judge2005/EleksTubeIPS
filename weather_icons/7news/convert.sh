@@ -18,7 +18,8 @@ python ../../tools/batch_convert_images.py -p 16 --scale_icon 120 -d -t -f --alp
 python ../../tools/batch_convert_images.py -p 16 --scale_icon 120 -d -t -f --alpha argb4444 13n.svg
 python ../../tools/batch_convert_images.py -p 16 --scale_icon 120 -d -t -f --alpha argb4444 50d.svg
 python ../../tools/batch_convert_images.py -p 16 --scale_icon 120 -d -t -f --alpha argb4444 50n.svg
+python ../../tools/batch_convert_images.py -p 16 --scale_icon 120 -t -f --alpha argb4444 unknown.svg
 
 #On mac have to manually remove extended attributes from files using
 #xattrs -c running in mac terminal app. Sigh
-#tar cvfz maxclassic.tar.gz [0-9]*.bmp
+#tar cvfz 7news.tar.gz [0-9]*.bmp unknown.bmp
