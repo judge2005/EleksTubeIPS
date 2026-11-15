@@ -6,6 +6,7 @@
 <title>EleksTubeIPS Installer</title>
 <meta name="description" content="Install the EleksTubeIPS replacement firmware on your clock over USB, from the browser.">
 <script type="module" src="https://unpkg.com/esp-web-tools@10.4.0/dist/web/install-button.js?module"></script>
+<script type="module" src="https://unpkg.com/improv-wifi-serial-sdk@2.8.1/dist/web/serial-launch-button.js?module"></script>
 <style>
   :root {
     color-scheme: light dark;
@@ -145,7 +146,7 @@
   }
   .option h3 { margin: 0; font-size: 1.1rem; }
   .option p { margin: 0; }
-  .option .note {
+  .note {
     padding: 10px 12px;
     border-left: 3px solid var(--note-border);
     border-radius: 4px;
@@ -153,7 +154,7 @@
     font-size: 0.9375rem;
   }
   .option .files { font-size: 0.875rem; color: var(--muted); }
-  .option esp-web-install-button { margin-top: auto; }
+  .option esp-web-install-button, .option improv-wifi-serial-launch-button { margin-top: auto; }
 
   [slot="activate"] {
     padding: 10px 20px;
@@ -173,8 +174,9 @@
     cursor: not-allowed;
   }
   [slot="unsupported"], [slot="not-allowed"] { color: var(--muted); font-size: 0.9375rem; }
-  /* Until the install button script loads, only show the button */
+  /* Until the web-component scripts load, only show the activate button */
   esp-web-install-button:not(:defined) > :not([slot="activate"]) { display: none; }
+  improv-wifi-serial-launch-button:not(:defined) > :not([slot="activate"]) { display: none; }
 
   .hint { margin-top: 12px; color: var(--muted); font-size: 0.9375rem; }
 
@@ -193,8 +195,12 @@
 <main>
   <header>
     <h1>Install EleksTubeIPS firmware</h1>
-    <p class="lede">Version $version$ of <a href="https://github.com/$repository$">$repository$</a>, replacement firmware for the EleksTube IPS clock and its clones. Flash it to your clock over USB from this page.</p>
     <p class="notice" id="browser-notice" hidden>This browser can't connect to USB devices. Open this page in Chrome or Edge on a computer.</p>
+    <p class="lede">Version $version$ of <a href="https://github.com/$repository$">$repository$</a>, replacement firmware for the EleksTube IPS clock and its clones. Use this page to:</p>   
+    <ul>
+      <li>Install over USB from the browser, no command line needed.</li>
+      <li>Connect your clock to Wi-Fi.</li>
+    </ul>
   </header>
 
   <section>
@@ -223,6 +229,8 @@
 
   <section>
     <h2><span class="step">3</span>Install</h2>
+    <p class="note">Some clocks have to be manually put into programming mode before installation (e.g. the IPSTube clocks). You do this by holding down the power button while you plug it in - the display will stay blank when you do this.</p>
+    <p>&nbsp;</p>
     <div class="options">
       <div class="option">
         <h3>Upgrade</h3>
@@ -252,7 +260,18 @@
 
   <section>
     <h2><span class="step">4</span>Connect to Wi-Fi</h2>
-    <p>If the clock doesn't have your Wi-Fi details yet, <a href="https://github.com/judge2005/EleksTubeIPS/wiki/Connecting-to-WiFi">Connecting to WiFi</a> in the wiki walks you through it. After that, open the clock's web page to set it up.</p>
+    <div class="option">
+      <h3>Configure Wi-Fi</h3>
+      <p>Installing the firmware should give you the option to configure Wi-Fi, but you can use the button below to just configure your clock's Wi-Fi settings.</p>
+      <p class="note">If you had to manually put your clock into programming mode - unplug it and plug it back in before you use this feature.</p>
+      <p></p>
+      <improv-wifi-serial-launch-button>
+        <button slot="activate" disabled>Configure Wi-Fi</button>
+        <span slot="unsupported">Needs Chrome or Edge on a computer.</span>
+        <span slot="not-allowed">Needs an HTTPS page.</span>
+      </improv-wifi-serial-launch-button>
+    </div>
+    <p>If that doesn't work there are other ways to do it. The <a href="https://github.com/judge2005/EleksTubeIPS/wiki/Connecting-to-WiFi">Connecting to WiFi</a> in the wiki walks you through it. After that, open the clock's web page to set it up.</p>
   </section>
 
   <footer>
@@ -274,6 +293,10 @@
     for (const el of document.querySelectorAll("esp-web-install-button")) {
       const suffix = el.dataset.kind === "firmware-only" ? "-firmware-only" : "";
       el.setAttribute("manifest", `firmware/esp-web-tools-manifest-${model}${suffix}.json`);
+      el.querySelector('[slot="activate"]').disabled = false;
+    }
+
+    for (const el of document.querySelectorAll("improv-wifi-serial-launch-button")) {
       el.querySelector('[slot="activate"]').disabled = false;
     }
 

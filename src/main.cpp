@@ -1110,6 +1110,8 @@ void infoCallback() {
 	wsInfoHandler.setRevision(manifest[1]);
 	wsInfoHandler.setUptime(uptime.uptime());
 
+	wsInfoHandler.setRTCState(rtcTimeSync->lostPower() ? "Check battery" : "&nbsp;");
+
 	wsInfoHandler.setFSSize(String(fsTotalBytes()));
 	wsInfoHandler.setFSFree(String(fsFreeBytes()));
 	TimeSync::SyncStats &syncStats = timeSync->getStats();

@@ -46,6 +46,10 @@ public:
 		this->lastUpdateTime = lastUpdateTime;
 	}
 
+	void setRTCState(const String& rtcState) {
+		this->rtcState = rtcState;
+	}
+
 	// void setBlankingMonitor(BlankTimeMonitor* blankingMonitor) {
 	// 	pBlankingMonitor = blankingMonitor;
 	// }
@@ -84,6 +88,7 @@ private:
     String fsFree;
 	String brightness;
 	String clockOn;
+	String rtcState;
 	String triggered;
 	String lastUpdateTime;
 	String lastFailedMessage;

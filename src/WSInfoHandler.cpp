@@ -71,7 +71,7 @@ void WSInfoHandler::handle(AsyncWebSocketClient *client, char *data) {
 	value["brightness"] = brightness;
 	value["triggered"] = triggered;
 	value["clock_on"] = clockOn;
-
+	value["rtc_state"] = rtcState;
 	value["up_time"] = uptime;
 	value["sync_time"] = lastUpdateTime;
 	value["sync_failed_msg"] = lastFailedMessage;
