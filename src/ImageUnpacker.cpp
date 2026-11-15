@@ -98,9 +98,9 @@ static bool outOfSpace(int error) {
     switch (error) {
         case ESP32_TARGZ_UZLIB_INVALID_FILE:    // From the library's check of the whole set, as tarSize() found a gzip file
         case ESP32_TARGZ_FS_FULL_ERROR:         // From its check of each file
-        case ESP32_TARGZ_FS_ERROR:              // A file couldn't be created
+        case ESP32_TARGZ_FS_ERROR:              // A file couldn't be created, or came out the wrong size
         case ESP32_TARGZ_FS_WRITE_ERROR:        // Or written
-        case ESP32_TARGZ_TAR_ERR_FOOTERCB_FAIL: // Or came out short
+        case ESP32_TARGZ_FS_READSIZE_ERROR:     // Or read back
             return true;
         default:
             return false;

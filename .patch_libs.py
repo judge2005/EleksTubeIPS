@@ -8,10 +8,6 @@ import sys
 # is left alone. If an earlier version of a patch is applied, the files it changes are put back
 # first. One that still doesn't fit stops the build, because the library has changed under it.
 PATCHES = {
-    # A face, icon set or slide show that ran out of space partway through unpacking was reported as
-    # unpacked, with the rest of its files left out. Too little memory in one piece for its buffers
-    # aborted the program, and now the clock can lend it them.
-    "ESP32-targz": "patches/ESP32-targz.patch",
     # A web connection that came in when there wasn't the memory for it was freed, then used by lwIP,
     # which stopped the program with "tcp_receive: wrong state"
     "AsyncTCP": "patches/AsyncTCP.patch",
