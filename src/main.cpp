@@ -180,8 +180,11 @@ StringConfigItem timeServer("time_server", 63, "pool.ntp.org");	// A name or an 
 StringConfigItem webUser("web_user", 31, "");
 StringConfigItem webPassword("web_password", 63, "");
 
-// Each clock makes up its own, see initFromEEPROM(). Upstream used "secretsauce" on every clock.
-StringConfigItem apPassword("ap_password", 63, "");
+// The access point's password, a new one each time the access point opens, see newAPPassword(). The clock
+// doesn't save it and only shows it on the displays, so nothing the web UI or MQTT can read gives it away,
+// and one seen once is no use later. The Wi-Fi driver does keep the access point's settings in flash, as it
+// does the network's password. Upstream used "secretsauce" on every clock.
+char apPassword[9] = "";
 
 enum WEATHER_MESSAGE {
 	WEATHER_UPDATE = 1,
@@ -358,14 +361,6 @@ IRAMPtrArray<BaseConfigItem*> webLoginSet {
 
 CompositeConfigItem webLoginConfig("web_login", 0, webLoginSet);
 
-// Settings added after 2.0.7. MQTT is never sent the access point's password.
-IRAMPtrArray<BaseConfigItem*> accessPointSet {
-	&apPassword,
-	0
-};
-
-CompositeConfigItem accessPointConfig("access_point", 0, accessPointSet);
-
 // All configurations
 IRAMPtrArray<BaseConfigItem*> configSetRoot {
 	&globalConfig,
@@ -378,10 +373,10 @@ IRAMPtrArray<BaseConfigItem*> configSetRoot {
 	&networkConfig,
 	&cycleConfig,
 	&webLoginConfig,
-	&accessPointConfig,
 	0
 };
 
+// The same as 2.0.6 and 2.0.7 had, so those load as they are
 CompositeConfigItem rootConfig("root", 0, configSetRoot);
 
 // The configurations from upstream 1.9.4 to 2.0.2, to recognise them in EEPROM
@@ -414,8 +409,18 @@ IRAMPtrArray<BaseConfigItem*> setRoot205 {
 
 CompositeConfigItem rootConfig205("root", 0, setRoot205);
 
-// And from 2.0.6 to 2.0.7
-IRAMPtrArray<BaseConfigItem*> setRoot207 {
+// And from 2.0.8 to 2.1.13, which saved the access point's password after the other settings. Only the
+// names count towards the checksum, so this one is never read or written.
+StringConfigItem savedAPPassword("ap_password", 63, "");
+
+IRAMPtrArray<BaseConfigItem*> accessPointSet {
+	&savedAPPassword,
+	0
+};
+
+CompositeConfigItem accessPointConfig("access_point", 0, accessPointSet);
+
+IRAMPtrArray<BaseConfigItem*> setRoot213 {
 	&globalConfig,
 	&clockConfig,
 	&ledConfig,
@@ -426,10 +431,11 @@ IRAMPtrArray<BaseConfigItem*> setRoot207 {
 	&networkConfig,
 	&cycleConfig,
 	&webLoginConfig,
+	&accessPointConfig,
 	0
 };
 
-CompositeConfigItem rootConfig207("root", 0, setRoot207);
+CompositeConfigItem rootConfig213("root", 0, setRoot213);
 
 // Store the configurations in EEPROM
 EEPROMConfig config(rootConfig);
@@ -844,9 +850,14 @@ void showAccessPoint() {
 			address = address.substring(0, dot + 1) + "\n" + address.substring(dot + 1);
 		}
 
+		// A copy, as a new one is made on the Wi-Fi manager's task when the access point closes
+		char password[sizeof(apPassword)];
+		memcpy(password, apPassword, sizeof(password));
+		password[sizeof(password) - 1] = '\0';
+
 		TFTs::DisplayStatus statuses[5] = {
 			{ "WiFi network", name.c_str(), false },
-			{ "WiFi password", apPassword.value.c_str(), true },
+			{ "WiFi password", password, true },
 			{ "Setup page", address.c_str(), false },
 		};
 		uint8_t count = 3;
@@ -1233,24 +1244,6 @@ void setSecret(StringConfigItem &item, const String &value) {
 	broadcastUpdate("{\"type\":\"sv.update\",\"value\":{" + passwordJSON(item) + "}}");	// Also puts back anything refused
 }
 
-String randomAPPassword();
-
-// Unlike the other passwords it's shown, on the Network page and on the displays, since it's there so
-// that whoever can see the clock can join its access point. Clearing it makes a new random one. It's
-// used the next time the access point starts.
-void setAPPassword(const String &value) {
-	String password = value.length() > 0 ? value : randomAPPassword();
-	if (password.length() >= 8 && validLogin(apPassword, password) && password != apPassword.value) {
-		apPassword = password;
-		apPassword.put();
-		xSemaphoreTake(wsMutex, portMAX_DELAY);	// Held while the Wi-Fi manager runs, see wifiManagerTaskFn()
-		wifiManager->setAPCredentials(ssid.c_str(), apPassword.value.c_str());
-		xSemaphoreGive(wsMutex);
-	}
-
-	broadcastToWebUI(apPassword);	// Also puts back anything refused
-}
-
 // A name that works everywhere the hostname is used: DHCP, mDNS and the web UI's JSON. Letters, digits
 // and hyphens, without a hyphen at either end.
 bool validHostname(const String &name) {
@@ -1299,8 +1292,6 @@ void updateValue(int screen, String pair) {
 		setWebLogin(*(StringConfigItem*)item, value);
 	} else if (item == &MQTTBroker::getPassword() || item == &WeatherService::getWeatherToken()) {
 		setSecret(*(StringConfigItem*)item, value);
-	} else if (item == &apPassword) {
-		setAPPassword(value);
 	} else if (item == &hostName && !validHostname(value)) {
 		broadcastToWebUI(hostName);	// Puts back what was refused
 	} else if (item != 0 && !isSettingsGroup(item)) {
@@ -1948,8 +1939,6 @@ String wifiCallback() {
 	wifiStatus += hostName.toJSON();	// Escaped, as one saved before names were checked could have anything in it
 	wifiStatus += ",";
 	wifiStatus += webLoginJSON();
-	wifiStatus += ",\"ap_password\":";
-	wifiStatus += apPassword.toJSON();
 
 	return wifiStatus;
 }
@@ -2059,12 +2048,14 @@ void upgradeEEPROM() {
 		networkConfig.put();
 		cycleConfig.put();
 		webLoginConfig.put();
-		accessPointConfig.put();
 	} else if (storedChecksum == rootConfig205.getChecksum(0)) {
 		webLoginConfig.put();
-		accessPointConfig.put();
-	} else if (storedChecksum == rootConfig207.getChecksum(0)) {
-		accessPointConfig.put();
+	} else if (storedChecksum == rootConfig213.getChecksum(0)) {
+		// Nothing new, but the access point's old password is still saved after the other settings.
+		// Clear everything after them, from where EEPROMConfig's constructor laid them out to.
+		for (int i = rootConfig.init(sizeof(int)); i < EEPROM.length(); i++) {
+			EEPROM.write(i, 0);
+		}
 	} else {
 		return;
 	}
@@ -2072,12 +2063,13 @@ void upgradeEEPROM() {
 	config.commit();
 }
 
-// From letters and digits that can't be mistaken for each other, so it's easy to copy off the displays
-String randomAPPassword() {
+// From letters and digits that can't be mistaken for each other, so it's easy to copy off the displays.
+// Gives it to the Wi-Fi manager for the next time the access point opens, so make it while it's closed.
+void newAPPassword() {
 	// None that look alike, and none as wide as m and w, so that 8 always fit on a line of the
 	// displays in the bigger text. The fewest WPA2 allows, but it's only on while setting up.
 	const char *characters = "abcdefghijknpqrstuvxyz23456789";	// 30
-	String password;
+	char password[sizeof(apPassword)];
 
 	// esp_random() is only really random while Wi-Fi is on, or with the bootloader's source, which
 	// mustn't be used while Wi-Fi is on
@@ -2085,14 +2077,16 @@ String randomAPPassword() {
 	if (wifiOff) {
 		bootloader_random_enable();
 	}
-	for (int i = 0; i < 8; i++) {
-		password += characters[esp_random() % 30];
+	for (int i = 0; i < sizeof(password) - 1; i++) {
+		password[i] = characters[esp_random() % 30];
 	}
 	if (wifiOff) {
 		bootloader_random_disable();
 	}
+	password[sizeof(password) - 1] = '\0';
 
-	return password;
+	memcpy(apPassword, password, sizeof(apPassword));
+	wifiManager->setAPCredentials(ssid.c_str(), apPassword);
 }
 
 void initFromEEPROM() {
@@ -2101,12 +2095,6 @@ void initFromEEPROM() {
 	config.init();
 //	rootConfig.debug(debugPrint);
 	rootConfig.get();	// Read all of the config values from EEPROM
-
-	if (apPassword.value.length() < 8) {	// The first start, or the first since upgrading
-		apPassword = randomAPPassword();
-		apPassword.put();
-		config.commit();
-	}
 
 	// The browser's check is for the message. SetupServer() checks again.
 	hostnameParam = new AsyncWiFiManagerParameter("Hostname", "Hostname", hostName.value.c_str(), 63,
@@ -2133,6 +2121,7 @@ void apChange(AsyncWiFiManager *wifiManager) {
 		tfts->setStatus(ssid);
 	} else {
 		tfts->setStatus("AP Destroyed...");
+		newAPPassword();	// So no one who saw this one can join the next time it opens
 		uint32_t value = WEATHER_UPDATE;
 		xQueueSend(weatherQueue, &value, 0);	// Not enough memory to make an HTTPS request while AP is active
 	}
@@ -2170,7 +2159,9 @@ void closeIdleAccessPoint() {
 
 void setWiFiAP(bool on) {
 	if (on) {
-		wifiManager->startConfigPortal(ssid.c_str(), apPassword.value.c_str());
+		// With the name and password the Wi-Fi manager already has. They're read on its task, so this
+		// one doesn't, in case the password is being replaced.
+		wifiManager->startConfigPortal();
 	} else {
 		wifiManager->stopConfigPortal();
 	}
@@ -2236,7 +2227,7 @@ void SetupServer() {
 	}
 	config.commit();
 	createSSID();
-	wifiManager->setAPCredentials(ssid.c_str(), apPassword.value.c_str());
+	wifiManager->setAPCredentials(ssid.c_str(), apPassword);	// The same password, the access point may still be on
 	DEBUG(hostName.value.c_str());
 	MDNS.begin(hostName.value.c_str());
 	MDNS.addService("http", "tcp", 80);
@@ -2371,7 +2362,7 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 	wifiManager->setSaveConfigCallback(SetupServer);
 	wifiManager->setConnectedCallback(connectedHandler);
 	wifiManager->setAPCallback(apChange);
-	wifiManager->setAPCredentials(ssid.c_str(), apPassword.value.c_str());
+	newAPPassword();	// For the first time the access point opens
 	server->addHandler(new WebLoginHandler());	// Before any other handler, so it sees every request first
 	setStaticAddress();
 
