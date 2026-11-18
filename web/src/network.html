@@ -1,6 +1,7 @@
         <div data-role="page" id="Network">
             <link rel="stylesheet" href="/theme.css">
             <script src="/theme.js"></script>
+            <script src="/secret.js"></script>
             <div data-role="header" data-position="fixed">
                 <h1>Network</h1>
 				<a href="#mainMenu" data-rel="main-menu-panel" class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
@@ -21,10 +22,10 @@
 						<label for="web_user">Web UI User</label>
 						<input maxlength="31" onblur="elementBlur(this, 'Use only letters, digits and . _ - @')" pattern="[A-Za-z0-9._@\-]*" type="text" id="web_user" autocomplete="off" data-mini="true" />
 					</div>
-					<!-- onchange, because the clock only sends a placeholder for the password -->
+					<!-- The clock never sends the password, see secretBlur() in app.html -->
 					<div data-role="fieldcontain">
 						<label for="web_password">Web UI Password</label>
-						<input maxlength="63" onchange="elementBlur(this, 'Use only letters, digits, spaces and punctuation, without accents')" pattern="[ -~]*" type="password" id="web_password" autocomplete="new-password" data-mini="true" />
+						<input maxlength="63" onblur="secretBlur(this, 'Use only letters, digits, spaces and punctuation, without accents')" pattern="[ -~]*" type="password" id="web_password" class="secret" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" data-mini="true" />
 					</div>
 					<div class="dispInlineLabel">
 						<label for="wifi_ap">WiFi AP</label>

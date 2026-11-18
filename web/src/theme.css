@@ -453,6 +453,64 @@ html body .ui-input-text input {
 	padding: .45em .75em;
 }
 
+html body .ui-input-text input::placeholder {
+	color: var(--muted);
+	opacity: 1;
+}
+
+/* A password's or key's show button, inside its field on the right, see addSecretControls() */
+html body .ui-page .ui-input-text.has-secret-show {
+	position: relative;
+}
+
+html body .ui-page .ui-input-text.has-secret-show input {
+	padding-right: 2.9em;
+}
+
+html body .secret-show {
+	position: absolute;
+	top: 50%;
+	right: 3px;
+	width: 34px;
+	height: 34px;
+	margin: -17px 0 0;
+	padding: 0;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+}
+
+html body .secret-show:hover:not(:disabled) {
+	background: var(--accent-soft);
+}
+
+/* While the field has the dots that say one is saved. A click goes to the field under it. */
+html body .secret-show:disabled {
+	opacity: .35;
+	pointer-events: none;
+}
+
+html body .secret-show::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: var(--muted);
+	--icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z'/><circle cx='12' cy='12' r='3'/></svg>");
+	-webkit-mask: var(--icon) center / 20px no-repeat;
+	mask: var(--icon) center / 20px no-repeat;
+}
+
+/* Shown, so the button hides it */
+html body .secret-show.shown::after {
+	--icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-2.6 3.4M6.6 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7c1.9 0 3.6-.6 5-1.5M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18'/></svg>");
+}
+
+html body .secret-show:hover:not(:disabled)::after, html body .secret-show:focus-visible::after {
+	background: var(--accent);
+}
+
 /* Segmented buttons */
 
 html body .ui-controlgroup-horizontal .ui-controlgroup-controls {

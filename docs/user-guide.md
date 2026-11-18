@@ -62,6 +62,12 @@ At the top of every page:
 
 There's no Save button. A change takes effect on the clock straight away, and the clock saves it within a minute, so it's kept when the clock restarts. Changes made with the clock's buttons or from Home Assistant appear in the web UI as they happen.
 
+Passwords and the weather API key work a little differently, so they're never shown once they're saved:
+
+* The clock never sends a saved one back. The field shows dots instead, only to say one is saved, so the eye button is greyed out.
+* To change one, click or tap in the field. The dots turn grey, and what you type replaces them. Leave the field empty and the dots come back, with nothing changed. To remove one, choose **remove it** under the field.
+* While you type, the eye button in the field shows what you've typed, so you can check it, and hides it again. It's sent to the clock when you leave the field, not when you use the eye button. When you next open the page, the field just has the dots again.
+
 ## Clock
 
 <img src="ui/clock.webp" alt="The Clock page" width="400">
@@ -120,7 +126,7 @@ More clock faces are in [more_faces](../more_faces) and at [Spider19996/Tube-Clo
 
 The forecast comes from [OpenWeatherMap](https://openweathermap.org/), and a free account is enough. The clock fetches it every 15 minutes.
 
-* **OpenWeatherMap API Key**: create an account and an API key, and paste it here. Once it's set, the web UI shows dots instead of the key. To change it, type the new one over them.
+* **OpenWeatherMap API Key**: create an account and an API key, and paste it here. Once it's set, the field shows dots, see [The web UI](#the-web-ui).
 * **Latitude** and **Longitude** are where the forecast is for, in degrees, such as 40.7128 and -74.0060 for New York. Map apps show them, for example when you right-click a place in Google Maps.
 * **Units**: **Imperial** for °F, or **Metric** for °C.
 * **Get Weather** fetches the forecast now. The displays take a few seconds to redraw.
@@ -147,7 +153,7 @@ The screen saver starts when nobody has used the clock for a while. Any button o
 Connect the clock to an MQTT broker, such as Home Assistant's Mosquitto add-on, to control it from Home Assistant or your own scripts.
 
 * **Broker IP Address** and **Broker Port**: the broker's address, and its port, usually 1883.
-* **User** and **Password**: the broker's login, if it has one. Once the password is set, the web UI shows dots instead of it. To change it, type the new one over them.
+* **User** and **Password**: the broker's login, if it has one. Once the password is set, the field shows dots, see [The web UI](#the-web-ui).
 
 If Home Assistant's MQTT integration uses the same broker, the clock appears in Home Assistant by itself, with almost every setting in the web UI. Everyday ones are listed under Controls, and set-and-forget ones under Configuration.
 
@@ -176,7 +182,7 @@ The clock publishes its state on `clock/<id>/volatile/state` (brightness, displa
 
 * **Hostname** is the clock's name on your network, so the web UI is at http://*hostname*.local. Give each clock its own. It can have letters, digits and hyphens, without a hyphen at either end. The clock restarts when you change it.
 * **Time Server** is where the clock gets the time, by name or IP address, such as a server on your own network. The default is pool.ntp.org.
-* **Web UI User** and **Web UI Password** set a login for the web UI. Set both and the clock asks for them before every page, upload and `/custom` request. Clear either one to turn the login off. The user can have letters, digits and `. _ - @`, and the password letters, digits, spaces and punctuation, without accents. Setting or changing the login disconnects any web UI that's open, so reload it and log in. If you forget the login, start the clock where it can't join your Wi-Fi, connect to its access point, choose **Configure Clock** and change it here, since the clock doesn't ask for it over its access point.
+* **Web UI User** and **Web UI Password** set a login for the web UI. Set both and the clock asks for them before every page, upload and `/custom` request. Clear the user, or remove the password, to turn the login off. Check the password with the eye button before leaving the field, as it's saved when you do. The user can have letters, digits and `. _ - @`, and the password letters, digits, spaces and punctuation, without accents. Setting or changing the login disconnects any web UI that's open, so reload it and log in. If you forget the login, start the clock where it can't join your Wi-Fi, connect to its access point, choose **Configure Clock** and change it here, since the clock doesn't ask for it over its access point.
 * **WiFi AP** turns the access point on or off, for example to move the clock to a different network, see [Connecting to Wi-Fi](#connecting-to-wi-fi). Its password is new each time and on the displays. If the clock is on your network, the access point closes by itself once nobody has been on it for 10 minutes.
 
 ## Info

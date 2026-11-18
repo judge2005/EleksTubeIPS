@@ -245,6 +245,8 @@ var broadcastUpdate = function(conn, field, value) {
 	}
 }
 
+var secrets = ['web_password', 'mqtt_password', 'weather_token'];
+
 var updateValue = function(conn, screen, pair) {
 	console.log(screen);
 	console.log(pair);
@@ -256,6 +258,15 @@ var updateValue = function(conn, screen, pair) {
 		value = JSON.parse(value);
 	} catch (e) {
 
+	}
+
+	// Like the clock, only say whether a password or key is set, and ignore the placeholder sent back
+	if (secrets.includes(key)) {
+		if (value === '********') {
+			value = state[screen][key];
+		} else {
+			value = value !== '' ? '********' : '';
+		}
 	}
 
 	state[screen][key] = value;
