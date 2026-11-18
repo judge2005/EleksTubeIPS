@@ -25,7 +25,7 @@ The page has other buttons too:
 * **Configure Clock** opens the [web UI](#the-web-ui) over the access point.
 * **Info** says whether the clock has joined a network, or why it can't, and shows details of the clock. **Reset** restarts it.
 
-Each clock makes up its own access point password the first time it starts. The [Network](#network) page shows it and can change it. To move the clock to a different network later, turn on **WiFi AP** on the Network page and follow the steps above.
+The clock makes up a new access point password each time the access point opens, and only shows it on the displays, so a password someone saw before won't work again. If your phone or computer saved an earlier one, it says the password is wrong: enter the one on the displays. To move the clock to a different network later, turn on **WiFi AP** on the [Network](#network) page and follow the steps above.
 
 If the clock loses its network while it's running, it keeps trying to rejoin, but doesn't open its access point by itself. So if it can't get back on, for example because your router's password changed, unplug it and plug it back in. It opens the access point when it finds it can't join.
 
@@ -177,8 +177,7 @@ The clock publishes its state on `clock/<id>/volatile/state` (brightness, displa
 * **Hostname** is the clock's name on your network, so the web UI is at http://*hostname*.local. Give each clock its own. It can have letters, digits and hyphens, without a hyphen at either end. The clock restarts when you change it.
 * **Time Server** is where the clock gets the time, by name or IP address, such as a server on your own network. The default is pool.ntp.org.
 * **Web UI User** and **Web UI Password** set a login for the web UI. Set both and the clock asks for them before every page, upload and `/custom` request. Clear either one to turn the login off. The user can have letters, digits and `. _ - @`, and the password letters, digits, spaces and punctuation, without accents. Setting or changing the login disconnects any web UI that's open, so reload it and log in. If you forget the login, start the clock where it can't join your Wi-Fi, connect to its access point, choose **Configure Clock** and change it here, since the clock doesn't ask for it over its access point.
-* **WiFi AP Password** is the access point's password. Type your own, at least 8 characters, or clear it for a new random one. A new password is used the next time the access point starts.
-* **WiFi AP** turns the access point on or off, for example to move the clock to a different network, see [Connecting to Wi-Fi](#connecting-to-wi-fi). If the clock is on your network, the access point closes by itself once nobody has been on it for 10 minutes.
+* **WiFi AP** turns the access point on or off, for example to move the clock to a different network, see [Connecting to Wi-Fi](#connecting-to-wi-fi). Its password is new each time and on the displays. If the clock is on your network, the access point closes by itself once nobody has been on it for 10 minutes.
 
 ## Info
 
