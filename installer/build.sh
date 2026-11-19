@@ -42,4 +42,6 @@ done
 sed -e 's/\$version\$/'"$version"'/g' -e 's|\$repository\$|'"$repository"'|g' \
     "$root/installer/index.html" > "$out/index.html"
 
+cp "$root/installer/backup.html" "$out/backup.html"
+
 echo "Built the installer for $tag in $out"
