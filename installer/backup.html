@@ -360,6 +360,30 @@
     cursor: not-allowed;
   }
 
+  .file-inspect {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--field);
+    font-size: 0.85rem;
+  }
+
+  .file-inspect[hidden] { display: none; }
+
+  .file-inspect-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text);
+  }
+
+  .file-inspect-list {
+    margin: 4px 0 0;
+    padding: 0;
+    list-style: none;
+    font: 0.8rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--muted);
+  }
+
   .option .actions {
     margin-top: auto;
     display: flex;
@@ -407,6 +431,14 @@
     margin-top: 4px;
   }
 
+  .log-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
   details.log-details summary {
     cursor: pointer;
     font-size: 0.9rem;
@@ -417,6 +449,16 @@
 
   details.log-details summary:hover {
     color: var(--text);
+  }
+
+  .debug-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
   }
 
   #log {
@@ -467,7 +509,7 @@
   <section>
     <h2><span class="step">2</span>Connect your clock</h2>
     <div class="option">
-      <p>Click <strong>Connect</strong> and choose your clock's serial port. Reading flash uses flow-controlled 32 KB blocks to prevent CH340 USB buffer overflows.</p>
+      <p>Click <strong>Connect</strong> and choose your clock's serial port. Reading flash uses <code>WebSerial_ESPTool</code> with automatic timeout recovery and hardware MD5 verification.</p>
       <p class="note">Some clocks have to be manually put into programming mode before connecting (e.g. the IPSTube clocks). Hold down the power button while you plug it in&mdash;the display will stay blank.</p>
       <div class="btn-row">
         <button class="btn-primary" id="btnConnect">Connect</button>
@@ -476,8 +518,8 @@
           <span>Max speed:</span>
           <select id="baudSelect">
             <option value="230400">230400 baud (recommended)</option>
-            <option value="460800">460800 baud (faster)</option>
-            <option value="921600" selected>921600 baud (fastest)</option>
+            <option value="460800" selected>460800 baud (faster)</option>
+            <option value="921600">921600 baud (fastest)</option>
             <option value="115200">115200 baud (most reliable)</option>
           </select>
         </label>
@@ -501,7 +543,7 @@
     <div class="options">
       <div class="option">
         <h3>Download full backup</h3>
-        <p>Reads the entire flash chip starting at <code>0x0</code> (4 MB or 8 MB depending on your clock) in safe 32 KB blocks and saves it as a single <code>.bin</code> file.</p>
+        <p>Reads the entire flash chip starting at <code>0x0</code> (4 MB or 8 MB depending on your clock), verifies its hardware MD5 checksum, and saves it as a single <code>.bin</code> file.</p>
         <p class="note">Reading the full chip takes around 1&ndash;3 minutes depending on speed. Keep the USB cable connected until the download finishes.</p>
         <div class="actions">
           <button class="btn-primary" id="btnBackup" disabled>Download backup (.bin)</button>
@@ -510,15 +552,19 @@
 
       <div class="option">
         <h3>Restore full backup</h3>
-        <p>Writes a previously saved full-chip <code>.bin</code> image back to <code>0x0</code>, returning your clock to the exact state it was in when backed up.</p>
+        <p>Writes a previously saved full-chip <code>.bin</code> image back to <code>0x0</code>, verifies the written flash MD5 against your file, and reboots your clock.</p>
         <p class="note">Only select a full-flash backup file here, not a firmware-only update file.</p>
         <div class="actions">
-          <input class="file-picker" type="file" id="fileInput" accept=".bin" disabled>
+          <input class="file-picker" type="file" id="fileInput" accept=".bin">
+          <div class="file-inspect" id="fileInspect" hidden>
+            <div class="file-inspect-title" id="fileInspectTitle"></div>
+            <ul class="file-inspect-list" id="fileInspectList"></ul>
+          </div>
           <button class="btn-primary" id="btnRestore" disabled>Restore backup</button>
         </div>
       </div>
     </div>
-    <p class="hint" id="connect-hint">Connect your clock in step 2 to turn on these buttons.</p>
+    <p class="hint" id="connect-hint">Connect your clock in step 2 to turn on these buttons (you can select a <code>.bin</code> file anytime to inspect its partitions and MD5).</p>
   </section>
 
   <section>
@@ -532,7 +578,13 @@
         <progress id="progress" value="0" max="100"></progress>
       </div>
       <details class="log-details" id="logDetails">
-        <summary>Show technical console log</summary>
+        <div class="log-header">
+          <summary>Show technical console log</summary>
+          <label class="debug-toggle" for="debugToggle">
+            <input type="checkbox" id="debugToggle">
+            <span>Include verbose debug output</span>
+          </label>
+        </div>
         <pre id="log">Ready.</pre>
       </details>
     </div>
@@ -540,29 +592,38 @@
 
   <footer>
     <p>Prefer the command line? See the <a href="https://github.com/judge2005/EleksTubeIPS/wiki/Installation">installation guide</a> for <code>esptool.py</code> backup commands.</p>
-    <p>Powered by <a href="https://github.com/espressif/esptool-js">esptool-js</a> over Web Serial.</p>
+    <p>Powered by <a href="https://github.com/Jason2866/WebSerial_ESPTool">WebSerial_ESPTool</a> over Web Serial.</p>
   </footer>
 </main>
 
 <script type="module">
-  import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.7.1/bundle.js";
+  // Local bundle from tasmota-webserial-esptool (fallback to esm.sh if opened standalone without local js/modules/esptool.js)
+  let connectWithPort, ESP_SPI_FLASH_MD5;
+  try {
+    ({ connectWithPort, ESP_SPI_FLASH_MD5 } = await import("./esptool.js"));
+  } catch (_) {
+    ({ connectWithPort, ESP_SPI_FLASH_MD5 } = await import("https://esm.sh/tasmota-webserial-esptool"));
+  }
 
   const ALL_BAUD_RATES = [921600, 460800, 230400, 115200];
   const VALID_FLASH_MB = [4, 8, 16];
-  // 32 KB (32 packets) stays well inside CH340 / macOS WebSerial RX buffers
-  // while esptool-js's internal maxInflightPackets is 1024.
-  const READ_CHUNK_SIZE = 32 * 1024;
-  const CHUNK_SETTLE_MS = 20;
+  const MAX_SYNC_ATTEMPTS = 3;
+  const PARTITION_TABLE_OFFSET = 0x8000;
+  const PARTITION_MAGIC = 0x50aa;
 
-  let device = null;
-  let transport = null;
+  let port = null;
   let esploader = null;
+  let stub = null;
   let flashSizeBytes = 0;
-  let activeBaud = 921600;
+  let activeBaud = 460800;
   let lastFailedAction = null;
+  let isUserDisconnecting = false;
+
+  const logEntries = [{ text: "Ready.", debug: false }];
 
   const logEl = document.getElementById("log");
   const logDetailsEl = document.getElementById("logDetails");
+  const debugToggle = document.getElementById("debugToggle");
   const progEl = document.getElementById("progress");
   const progLabelEl = document.getElementById("progressLabel");
   const progPctEl = document.getElementById("progressPct");
@@ -578,6 +639,9 @@
   const btnDisconnect = document.getElementById("btnDisconnect");
   const btnBackup = document.getElementById("btnBackup");
   const fileInput = document.getElementById("fileInput");
+  const fileInspectEl = document.getElementById("fileInspect");
+  const fileInspectTitle = document.getElementById("fileInspectTitle");
+  const fileInspectList = document.getElementById("fileInspectList");
   const btnRestore = document.getElementById("btnRestore");
 
   if (!("serial" in navigator)) {
@@ -587,10 +651,32 @@
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  function log(msg) {
-    logEl.textContent += "\n" + msg;
+  function renderLog() {
+    const showDebug = debugToggle.checked;
+    logEl.textContent = logEntries
+      .filter((entry) => showDebug || !entry.debug)
+      .map((entry) => entry.text)
+      .join("\n");
     logEl.scrollTop = logEl.scrollHeight;
   }
+
+  debugToggle.addEventListener("change", renderLog);
+
+  function appendLog(msg, isDebug = false) {
+    const cleaned = String(msg).trimEnd();
+    if (!cleaned) return;
+    logEntries.push({ text: cleaned, debug: isDebug });
+    if (!isDebug || debugToggle.checked) {
+      logEl.textContent += (logEl.textContent ? "\n" : "") + cleaned;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  }
+
+  const logger = {
+    log: (msg) => appendLog(msg, false),
+    debug: (msg) => appendLog(`[debug] ${msg}`, true),
+    error: (msg) => appendLog(`[error] ${msg}`, false)
+  };
 
   function setBusyIndicator(active, message = "") {
     busyStatusEl.hidden = !active;
@@ -639,32 +725,182 @@
     retryBanner.hidden = false;
   }
 
-  // Decode JEDEC SPI Flash ID (e.g., 0x164020 -> capacity byte 0x16 -> 2^22 = 4 MB)
-  function flashBytesFromJedecId(flashId) {
-    const id = typeof flashId === "string" ? parseInt(flashId, 16) : Number(flashId);
-    if (!Number.isFinite(id) || id <= 0) return 0;
-    const capacity = (id >> 16) & 0xff;
-    if (capacity >= 0x13 && capacity <= 0x1a) {
-      return 1 << capacity;
-    }
-    return 0;
+  function parseFlashSizeString(flashSizeStr) {
+    if (!flashSizeStr) return 0;
+    const match = String(flashSizeStr).match(/^(\d+)\s*MB$/i);
+    if (!match) return 0;
+    const mb = parseInt(match[1], 10);
+    return VALID_FLASH_MB.includes(mb) ? mb * 1024 * 1024 : 0;
   }
 
-  const terminal = {
-    clean: () => { logEl.textContent = ""; },
-    writeLine: (data) => log(data),
-    write: (data) => {
-      logEl.textContent += data;
-      logEl.scrollTop = logEl.scrollHeight;
+  // RFC 1321 MD5 in pure JS so checksums work natively in all browsers
+  function computeMd5Hex(bytes) {
+    const k = new Uint32Array([
+      0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
+      0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be, 0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821,
+      0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa, 0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8,
+      0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed, 0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a,
+      0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c, 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
+      0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05, 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665,
+      0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
+      0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1, 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391
+    ]);
+    const s = [
+      7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+      5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20,
+      4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+      6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
+    ];
+
+    const origLen = bytes.length;
+    const bitLenLo = (origLen << 3) >>> 0;
+    const bitLenHi = (origLen >>> 29) >>> 0;
+    const padLen = (((origLen + 8) >>> 6) + 1) << 6;
+    const buf = new Uint8Array(padLen);
+    buf.set(bytes);
+    buf[origLen] = 0x80;
+    const view = new DataView(buf.buffer);
+    view.setUint32(padLen - 8, bitLenLo, true);
+    view.setUint32(padLen - 4, bitLenHi, true);
+
+    let a0 = 0x67452301;
+    let b0 = 0xefcdab89;
+    let c0 = 0x98badcfe;
+    let d0 = 0x10325476;
+    const m = new Uint32Array(16);
+
+    for (let offset = 0; offset < padLen; offset += 64) {
+      for (let i = 0; i < 16; i++) {
+        m[i] = view.getUint32(offset + i * 4, true);
+      }
+      let a = a0, b = b0, c = c0, d = d0;
+      for (let i = 0; i < 64; i++) {
+        let f, g;
+        if (i < 16) {
+          f = (b & c) | (~b & d);
+          g = i;
+        } else if (i < 32) {
+          f = (d & b) | (~d & c);
+          g = (5 * i + 1) % 16;
+        } else if (i < 48) {
+          f = b ^ c ^ d;
+          g = (3 * i + 5) % 16;
+        } else {
+          f = c ^ (b | ~d);
+          g = (7 * i) % 16;
+        }
+        const temp = d;
+        d = c;
+        c = b;
+        const sum = (a + f + k[i] + m[g]) >>> 0;
+        const rot = (sum << s[i]) | (sum >>> (32 - s[i]));
+        b = (b + rot) >>> 0;
+        a = temp;
+      }
+      a0 = (a0 + a) >>> 0;
+      b0 = (b0 + b) >>> 0;
+      c0 = (c0 + c) >>> 0;
+      d0 = (d0 + d) >>> 0;
     }
-  };
+
+    const out = new Uint8Array(16);
+    const outView = new DataView(out.buffer);
+    outView.setUint32(0, a0, true);
+    outView.setUint32(4, b0, true);
+    outView.setUint32(8, c0, true);
+    outView.setUint32(12, d0, true);
+    return Array.from(out, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  // Ask the ESP stub loader to compute hardware SPI flash MD5 (opcode 0x13)
+  async function readHardwareFlashMd5(stubLoader, offset, size) {
+    const opcode = ESP_SPI_FLASH_MD5 || 0x13;
+    const req = new Array(16).fill(0);
+    const view = new DataView(new ArrayBuffer(16));
+    view.setUint32(0, offset, true);
+    view.setUint32(4, size, true);
+    const bytes = new Uint8Array(view.buffer);
+    for (let i = 0; i < 16; i++) req[i] = bytes[i];
+
+    const timeoutMs = Math.max(5000, Math.ceil(size / (1024 * 1024)) * 4000);
+    const [, data] = await stubLoader.checkCommand(opcode, req, 0, timeoutMs);
+    if (!data || data.length < 16) {
+      throw new Error("Invalid MD5 response from ESP stub");
+    }
+    return Array.from(data.slice(0, 16), (b) => Number(b).toString(16).padStart(2, "0")).join("");
+  }
+
+  function formatSize(bytes) {
+    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    if (bytes >= 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+    return `${bytes} B`;
+  }
+
+  function parsePartitionTable(ptBytes) {
+    const APP_SUBTYPES = { 0x00: "factory", 0x10: "ota_0", 0x11: "ota_1", 0x12: "ota_2", 0x20: "test" };
+    const DATA_SUBTYPES = { 0x00: "ota", 0x01: "phy", 0x02: "nvs", 0x03: "coredump", 0x04: "nvs_keys", 0x05: "efuse", 0x80: "esphttpd", 0x81: "fat", 0x82: "spiffs" };
+    const decoder = new TextDecoder();
+    const view = new DataView(ptBytes.buffer, ptBytes.byteOffset, ptBytes.byteLength);
+    const partitions = [];
+
+    for (let i = 0; i + 32 <= ptBytes.length; i += 32) {
+      const magic = view.getUint16(i, true);
+      if (magic !== PARTITION_MAGIC) break;
+      const type = ptBytes[i + 2];
+      const subtype = ptBytes[i + 3];
+      const offset = view.getUint32(i + 4, true);
+      const size = view.getUint32(i + 8, true);
+      const rawName = ptBytes.slice(i + 12, i + 28);
+      const zeroIdx = rawName.indexOf(0);
+      const name = decoder.decode(zeroIdx >= 0 ? rawName.slice(0, zeroIdx) : rawName);
+      const typeName = type === 0x00 ? "app" : type === 0x01 ? "data" : `0x${type.toString(16)}`;
+      const subtypeName = type === 0x00
+        ? (APP_SUBTYPES[subtype] || `0x${subtype.toString(16)}`)
+        : type === 0x01
+          ? (DATA_SUBTYPES[subtype] || `0x${subtype.toString(16)}`)
+          : `0x${subtype.toString(16)}`;
+      partitions.push({ name, typeName, subtypeName, offset, size });
+    }
+    return partitions;
+  }
+
+  function inspectFlashImage(bytes) {
+    const items = [];
+    const sizeMB = (bytes.length / (1024 * 1024)).toFixed(2);
+    const md5 = computeMd5Hex(bytes);
+
+    items.push(`Size: ${sizeMB} MB (${bytes.length.toLocaleString()} bytes)`);
+    items.push(`MD5:  ${md5}`);
+
+    const hasBootloaderMagic = bytes.length > 0x1000 && bytes[0x1000] === 0xe9;
+    items.push(`Bootloader @ 0x1000: ${hasBootloaderMagic ? "valid (0xE9)" : "not found (not a full image)"}`);
+
+    let partitions = [];
+    if (bytes.length >= PARTITION_TABLE_OFFSET + 0x1000) {
+      partitions = parsePartitionTable(bytes.slice(PARTITION_TABLE_OFFSET, PARTITION_TABLE_OFFSET + 0x1000));
+    }
+
+    if (partitions.length > 0) {
+      items.push(`Partitions (${partitions.length}):`);
+      for (const p of partitions) {
+        items.push(`  • ${p.name.padEnd(10)} (${p.typeName}/${p.subtypeName}) @ 0x${p.offset.toString(16)} (${formatSize(p.size)})`);
+      }
+    } else {
+      items.push("Partitions: none found at 0x8000");
+    }
+
+    return {
+      valid: hasBootloaderMagic && partitions.length > 0,
+      md5,
+      items
+    };
+  }
 
   function setConnected(connected) {
     btnConnect.disabled = connected;
     btnDisconnect.disabled = !connected;
     baudSelect.disabled = connected;
     btnBackup.disabled = !connected;
-    fileInput.disabled = !connected;
     btnRestore.disabled = !connected || !fileInput.files.length;
     hintEl.hidden = connected;
     if (!connected) {
@@ -682,66 +918,163 @@
     btnRetry.disabled = busy;
   }
 
-  fileInput.addEventListener("change", () => {
-    btnRestore.disabled = !esploader || !fileInput.files.length;
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files[0];
+    btnRestore.disabled = !stub || !file;
+
+    if (!file) {
+      fileInspectEl.hidden = true;
+      return;
+    }
+
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      const report = inspectFlashImage(bytes);
+      fileInspectTitle.textContent = report.valid
+        ? "Verified full flash backup"
+        : "Warning: File does not look like a full flash backup";
+      fileInspectTitle.style.color = report.valid ? "var(--accent)" : "var(--error)";
+      fileInspectList.innerHTML = report.items.map((line) => `<li>${line}</li>`).join("");
+      fileInspectEl.hidden = false;
+    } catch (err) {
+      fileInspectEl.hidden = true;
+      appendLog(`Could not inspect ${file.name}: ${err.message}`, false);
+    }
   });
 
-  async function safeDisconnectTransport() {
-    if (transport) {
-      try { await transport.disconnect(); } catch (_) {}
-    }
+  async function safeDisconnect() {
+    isUserDisconnecting = true;
+    const currentLoader = esploader;
+    stub = null;
     esploader = null;
-    transport = null;
+
+    if (currentLoader) {
+      currentLoader.removeEventListener("disconnect", handleUnexpectedDisconnect);
+      try {
+        await currentLoader.disconnect();
+      } catch (_) {}
+    }
+    if (port && (port.readable || port.writable)) {
+      try {
+        await port.close();
+      } catch (_) {}
+    }
+    isUserDisconnecting = false;
   }
 
-  async function connectWithFallback(serialDevice) {
-    const maxBaud = parseInt(baudSelect.value, 10) || 921600;
-    const candidates = ALL_BAUD_RATES.filter((b) => b <= maxBaud);
+  function handleUnexpectedDisconnect() {
+    if (isUserDisconnecting) return;
+    stub = null;
+    esploader = null;
+    port = null;
+    flashSizeBytes = 0;
+    setBusyIndicator(false);
+    setConnected(false);
+    setProgress(0, "Device disconnected.");
+    appendLog("Serial connection lost.");
+  }
 
-    for (let i = 0; i < candidates.length; i++) {
-      const baud = candidates[i];
-      setBusyIndicator(true, `Syncing at ${baud} baud...`);
-      log(`Trying connection at ${baud} baud...`);
+  async function connectAndDetect(serialPort) {
+    const requestedMaxBaud = parseInt(baudSelect.value, 10) || 460800;
+    let loader = null;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt++) {
+      setBusyIndicator(
+        true,
+        attempt === 1
+          ? "Syncing with bootloader at 115200 baud..."
+          : `Retrying bootloader sync (${attempt}/${MAX_SYNC_ATTEMPTS})...`
+      );
+      appendLog(
+        attempt === 1
+          ? "Opening port and syncing with bootloader at 115200 baud..."
+          : `Sync attempt ${attempt}/${MAX_SYNC_ATTEMPTS} at 115200 baud...`
+      );
+
+      await safeDisconnect();
+      if (attempt > 1) {
+        await sleep(300);
+      }
+
+      if (!serialPort.readable) {
+        await serialPort.open({ baudRate: 115200 });
+        try {
+          await serialPort.setSignals({ dataTerminalReady: false, requestToSend: false });
+          await sleep(100);
+        } catch (_) {}
+      }
+
+      loader = await connectWithPort(serialPort, logger);
+      esploader = loader;
+      loader.addEventListener("disconnect", handleUnexpectedDisconnect);
+
       try {
-        await safeDisconnectTransport();
-        transport = new Transport(serialDevice, true);
-        esploader = new ESPLoader({
-          transport,
-          baudrate: baud,
-          romBaudrate: 115200,
-          terminal
-        });
-
-        const chip = await esploader.main();
-        setBusyIndicator(true, "Detecting flash size...");
-        const flashId = await esploader.readFlashId();
-        const detectedBytes = flashBytesFromJedecId(flashId);
-        const mb = detectedBytes / (1024 * 1024);
-
-        if (!VALID_FLASH_MB.includes(mb)) {
-          throw new Error(`Unsupported or unrecognized Flash ID: 0x${Number(flashId).toString(16)}`);
-        }
-
-        flashSizeBytes = detectedBytes;
-        activeBaud = baud;
-        baudSelect.value = String(baud);
-
-        setBusyIndicator(false);
-        badgeEl.classList.remove("error");
-        badgeEl.textContent = `${chip} • ${mb} MB • ${baud} baud`;
-        badgeEl.hidden = false;
-        setProgress(0, `Ready (${mb} MB flash detected at ${baud} baud). Choose Back up or Restore below.`);
-        log(`Connected to ${chip} (${mb} MB flash) at ${baud} baud.`);
-        return true;
+        await loader.initialize();
+        lastError = null;
+        break;
       } catch (err) {
-        log(`Failed at ${baud} baud: ${err.message}`);
-        if (i < candidates.length - 1) {
-          log("Falling back to lower baud rate...");
-        }
+        lastError = err;
+        appendLog(`Attempt ${attempt} failed: ${err.message}`, true);
       }
     }
+
+    if (lastError || !loader) {
+      throw lastError || new Error("Couldn't sync to ESP.");
+    }
+
+    const chipName = loader.chipName || "ESP";
+
+    setBusyIndicator(true, "Loading stub & detecting flash...");
+    const stubLoader = await loader.runStub();
+    stub = stubLoader;
+
+    if (!stubLoader.flashSize) {
+      await stubLoader.detectFlashSize();
+    }
+
+    const detectedBytes = parseFlashSizeString(stubLoader.flashSize);
+    if (!detectedBytes) {
+      throw new Error(`Unsupported or unrecognized flash size: ${stubLoader.flashSize || "unknown"}`);
+    }
+
+    const usbInfo = serialPort.getInfo ? serialPort.getInfo() : {};
+    const isCH340 = usbInfo.usbVendorId === 0x1a86 && usbInfo.usbProductId === 0x7523;
+    const maxAllowedBaud = isCH340 ? Math.min(requestedMaxBaud, 460800) : requestedMaxBaud;
+    const candidates = ALL_BAUD_RATES.filter((b) => b <= maxAllowedBaud);
+
+    let negotiatedBaud = 115200;
+    for (const baud of candidates) {
+      if (baud === 115200) {
+        negotiatedBaud = 115200;
+        break;
+      }
+      try {
+        setBusyIndicator(true, `Switching to ${baud} baud...`);
+        loader.removeEventListener("disconnect", handleUnexpectedDisconnect);
+        await stubLoader.setBaudrate(baud);
+        loader.addEventListener("disconnect", handleUnexpectedDisconnect);
+        negotiatedBaud = baud;
+        break;
+      } catch (err) {
+        loader.addEventListener("disconnect", handleUnexpectedDisconnect);
+        appendLog(`Could not switch to ${baud} baud (${err.message}), trying lower speed...`, true);
+      }
+    }
+
+    flashSizeBytes = detectedBytes;
+    activeBaud = negotiatedBaud;
+    baudSelect.value = String(negotiatedBaud);
+
+    const mb = detectedBytes / (1024 * 1024);
     setBusyIndicator(false);
-    return false;
+    badgeEl.classList.remove("error");
+    badgeEl.textContent = `${chipName} • ${mb} MB • ${negotiatedBaud} baud`;
+    badgeEl.hidden = false;
+    setProgress(0, `Ready (${mb} MB flash detected at ${negotiatedBaud} baud). Choose Back up or Restore below.`);
+    appendLog(`Connected to ${chipName} (${mb} MB flash) at ${negotiatedBaud} baud.`);
+    return true;
   }
 
   btnConnect.addEventListener("click", async () => {
@@ -753,24 +1086,18 @@
     setBusyIndicator(true, "Waiting for port selection...");
 
     try {
-      device = await navigator.serial.requestPort();
-      const ok = await connectWithFallback(device);
-      if (ok) {
-        setConnected(true);
-      } else {
-        badgeEl.textContent = "Connection failed";
-        badgeEl.classList.add("error");
-        badgeEl.hidden = false;
-        setProgress(0, "Could not connect. Check the technical log below for details.");
-        logDetailsEl.open = true;
-        log("Could not sync at any baud rate. Try holding the power/BOOT button while plugging the clock in.");
-        btnConnect.disabled = false;
-        baudSelect.disabled = false;
-      }
+      port = await navigator.serial.requestPort();
+      await connectAndDetect(port);
+      setConnected(true);
     } catch (err) {
+      await safeDisconnect();
       setBusyIndicator(false);
-      setProgress(0, "Waiting to connect...");
-      log(`Connection canceled or failed: ${err.message}`);
+      badgeEl.textContent = "Connection failed";
+      badgeEl.classList.add("error");
+      badgeEl.hidden = false;
+      setProgress(0, "Could not connect. Check the technical log below for details.");
+      logDetailsEl.open = true;
+      appendLog(`Connection failed: ${err.message}`);
       btnConnect.disabled = false;
       baudSelect.disabled = false;
     }
@@ -778,44 +1105,52 @@
 
   btnDisconnect.addEventListener("click", async () => {
     hideRetryBanner();
-    await safeDisconnectTransport();
-    device = null;
+    await safeDisconnect();
+    port = null;
     flashSizeBytes = 0;
     setBusyIndicator(false);
     setProgress(0, "Disconnected.");
     setConnected(false);
-    log("Disconnected.");
+    appendLog("Disconnected.");
   });
 
   async function runBackup() {
-    if (!esploader || !flashSizeBytes) return;
+    if (!stub || !flashSizeBytes) return;
     hideRetryBanner();
     setTransferBusy(true);
     const mb = flashSizeBytes / (1024 * 1024);
     setBusyIndicator(true, `Reading ${mb} MB at ${activeBaud} baud...`);
     setProgress(0, `Reading ${mb} MB flash from 0x0 (do not unplug)...`);
-    log(`Reading ${mb} MB (${flashSizeBytes} bytes) flash in ${READ_CHUNK_SIZE / 1024} KB blocks at ${activeBaud} baud...`);
+    appendLog(`Reading ${mb} MB (${flashSizeBytes} bytes) flash from 0x0 at ${activeBaud} baud...`);
 
     try {
-      const fullImage = new Uint8Array(flashSizeBytes);
-      let offset = 0;
+      const fullImage = await stub.readFlash(0x0, flashSizeBytes, (_packet, progress, total) => {
+        const pct = (progress / total) * 95;
+        const readMB = (progress / (1024 * 1024)).toFixed(2);
+        setProgress(pct, `Reading flash: ${readMB} / ${mb} MB (${activeBaud} baud)`);
+      });
 
-      while (offset < flashSizeBytes) {
-        const len = Math.min(READ_CHUNK_SIZE, flashSizeBytes - offset);
-        const baseOffset = offset;
+      setBusyIndicator(true, "Verifying hardware MD5 checksum...");
+      setProgress(97, "Verifying hardware flash MD5 checksum...");
+      const report = inspectFlashImage(fullImage);
+      for (const line of report.items) {
+        appendLog(line);
+      }
 
-        const chunk = await esploader.readFlash(baseOffset, len, (_packet, chunkRead) => {
-          const totalRead = baseOffset + chunkRead;
-          const pct = (totalRead / flashSizeBytes) * 100;
-          const readMB = (totalRead / (1024 * 1024)).toFixed(2);
-          setProgress(pct, `Reading flash: ${readMB} / ${mb} MB (${activeBaud} baud)`);
-        });
-
-        fullImage.set(chunk, baseOffset);
-        offset += len;
-        if (offset < flashSizeBytes) {
-          await sleep(CHUNK_SETTLE_MS);
+      let md5Verified = false;
+      try {
+        const hwMd5 = await readHardwareFlashMd5(stub, 0x0, flashSizeBytes);
+        appendLog(`Hardware MD5: ${hwMd5}`);
+        if (hwMd5 !== report.md5) {
+          throw new Error(`MD5 mismatch! File=${report.md5}, Flash=${hwMd5}`);
         }
+        md5Verified = true;
+        appendLog("MD5 checksum verified: backup matches flash byte-for-byte.");
+      } catch (md5Err) {
+        if (md5Err.message.startsWith("MD5 mismatch")) {
+          throw md5Err;
+        }
+        appendLog(`Hardware MD5 check skipped (${md5Err.message}).`, true);
       }
 
       const blob = new Blob([fullImage], { type: "application/octet-stream" });
@@ -825,12 +1160,16 @@
       a.download = `elekstube-backup-${mb}MB-${new Date().toISOString().slice(0, 10)}.bin`;
       a.click();
       URL.revokeObjectURL(url);
-      setProgress(100, "Backup complete! File downloaded.");
-      log("Backup complete.");
+
+      setProgress(100, md5Verified
+        ? "Backup complete & MD5 verified! File downloaded."
+        : (report.valid ? "Backup complete & verified! File downloaded." : "Backup downloaded (warning: partition table not recognized).")
+      );
+      appendLog("Backup complete.");
     } catch (err) {
       setProgress(0, `Backup failed at ${activeBaud} baud.`);
       logDetailsEl.open = true;
-      log(`Backup failed at ${activeBaud} baud: ${err.message}`);
+      appendLog(`Backup failed at ${activeBaud} baud: ${err.message}`);
       offerLowerBaudRetry("backup", err.message);
     } finally {
       setBusyIndicator(false);
@@ -840,7 +1179,7 @@
 
   async function runRestore() {
     const file = fileInput.files[0];
-    if (!esploader || !file || !flashSizeBytes) return;
+    if (!stub || !file || !flashSizeBytes) return;
 
     const expectedMB = flashSizeBytes / (1024 * 1024);
     if (file.size !== flashSizeBytes) {
@@ -854,32 +1193,49 @@
     setTransferBusy(true);
     setBusyIndicator(true, `Restoring at ${activeBaud} baud...`);
     setProgress(0, `Writing ${file.name} to 0x0 (do not unplug)...`);
-    log(`Restoring ${file.name} (${file.size} bytes) to 0x0 at ${activeBaud} baud...`);
+    appendLog(`Restoring ${file.name} (${file.size} bytes) to 0x0 at ${activeBaud} baud...`);
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
+      const fileBytes = new Uint8Array(arrayBuffer);
+      const expectedMd5 = computeMd5Hex(fileBytes);
+      appendLog(`Expected MD5: ${expectedMd5}`);
 
-      await esploader.writeFlash({
-        fileArray: [{ data: uint8Array, address: 0x0 }],
-        flashSize: "keep",
-        eraseAll: false,
-        compress: true,
-        reportProgress: (_fileIndex, written, total) => {
-          const pct = (written / total) * 100;
+      await stub.flashData(
+        arrayBuffer,
+        (written, total) => {
+          const pct = (written / total) * 95;
           const writtenMB = (written / (1024 * 1024)).toFixed(2);
           const totalMB = (total / (1024 * 1024)).toFixed(2);
           setProgress(pct, `Writing flash: ${writtenMB} / ${totalMB} MB (${activeBaud} baud)`);
-        }
-      });
+        },
+        0x0,
+        true
+      );
 
-      await esploader.hardReset();
-      setProgress(100, "Restore complete! Clock has rebooted.");
-      log("Restore complete. Clock rebooted.");
+      setBusyIndicator(true, "Verifying written flash MD5...");
+      setProgress(97, "Verifying written flash MD5 checksum...");
+      try {
+        const hwMd5 = await readHardwareFlashMd5(stub, 0x0, fileBytes.length);
+        appendLog(`Hardware MD5: ${hwMd5}`);
+        if (hwMd5 !== expectedMd5) {
+          throw new Error(`Restore verification failed! File=${expectedMd5}, Flash=${hwMd5}`);
+        }
+        appendLog("MD5 checksum verified: written flash matches backup byte-for-byte.");
+      } catch (md5Err) {
+        if (md5Err.message.startsWith("Restore verification failed")) {
+          throw md5Err;
+        }
+        appendLog(`Hardware MD5 check skipped (${md5Err.message}).`, true);
+      }
+
+      await esploader.hardReset(false);
+      setProgress(100, "Restore complete & MD5 verified! Clock has rebooted.");
+      appendLog("Restore complete. Clock rebooted.");
     } catch (err) {
       setProgress(0, `Restore failed at ${activeBaud} baud.`);
       logDetailsEl.open = true;
-      log(`Restore failed at ${activeBaud} baud: ${err.message}`);
+      appendLog(`Restore failed at ${activeBaud} baud: ${err.message}`);
       offerLowerBaudRetry("restore", err.message);
     } finally {
       setBusyIndicator(false);
@@ -898,28 +1254,24 @@
     baudSelect.disabled = true;
 
     try {
-      if (!device) {
-        device = await navigator.serial.requestPort();
+      if (!port) {
+        port = await navigator.serial.requestPort();
       }
-      const ok = await connectWithFallback(device);
-      if (ok) {
-        setConnected(true);
-        if (actionToRetry === "backup") {
-          await runBackup();
-        } else if (actionToRetry === "restore") {
-          await runRestore();
-        }
-      } else {
-        badgeEl.textContent = "Reconnect failed";
-        badgeEl.classList.add("error");
-        badgeEl.hidden = false;
-        setProgress(0, "Could not reconnect. Unplug/replug the clock (holding Power if needed) and click Connect.");
-        btnConnect.disabled = false;
-        baudSelect.disabled = false;
+      await connectAndDetect(port);
+      setConnected(true);
+      if (actionToRetry === "backup") {
+        await runBackup();
+      } else if (actionToRetry === "restore") {
+        await runRestore();
       }
     } catch (err) {
+      await safeDisconnect();
       setBusyIndicator(false);
-      log(`Reconnect failed: ${err.message}`);
+      badgeEl.textContent = "Reconnect failed";
+      badgeEl.classList.add("error");
+      badgeEl.hidden = false;
+      setProgress(0, "Could not reconnect. Unplug/replug the clock (holding Power if needed) and click Connect.");
+      appendLog(`Reconnect failed: ${err.message}`);
       btnConnect.disabled = false;
       baudSelect.disabled = false;
     }
