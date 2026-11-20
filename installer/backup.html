@@ -203,11 +203,46 @@
     font-size: 0.9375rem;
   }
 
+  .note.warning {
+    border-left-color: var(--error);
+  }
+
+  .note[hidden] { display: none; }
+
   .btn-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 10px;
+  }
+
+  .baud-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+
+  select {
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--field);
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .btn-primary {
@@ -262,6 +297,35 @@
     cursor: not-allowed;
   }
 
+  .busy-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--note-bg);
+    border: 1px solid var(--note-border);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .busy-status[hidden] { display: none; }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--track);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+    flex: none;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
   .status-pill {
     display: inline-block;
     padding: 6px 12px;
@@ -273,6 +337,12 @@
   }
 
   .status-pill[hidden] { display: none; }
+
+  .status-pill.error {
+    border-color: var(--error);
+    color: var(--error);
+    background: transparent;
+  }
 
   .file-picker {
     display: block;
@@ -297,6 +367,20 @@
     gap: 10px;
   }
 
+  .progress-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+
   progress {
     width: 100%;
     height: 10px;
@@ -317,16 +401,34 @@
     border-radius: 999px;
   }
 
+  details.log-details {
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+    margin-top: 4px;
+  }
+
+  details.log-details summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--muted);
+    user-select: none;
+  }
+
+  details.log-details summary:hover {
+    color: var(--text);
+  }
+
   #log {
-    margin: 0;
+    margin: 10px 0 0;
     padding: 12px 14px;
-    height: 200px;
+    height: 180px;
     overflow-y: auto;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: var(--field);
     color: var(--text);
-    font: 0.85rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font: 0.82rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     white-space: pre-wrap;
   }
 
@@ -365,12 +467,31 @@
   <section>
     <h2><span class="step">2</span>Connect your clock</h2>
     <div class="option">
-      <p>Click <strong>Connect</strong> and choose your clock's serial port. The page will automatically detect your flash size and fall back to a slower baud rate if needed.</p>
+      <p>Click <strong>Connect</strong> and choose your clock's serial port. Reading flash uses flow-controlled 32 KB blocks to prevent CH340 USB buffer overflows.</p>
       <p class="note">Some clocks have to be manually put into programming mode before connecting (e.g. the IPSTube clocks). Hold down the power button while you plug it in&mdash;the display will stay blank.</p>
       <div class="btn-row">
         <button class="btn-primary" id="btnConnect">Connect</button>
         <button class="btn-secondary" id="btnDisconnect" disabled>Disconnect</button>
+        <label class="baud-control" for="baudSelect">
+          <span>Max speed:</span>
+          <select id="baudSelect">
+            <option value="230400">230400 baud (recommended)</option>
+            <option value="460800">460800 baud (faster)</option>
+            <option value="921600" selected>921600 baud (fastest)</option>
+            <option value="115200">115200 baud (most reliable)</option>
+          </select>
+        </label>
+        <span class="busy-status" id="busyStatus" hidden>
+          <span class="spinner" aria-hidden="true"></span>
+          <span id="busyText">Connecting...</span>
+        </span>
         <span class="status-pill" id="deviceBadge" hidden></span>
+      </div>
+      <div class="note warning" id="retryBanner" hidden>
+        <p id="retryText"></p>
+        <div class="btn-row" style="margin-top: 10px;">
+          <button class="btn-primary" id="btnRetry">Reconnect at slower speed &amp; retry</button>
+        </div>
       </div>
     </div>
   </section>
@@ -380,8 +501,8 @@
     <div class="options">
       <div class="option">
         <h3>Download full backup</h3>
-        <p>Reads the entire flash chip starting at <code>0x0</code> (4 MB or 8 MB depending on your clock) and saves it as a single <code>.bin</code> file.</p>
-        <p class="note">Reading the full chip takes around 45&ndash;90 seconds. Keep the USB cable connected until the download finishes.</p>
+        <p>Reads the entire flash chip starting at <code>0x0</code> (4 MB or 8 MB depending on your clock) in safe 32 KB blocks and saves it as a single <code>.bin</code> file.</p>
+        <p class="note">Reading the full chip takes around 1&ndash;3 minutes depending on speed. Keep the USB cable connected until the download finishes.</p>
         <div class="actions">
           <button class="btn-primary" id="btnBackup" disabled>Download backup (.bin)</button>
         </div>
@@ -401,10 +522,19 @@
   </section>
 
   <section>
-    <h2><span class="step">4</span>Progress &amp; log</h2>
+    <h2><span class="step">4</span>Transfer progress</h2>
     <div class="option">
-      <progress id="progress" value="0" max="100"></progress>
-      <pre id="log">Ready.</pre>
+      <div class="progress-wrap">
+        <div class="progress-header">
+          <span id="progressLabel">Waiting to connect...</span>
+          <span id="progressPct">0%</span>
+        </div>
+        <progress id="progress" value="0" max="100"></progress>
+      </div>
+      <details class="log-details" id="logDetails">
+        <summary>Show technical console log</summary>
+        <pre id="log">Ready.</pre>
+      </details>
     </div>
   </section>
 
@@ -415,20 +545,35 @@
 </main>
 
 <script type="module">
-  import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.4.5/bundle.js";
+  import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.7.1/bundle.js";
 
-  const BAUD_RATES = [921600, 460800, 230400, 115200];
+  const ALL_BAUD_RATES = [921600, 460800, 230400, 115200];
+  const VALID_FLASH_MB = [4, 8, 16];
+  // 32 KB (32 packets) stays well inside CH340 / macOS WebSerial RX buffers
+  // while esptool-js's internal maxInflightPackets is 1024.
+  const READ_CHUNK_SIZE = 32 * 1024;
+  const CHUNK_SETTLE_MS = 20;
 
   let device = null;
   let transport = null;
   let esploader = null;
   let flashSizeBytes = 0;
-  let activeBaud = BAUD_RATES[0];
+  let activeBaud = 921600;
+  let lastFailedAction = null;
 
   const logEl = document.getElementById("log");
+  const logDetailsEl = document.getElementById("logDetails");
   const progEl = document.getElementById("progress");
+  const progLabelEl = document.getElementById("progressLabel");
+  const progPctEl = document.getElementById("progressPct");
+  const busyStatusEl = document.getElementById("busyStatus");
+  const busyTextEl = document.getElementById("busyText");
   const badgeEl = document.getElementById("deviceBadge");
   const hintEl = document.getElementById("connect-hint");
+  const baudSelect = document.getElementById("baudSelect");
+  const retryBanner = document.getElementById("retryBanner");
+  const retryText = document.getElementById("retryText");
+  const btnRetry = document.getElementById("btnRetry");
   const btnConnect = document.getElementById("btnConnect");
   const btnDisconnect = document.getElementById("btnDisconnect");
   const btnBackup = document.getElementById("btnBackup");
@@ -440,9 +585,69 @@
     btnConnect.disabled = true;
   }
 
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
   function log(msg) {
     logEl.textContent += "\n" + msg;
     logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function setBusyIndicator(active, message = "") {
+    busyStatusEl.hidden = !active;
+    if (message) {
+      busyTextEl.textContent = message;
+      progLabelEl.textContent = message;
+    }
+  }
+
+  function setProgress(pct, label) {
+    const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+    progEl.value = clamped;
+    progPctEl.textContent = `${clamped}%`;
+    if (label) progLabelEl.textContent = label;
+  }
+
+  function hideRetryBanner() {
+    retryBanner.hidden = true;
+    lastFailedAction = null;
+  }
+
+  function getNextLowerBaud(currentBaud) {
+    const idx = ALL_BAUD_RATES.indexOf(currentBaud);
+    if (idx >= 0 && idx < ALL_BAUD_RATES.length - 1) {
+      return ALL_BAUD_RATES[idx + 1];
+    }
+    return null;
+  }
+
+  function offerLowerBaudRetry(action, errorMessage) {
+    const nextBaud = getNextLowerBaud(activeBaud);
+    lastFailedAction = action;
+    if (nextBaud) {
+      baudSelect.value = String(nextBaud);
+      retryText.innerHTML =
+        `Transfer failed at <strong>${activeBaud} baud</strong> (${errorMessage}). ` +
+        `Max speed has been lowered to <strong>${nextBaud} baud</strong>. ` +
+        `If your clock requires holding the power button for programming mode, hold it before retrying.`;
+      btnRetry.textContent = `Reconnect at ${nextBaud} baud & retry ${action}`;
+    } else {
+      retryText.innerHTML =
+        `Transfer failed at the lowest speed (<strong>${activeBaud} baud</strong>: ${errorMessage}). ` +
+        `Unplug and replug the clock (or try a shorter USB data cable), then retry.`;
+      btnRetry.textContent = `Reconnect at ${activeBaud} baud & retry ${action}`;
+    }
+    retryBanner.hidden = false;
+  }
+
+  // Decode JEDEC SPI Flash ID (e.g., 0x164020 -> capacity byte 0x16 -> 2^22 = 4 MB)
+  function flashBytesFromJedecId(flashId) {
+    const id = typeof flashId === "string" ? parseInt(flashId, 16) : Number(flashId);
+    if (!Number.isFinite(id) || id <= 0) return 0;
+    const capacity = (id >> 16) & 0xff;
+    if (capacity >= 0x13 && capacity <= 0x1a) {
+      return 1 << capacity;
+    }
+    return 0;
   }
 
   const terminal = {
@@ -457,157 +662,266 @@
   function setConnected(connected) {
     btnConnect.disabled = connected;
     btnDisconnect.disabled = !connected;
+    baudSelect.disabled = connected;
     btnBackup.disabled = !connected;
     fileInput.disabled = !connected;
     btnRestore.disabled = !connected || !fileInput.files.length;
     hintEl.hidden = connected;
     if (!connected) {
       badgeEl.hidden = true;
+      badgeEl.classList.remove("error");
       badgeEl.textContent = "";
     }
   }
 
-  function setBusy(busy) {
+  function setTransferBusy(busy) {
     btnDisconnect.disabled = busy;
     btnBackup.disabled = busy;
     fileInput.disabled = busy;
     btnRestore.disabled = busy || !fileInput.files.length;
+    btnRetry.disabled = busy;
   }
 
   fileInput.addEventListener("change", () => {
     btnRestore.disabled = !esploader || !fileInput.files.length;
   });
 
+  async function safeDisconnectTransport() {
+    if (transport) {
+      try { await transport.disconnect(); } catch (_) {}
+    }
+    esploader = null;
+    transport = null;
+  }
+
   async function connectWithFallback(serialDevice) {
-    for (let i = 0; i < BAUD_RATES.length; i++) {
-      const baud = BAUD_RATES[i];
+    const maxBaud = parseInt(baudSelect.value, 10) || 921600;
+    const candidates = ALL_BAUD_RATES.filter((b) => b <= maxBaud);
+
+    for (let i = 0; i < candidates.length; i++) {
+      const baud = candidates[i];
+      setBusyIndicator(true, `Syncing at ${baud} baud...`);
       log(`Trying connection at ${baud} baud...`);
       try {
-        if (transport) {
-          try { await transport.disconnect(); } catch (_) {}
-        }
+        await safeDisconnectTransport();
         transport = new Transport(serialDevice, true);
         esploader = new ESPLoader({
           transport,
           baudrate: baud,
+          romBaudrate: 115200,
           terminal
         });
 
         const chip = await esploader.main();
-        const flashSizeStr = await esploader.getFlashSize();
-        const mb = parseInt(flashSizeStr, 10) || 4;
-        flashSizeBytes = mb * 1024 * 1024;
-        activeBaud = baud;
+        setBusyIndicator(true, "Detecting flash size...");
+        const flashId = await esploader.readFlashId();
+        const detectedBytes = flashBytesFromJedecId(flashId);
+        const mb = detectedBytes / (1024 * 1024);
 
+        if (!VALID_FLASH_MB.includes(mb)) {
+          throw new Error(`Unsupported or unrecognized Flash ID: 0x${Number(flashId).toString(16)}`);
+        }
+
+        flashSizeBytes = detectedBytes;
+        activeBaud = baud;
+        baudSelect.value = String(baud);
+
+        setBusyIndicator(false);
+        badgeEl.classList.remove("error");
         badgeEl.textContent = `${chip} • ${mb} MB • ${baud} baud`;
         badgeEl.hidden = false;
+        setProgress(0, `Ready (${mb} MB flash detected at ${baud} baud). Choose Back up or Restore below.`);
         log(`Connected to ${chip} (${mb} MB flash) at ${baud} baud.`);
         return true;
       } catch (err) {
         log(`Failed at ${baud} baud: ${err.message}`);
-        if (i < BAUD_RATES.length - 1) {
+        if (i < candidates.length - 1) {
           log("Falling back to lower baud rate...");
         }
       }
     }
+    setBusyIndicator(false);
     return false;
   }
 
   btnConnect.addEventListener("click", async () => {
+    hideRetryBanner();
     btnConnect.disabled = true;
+    baudSelect.disabled = true;
+    badgeEl.hidden = true;
+    badgeEl.classList.remove("error");
+    setBusyIndicator(true, "Waiting for port selection...");
+
     try {
       device = await navigator.serial.requestPort();
       const ok = await connectWithFallback(device);
       if (ok) {
         setConnected(true);
       } else {
+        badgeEl.textContent = "Connection failed";
+        badgeEl.classList.add("error");
+        badgeEl.hidden = false;
+        setProgress(0, "Could not connect. Check the technical log below for details.");
+        logDetailsEl.open = true;
         log("Could not sync at any baud rate. Try holding the power/BOOT button while plugging the clock in.");
         btnConnect.disabled = false;
+        baudSelect.disabled = false;
       }
     } catch (err) {
+      setBusyIndicator(false);
+      setProgress(0, "Waiting to connect...");
       log(`Connection canceled or failed: ${err.message}`);
       btnConnect.disabled = false;
+      baudSelect.disabled = false;
     }
   });
 
   btnDisconnect.addEventListener("click", async () => {
-    try {
-      if (transport) await transport.disconnect();
-    } catch (_) {}
-    esploader = null;
-    transport = null;
+    hideRetryBanner();
+    await safeDisconnectTransport();
     device = null;
-    progEl.value = 0;
+    flashSizeBytes = 0;
+    setBusyIndicator(false);
+    setProgress(0, "Disconnected.");
     setConnected(false);
     log("Disconnected.");
   });
 
-  btnBackup.addEventListener("click", async () => {
-    if (!esploader) return;
-    setBusy(true);
-    progEl.value = 0;
+  async function runBackup() {
+    if (!esploader || !flashSizeBytes) return;
+    hideRetryBanner();
+    setTransferBusy(true);
     const mb = flashSizeBytes / (1024 * 1024);
-    log(`Reading ${mb} MB flash from 0x0...`);
+    setBusyIndicator(true, `Reading ${mb} MB at ${activeBaud} baud...`);
+    setProgress(0, `Reading ${mb} MB flash from 0x0 (do not unplug)...`);
+    log(`Reading ${mb} MB (${flashSizeBytes} bytes) flash in ${READ_CHUNK_SIZE / 1024} KB blocks at ${activeBaud} baud...`);
 
     try {
-      const data = await esploader.readFlash(0x0, flashSizeBytes, (packet, progress, totalSize) => {
-        progEl.value = Math.round((progress / totalSize) * 100);
-      });
+      const fullImage = new Uint8Array(flashSizeBytes);
+      let offset = 0;
 
-      const blob = new Blob([data], { type: "application/octet-stream" });
+      while (offset < flashSizeBytes) {
+        const len = Math.min(READ_CHUNK_SIZE, flashSizeBytes - offset);
+        const baseOffset = offset;
+
+        const chunk = await esploader.readFlash(baseOffset, len, (_packet, chunkRead) => {
+          const totalRead = baseOffset + chunkRead;
+          const pct = (totalRead / flashSizeBytes) * 100;
+          const readMB = (totalRead / (1024 * 1024)).toFixed(2);
+          setProgress(pct, `Reading flash: ${readMB} / ${mb} MB (${activeBaud} baud)`);
+        });
+
+        fullImage.set(chunk, baseOffset);
+        offset += len;
+        if (offset < flashSizeBytes) {
+          await sleep(CHUNK_SETTLE_MS);
+        }
+      }
+
+      const blob = new Blob([fullImage], { type: "application/octet-stream" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `elekstube-backup-${mb}MB-${new Date().toISOString().slice(0, 10)}.bin`;
       a.click();
       URL.revokeObjectURL(url);
+      setProgress(100, "Backup complete! File downloaded.");
       log("Backup complete.");
     } catch (err) {
+      setProgress(0, `Backup failed at ${activeBaud} baud.`);
+      logDetailsEl.open = true;
       log(`Backup failed at ${activeBaud} baud: ${err.message}`);
+      offerLowerBaudRetry("backup", err.message);
     } finally {
-      setBusy(false);
+      setBusyIndicator(false);
+      setTransferBusy(false);
     }
-  });
+  }
 
-  btnRestore.addEventListener("click", async () => {
+  async function runRestore() {
     const file = fileInput.files[0];
-    if (!esploader || !file) return;
+    if (!esploader || !file || !flashSizeBytes) return;
 
+    const expectedMB = flashSizeBytes / (1024 * 1024);
     if (file.size !== flashSizeBytes) {
       const proceed = confirm(
-        `Selected file is ${(file.size / 1048576).toFixed(2)} MB, but detected flash size is ${flashSizeBytes / 1048576} MB.\n\nAre you sure this is a full flash backup?`
+        `Selected file is ${(file.size / 1048576).toFixed(2)} MB, but detected flash size is ${expectedMB} MB.\n\nAre you sure this is a full flash backup?`
       );
       if (!proceed) return;
     }
 
-    setBusy(true);
-    progEl.value = 0;
-    log(`Restoring ${file.name} to 0x0...`);
+    hideRetryBanner();
+    setTransferBusy(true);
+    setBusyIndicator(true, `Restoring at ${activeBaud} baud...`);
+    setProgress(0, `Writing ${file.name} to 0x0 (do not unplug)...`);
+    log(`Restoring ${file.name} (${file.size} bytes) to 0x0 at ${activeBaud} baud...`);
 
     try {
       const arrayBuffer = await file.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
-      let binaryString = "";
-      for (let i = 0; i < uint8Array.length; i++) {
-        binaryString += String.fromCharCode(uint8Array[i]);
-      }
 
       await esploader.writeFlash({
-        fileArray: [{ data: binaryString, address: 0x0 }],
+        fileArray: [{ data: uint8Array, address: 0x0 }],
         flashSize: "keep",
         eraseAll: false,
         compress: true,
-        reportProgress: (fileIndex, written, total) => {
-          progEl.value = Math.round((written / total) * 100);
+        reportProgress: (_fileIndex, written, total) => {
+          const pct = (written / total) * 100;
+          const writtenMB = (written / (1024 * 1024)).toFixed(2);
+          const totalMB = (total / (1024 * 1024)).toFixed(2);
+          setProgress(pct, `Writing flash: ${writtenMB} / ${totalMB} MB (${activeBaud} baud)`);
         }
       });
 
       await esploader.hardReset();
+      setProgress(100, "Restore complete! Clock has rebooted.");
       log("Restore complete. Clock rebooted.");
     } catch (err) {
-      log(`Restore failed: ${err.message}`);
+      setProgress(0, `Restore failed at ${activeBaud} baud.`);
+      logDetailsEl.open = true;
+      log(`Restore failed at ${activeBaud} baud: ${err.message}`);
+      offerLowerBaudRetry("restore", err.message);
     } finally {
-      setBusy(false);
+      setBusyIndicator(false);
+      setTransferBusy(false);
+    }
+  }
+
+  btnBackup.addEventListener("click", runBackup);
+  btnRestore.addEventListener("click", runRestore);
+
+  btnRetry.addEventListener("click", async () => {
+    const actionToRetry = lastFailedAction;
+    hideRetryBanner();
+    setConnected(false);
+    btnConnect.disabled = true;
+    baudSelect.disabled = true;
+
+    try {
+      if (!device) {
+        device = await navigator.serial.requestPort();
+      }
+      const ok = await connectWithFallback(device);
+      if (ok) {
+        setConnected(true);
+        if (actionToRetry === "backup") {
+          await runBackup();
+        } else if (actionToRetry === "restore") {
+          await runRestore();
+        }
+      } else {
+        badgeEl.textContent = "Reconnect failed";
+        badgeEl.classList.add("error");
+        badgeEl.hidden = false;
+        setProgress(0, "Could not reconnect. Unplug/replug the clock (holding Power if needed) and click Connect.");
+        btnConnect.disabled = false;
+        baudSelect.disabled = false;
+      }
+    } catch (err) {
+      setBusyIndicator(false);
+      log(`Reconnect failed: ${err.message}`);
+      btnConnect.disabled = false;
+      baudSelect.disabled = false;
     }
   });
 </script>
