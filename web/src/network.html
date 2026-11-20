@@ -1,6 +1,8 @@
         <div data-role="page" id="Network">
             <link rel="stylesheet" href="/theme.css">
             <script src="/theme.js"></script>
+            <link rel="stylesheet" href="/secrets.css">
+            <script src="/secrets.js"></script>
             <div data-role="header" data-position="fixed">
                 <h1>Network</h1>
 				<a href="#mainMenu" data-rel="main-menu-panel" class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
@@ -30,6 +32,16 @@
 						<label for="ap_password">WiFi AP Password</label>
 						<input maxlength="63" onblur="elementBlur(this, 'Use 8 to 63 letters, digits, spaces and punctuation, without accents, or clear it for a new random one')" pattern="([ -~]{8,63})?" type="password" id="ap_password" autocomplete="off" data-mini="true" />
 					</div>
+					<div class="dispInlineLabel">
+						<label for="redact_passwords">Redact Passwords</label>
+					</div>
+					<div class="dispInline">
+						<input onchange="elementChange(this);safeSend(getPageId($('.ui-page-active').attr('id')) + ':')" type="checkbox"
+							data-role="flipswitch" name="redact_passwords" id="redact_passwords"
+							data-on-text="Yes" data-off-text="No"
+							data-wrapper-class="custom-label-flipswitch">
+					</div>
+					<div class="clearFloats"></div>
 					<div class="dispInlineLabel">
 						<label for="wifi_ap">WiFi AP</label>
 					</div>

@@ -64,29 +64,6 @@
 			position: relative !important;
 		}
 		
-		/* 1. Force .ui-input-text to be the positioning anchor in ALL containers */
-		.ui-input-text.has-password-toggle {
-			position: relative;
-		}
-
-		/* 2. Reserve right-side space inside the input so text doesn't hit the icon */
-		.ui-input-text.has-password-toggle input {
-			padding-right: 2.5em;
-		}
-
-		/* 3. Center the button vertically and pin it to the right edge */
-		.ui-input-text .password-toggle-btn {
-			position: absolute;
-			right: 0.3125em;
-			top: 50%;
-			transform: translateY(-50%);
-			margin: 0;
-			z-index: 2;
-			background-color: transparent;
-			border: none;
-			box-shadow: none;
-		}
-
 		.spectrum {
 			width: 52px !important;
 		}
@@ -698,33 +675,6 @@
 
 		$(document).on("pagecreate", function () {
 			console.log("pagecreate");
-
-			$("input[type='password']").each(function() {
-				var $input = $(this);
-				var $wrapper = $input.parent(".ui-input-text");
-				
-				// Prevent duplicate buttons if pagecreate fires again
-				if ($wrapper.hasClass("has-password-toggle")) {
-					return;
-				}
-				
-				$wrapper.addClass("has-password-toggle");
-				
-				var $btn = $('<a href="#" class="password-toggle-btn ui-btn ui-icon-eye ui-btn-icon-notext ui-corner-all" title="Show password">Show</a>');
-				$wrapper.append($btn);
-				
-				$btn.on("click", function(e) {
-				e.preventDefault();
-				
-				if ($input.attr("type") === "password") {
-					$input.attr("type", "text");
-					$btn.addClass("ui-btn-active").attr("title", "Hide password");
-				} else {
-					$input.attr("type", "password");
-					$btn.removeClass("ui-btn-active").attr("title", "Show password");
-				}
-				});
-			});
 
 			$('.color_picker').each(function(i, cp) {
 				cp = $(cp);

@@ -183,6 +183,8 @@ StringConfigItem webPassword("web_password", 63, "");
 // Each clock makes up its own, see initFromEEPROM(). Upstream used "secretsauce" on every clock.
 StringConfigItem apPassword("ap_password", 63, "");
 
+BooleanConfigItem redactPasswords("redact_passwords", false);
+
 enum WEATHER_MESSAGE {
 	WEATHER_UPDATE = 1,
 	COORDINATES_UPDATE = 2
@@ -366,6 +368,14 @@ IRAMPtrArray<BaseConfigItem*> accessPointSet {
 
 CompositeConfigItem accessPointConfig("access_point", 0, accessPointSet);
 
+// Settings added after 2.1.13. Redact passwords.
+IRAMPtrArray<BaseConfigItem*> passwordSet {
+	&redactPasswords,
+	0
+};
+
+CompositeConfigItem passwordConfig("passwords", 0, passwordSet);
+
 // All configurations
 IRAMPtrArray<BaseConfigItem*> configSetRoot {
 	&globalConfig,
@@ -379,6 +389,7 @@ IRAMPtrArray<BaseConfigItem*> configSetRoot {
 	&cycleConfig,
 	&webLoginConfig,
 	&accessPointConfig,
+	&passwordConfig,
 	0
 };
 
@@ -430,6 +441,24 @@ IRAMPtrArray<BaseConfigItem*> setRoot207 {
 };
 
 CompositeConfigItem rootConfig207("root", 0, setRoot207);
+
+// And from 2.0.6 to 2.1.3
+IRAMPtrArray<BaseConfigItem*> setRoot213 {
+	&globalConfig,
+	&clockConfig,
+	&ledConfig,
+	&facesConfig,
+	&weatherConfig,
+	&matrixConfig,
+	&mqttConfig,
+	&networkConfig,
+	&cycleConfig,
+	&webLoginConfig,
+	&accessPointConfig,
+	0
+};
+
+CompositeConfigItem rootConfig213("root", 0, setRoot213);
 
 // Store the configurations in EEPROM
 EEPROMConfig config(rootConfig);
@@ -1178,7 +1207,11 @@ void broadcastToWebUI(const BaseConfigItem& item) {
 const char *passwordPlaceholder = "********";
 
 String passwordJSON(const StringConfigItem &password) {
-	return String("\"") + password.name + "\":\"" + (password.value.length() > 0 ? passwordPlaceholder : "") + "\"";
+	if (redactPasswords.value) {
+		return String("\"") + password.name + "\":\"" + (password.value.length() > 0 ? passwordPlaceholder : "") + "\"";
+	} else {
+		return String("\"") + password.name + "\":\"" + password.value + "\"";
+	}
 }
 
 String webLoginJSON() {
@@ -1301,6 +1334,10 @@ void updateValue(int screen, String pair) {
 		setSecret(*(StringConfigItem*)item, value);
 	} else if (item == &apPassword) {
 		setAPPassword(value);
+	} else if (item == &redactPasswords) {
+		redactPasswords = value == "true" ? true : false;
+		redactPasswords.put();
+		broadcastUpdate(redactPasswords);
 	} else if (item == &hostName && !validHostname(value)) {
 		broadcastToWebUI(hostName);	// Puts back what was refused
 	} else if (item != 0 && !isSettingsGroup(item)) {
@@ -1948,8 +1985,10 @@ String wifiCallback() {
 	wifiStatus += hostName.toJSON();	// Escaped, as one saved before names were checked could have anything in it
 	wifiStatus += ",";
 	wifiStatus += webLoginJSON();
-	wifiStatus += ",\"ap_password\":";
-	wifiStatus += apPassword.toJSON();
+	wifiStatus += ",";
+	wifiStatus += passwordJSON(apPassword);
+	wifiStatus += ",\"redact_passwords\":";
+	wifiStatus += redactPasswords.toJSON();
 
 	return wifiStatus;
 }
@@ -2060,11 +2099,16 @@ void upgradeEEPROM() {
 		cycleConfig.put();
 		webLoginConfig.put();
 		accessPointConfig.put();
+		passwordConfig.put();
 	} else if (storedChecksum == rootConfig205.getChecksum(0)) {
 		webLoginConfig.put();
 		accessPointConfig.put();
+		passwordConfig.put();
 	} else if (storedChecksum == rootConfig207.getChecksum(0)) {
 		accessPointConfig.put();
+		passwordConfig.put();
+	} else if (storedChecksum == rootConfig213.getChecksum(0)) {
+		passwordConfig.put();
 	} else {
 		return;
 	}
