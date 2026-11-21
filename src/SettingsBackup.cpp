@@ -15,6 +15,7 @@
 #include <Arduino.h>
 #include <algorithm>
 #include <vector>
+#include <time.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <LittleFS.h>
@@ -619,9 +620,21 @@ static void handleGet(AsyncWebServerRequest *request) {
 			name[i] = '_';
 		}
 	}
+	name += "-settings";
+
+	// Then the date and time by the clock, so a browser doesn't save the next one as "...-settings(1).json".
+	// Left out until the clock knows the time, as it starts in 1970.
+	time_t now = time(NULL);
+	struct tm local;
+	if (localtime_r(&now, &local) != NULL && local.tm_year >= 2025 - 1900) {
+		char when[64];	// snprintf rather than strftime, which would make the firmware 4 KB bigger
+		snprintf(when, sizeof(when), "-%04d-%02d-%02d-%02d%02d", local.tm_year + 1900, local.tm_mon + 1, local.tm_mday,
+			local.tm_hour, local.tm_min);
+		name += when;
+	}
 
 	AsyncWebServerResponse *response = request->beginResponse(200, "application/json", exportSettings());
-	response->addHeader("Content-Disposition", "attachment; filename=\"" + name + "-settings.json\"");
+	response->addHeader("Content-Disposition", "attachment; filename=\"" + name + ".json\"");
 	response->addHeader("Cache-Control", "no-store");
 	request->send(response);
 }

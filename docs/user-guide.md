@@ -191,7 +191,7 @@ The clock publishes its state on `clock/<id>/volatile/state` (brightness, displa
 
 Backs up the clock's settings to a file and restores them, for example after resetting the clock, or to set up a second clock like the first.
 
-* **Download settings** saves every setting to a file named after the clock, such as `elekstubeips-settings.json`. The web UI password, MQTT password and weather API key are left empty. So is the Wi-Fi password, though the file has the Wi-Fi network's name.
+* **Download settings** saves every setting to a file named after the clock, with the date and time, such as `elekstubeips-settings-2026-11-21-0837.json`. The web UI password, MQTT password and weather API key are left empty. So is the Wi-Fi password, though the file has the Wi-Fi network's name.
 * **Restore settings**: choose a settings file, and the page shows what restoring it would change. Nothing changes until you choose **Apply**. The page lists:
   * Warnings, if the file was saved by different firmware, from a different kind of clock, or from another clock.
   * The settings that are different, with what the clock has and what the file has.

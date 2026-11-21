@@ -82,7 +82,11 @@ app.get('/settings.json', function (req, res) {
 		});
 	}
 	file.wifi = { ssid: state['5'].wifi_ssid, password: '' };
-	res.set('Content-Disposition', 'attachment; filename="' + state['6'].hostname + '-settings.json"');
+	// Named like the clock names it, with the date and time
+	var now = new Date();
+	var two = function (n) { return String(n).padStart(2, '0'); };
+	var when = now.getFullYear() + '-' + two(now.getMonth() + 1) + '-' + two(now.getDate()) + '-' + two(now.getHours()) + two(now.getMinutes());
+	res.set('Content-Disposition', 'attachment; filename="' + state['6'].hostname + '-settings-' + when + '.json"');
 	res.type('application/json').send(JSON.stringify(file, null, 2));
 });
 
