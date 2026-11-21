@@ -135,6 +135,20 @@ static const FileSet *findFileSet(const String &dir) {
     return 0;
 }
 
+// Reads a light's "hue,saturation" from Home Assistant, such as "120.5,80", as sscanf's "%f,%f" did. sscanf
+// would bring in 10 KB of the C library that only it uses, to read floats. strtod is in the firmware anyway.
+static bool readHueSaturation(const char *message, float &hue, float &saturation) {
+    char *end;
+    hue = strtod(message, &end);
+    if (end == message || *end != ',') {
+        return false;
+    }
+
+    const char *rest = end + 1;
+    saturation = strtod(rest, &end);
+    return end != rest;
+}
+
 MQTTBroker::MQTTBroker() {
     // AsyncMqttClient adds callbacks to a list rather than replacing them, so only do this once
     client.onConnect([this](bool sessionPresent) { this->onConnect(sessionPresent); });
@@ -247,12 +261,8 @@ void MQTTBroker::onMessage(const espMqttClientTypes::MessageProperties& properti
             }
         } else if (strcmp(topic + topicIndex, backlightHSTopic + 1) == 0) {
             float hue, sat;
-            int count;
 
-            // The format string "%f,%f" tells sscanf to read a float, then a comma, then another float.
-            count = sscanf((const char*)mqttMessageBuffer, "%f,%f", &hue, &sat);
-
-            if (count == 2) {
+            if (readHueSaturation((const char*)mqttMessageBuffer, hue, sat)) {
                 Backlights::backlightHue = hue * 255 / 360;
                 Backlights::backlightSaturation = sat * 255 / 100;
             }
@@ -267,12 +277,8 @@ void MQTTBroker::onMessage(const espMqttClientTypes::MessageProperties& properti
             }
         } else if (strcmp(topic + topicIndex, underlightHSTopic + 1) == 0) {
             float hue, sat;
-            int count;
 
-            // The format string "%f,%f" tells sscanf to read a float, then a comma, then another float.
-            count = sscanf((const char*)mqttMessageBuffer, "%f,%f", &hue, &sat);
-
-            if (count == 2) {
+            if (readHueSaturation((const char*)mqttMessageBuffer, hue, sat)) {
                 Backlights::underlightHue = hue * 255 / 360;
                 Backlights::underlightSaturation = sat * 255 / 100;
             }
