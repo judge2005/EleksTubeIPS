@@ -1,4 +1,12 @@
-# A Custom Firmware for the EleksTube IPS V1 clock
+# A Custom Firmware for the EleksTube IPS V1 clock and its clones
+
+## Installation
+
+To install or update to the latest version, I recommend you use the [installation page](https://judge2005.github.io/EleksTubeIPS/) - it requires either Chrome or Edge on a desktop. The page provides a link to a backup page that can be used to backup your old firmware and restore it if you want to go back to it. After you have installed it you should be given the option to connect it to WiFi, if not there is a "Configure WiFi" option on that page too.
+
+For other ways to install it see [the wiki](https://github.com/judge2005/EleksTubeIPS/wiki/Installation).
+
+There are also other ways to [configure the WiFi connection](https://github.com/judge2005/EleksTubeIPS/wiki/Connecting-to-WiFi).
 
 ## Features of This Firmware
 
@@ -25,13 +33,14 @@ This firmware uses the WiFi support that your clock already has to sync the time
 * It has a screen saver.
 * There is also a tool to convert images in to a format that can be displayed on the clock
 * It can connect to a MQTT broker, primarily to allow use of movement and luminance sensors, setting a custom display value and controlling all aspects of the clock - including uploading image packs. See the [User Guide](https://github.com/judge2005/EleksTubeIPS/wiki/User-Guide#mqtthome-assistant) for details.
-* you can also set custom display values using curl
+* You can also set custom display values using curl
 * There are specific variants for these clocks:
   * EleksTube v1
+  * Elekstube v2
   * Si Hai
   * NovelLife SE
   * PCBWay 'Punkcyber'
-  * IPSTube
+  * IPSTube, with and without underlighting and with and without hardware dimming
 
 This image shows the clock running in 4 digit mode with weather forecast
 
@@ -49,9 +58,6 @@ This shows the digital rain screen saver:
 
 See [the wiki](https://github.com/judge2005/EleksTubeIPS/wiki "wiki") for detailed information on how to build, install and use this firmware.
 
-* [Installation](https://github.com/judge2005/EleksTubeIPS/wiki/Installation) takes you through backing up the original firmware, building the custom firmware and uploading it to the clock
-* [Connecting to WiFi](https://github.com/judge2005/EleksTubeIPS/wiki/Connecting-to-WiFi) takes you through getting your clock connected to your router so it can sync the time with NTP and you can configure it using a web browser.
-  * On an iPhone, the captive portal often doesn't open by itself when you join the clock's network. iOS only opens it when the Wi-Fi list in Settings has just appeared, so tap ⓘ next to the clock's network and go back, and it opens. Or open Safari, which usually brings it up too. If it doesn't, go to 192.168.4.1 in Safari, the setup page address the clock shows along with the network name and password.
 * [User Guide](https://github.com/judge2005/EleksTubeIPS/wiki/User-Guide) shows you how to configure and control your clock.
 * [Image Collections](https://github.com/judge2005/EleksTubeIPS/wiki/Image-Collections) tells you how to prepare new clock faces and weather icon sets so that they can be uploaded to the clock and used.
 * [Hardware Modification](https://github.com/judge2005/EleksTubeIPS/wiki/Hardware-Modification) details a mod that you might want to make to your clock, but only if you are comfortable wielding a soldering iron.
