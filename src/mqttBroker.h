@@ -22,6 +22,10 @@ public:
 
     MQTTBroker();
 
+    // For the settings Home Assistant can change, whether value is one the web UI could set item to. Returns
+    // false with the reason if it isn't, and true for any other item, which is left to the caller.
+    static bool checkSetting(const char *item, const String &value, String &why);
+
     bool init(const String& id);
     void connect();
     void checkConnection();

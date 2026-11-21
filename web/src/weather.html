@@ -2,6 +2,7 @@
 <div data-role="page" id="Weather">
 	<link rel="stylesheet" href="/theme.css">
 	<script src="/theme.js"></script>
+	<script src="/secret.js"></script>
 	<div data-role="header" data-position="fixed">
 		<h1>Weather</h1>
 		<a href="#mainMenu" data-rel="main-menu-panel" class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
@@ -12,10 +13,11 @@
 		<form action="/set_weather" method="POST" id="weather_form">
 			<div data-role="fieldcontain">
 				<label for="weather_token">OpenWeatherMap API Key</label>
-				<!-- onchange, because the clock only sends a placeholder for the key -->
+				<!-- The clock never sends the key, see secretBlur() in app.html -->
 				<input maxlength="63"
-					onchange="elementBlur(this, 'Use only letters and digits')" pattern="[A-Za-z0-9]*"
-					type="password" id="weather_token" autocomplete="new-password"
+					onblur="secretBlur(this, 'Use only letters and digits')" pattern="[A-Za-z0-9]*"
+					type="password" id="weather_token" class="secret" autocomplete="new-password"
+					autocapitalize="none" autocorrect="off" spellcheck="false"
 					data-mini="true" />
 			</div>
 			<div class="clearFloats"></div>

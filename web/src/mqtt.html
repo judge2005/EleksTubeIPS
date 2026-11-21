@@ -2,6 +2,7 @@
 <div data-role="page" id="MQTT">
 	<link rel="stylesheet" href="/theme.css">
 	<script src="/theme.js"></script>
+	<script src="/secret.js"></script>
 	<div data-role="header" data-position="fixed">
 		<h1>MQTT</h1>
 		<a href="#mainMenu" data-rel="main-menu-panel"
@@ -46,10 +47,11 @@
 					<label for="mqtt_password">Password</label>
 				</div>
 				<div class="dispInline">
-					<!-- onchange, because the clock only sends a placeholder for the password -->
+					<!-- The clock never sends the password, see secretBlur() in app.html -->
 					<input maxlength="25"
-						onchange="elementBlur(this, 'Use only letters, digits, spaces and punctuation, without accents')" pattern="[ -~]*"
-						type="password" id="mqtt_password" autocomplete="new-password"
+						onblur="secretBlur(this, 'Use only letters, digits, spaces and punctuation, without accents')" pattern="[ -~]*"
+						type="password" id="mqtt_password" class="secret" autocomplete="new-password"
+						autocapitalize="none" autocorrect="off" spellcheck="false"
 						data-mini="true" />
 				</div>
 			</div>

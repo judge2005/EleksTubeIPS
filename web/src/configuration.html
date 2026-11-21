@@ -1,0 +1,25 @@
+        <div data-role="page" id="Configuration">
+            <link rel="stylesheet" href="/theme.css">
+            <script src="/theme.js"></script>
+            <script src="/secret.js"></script>
+            <script src="/configuration.js"></script>
+            <div data-role="header" data-position="fixed">
+                <h1>Configuration</h1>
+				<a href="#mainMenu" data-rel="main-menu-panel" class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
+		        <a href="https://github.com/judge2005/EleksTubeIPS/blob/main/docs/user-guide.md#configuration" target="_blank" title="Help" class="ui-btn ui-btn-right ui-btn-icon-notext ui-icon-info ui-corner-all"></a>
+		        <a href="#" onclick="toggleTheme();return false;" title="Light or dark" class="ui-btn ui-btn-right ui-btn-icon-notext ui-icon-theme ui-corner-all"></a>
+            </div>
+            <div data-role="content">
+                <form id="settings_backup" onsubmit="return false;">
+                    <h3>Back up settings</h3>
+                    <p class="hint">Saves the clock's settings to a file. Passwords, the weather API key and the Wi-Fi password are left empty.</p>
+                    <a href="/settings.json" download data-ajax="false" data-role="button" class="settings-primary">Download settings</a>
+                </form>
+                <form id="settings_restore" onsubmit="return false;">
+                    <h3>Restore settings</h3>
+                    <p class="hint">Choose a settings file to see what it would change. Nothing changes until you choose Apply.</p>
+                    <input type="file" accept=".json,application/json" id="settings_file" onchange="settingsFileChosen(this)" data-clear-btn="false"/>
+                    <div id="settings_report"></div>
+                </form>
+            </div>
+        </div>

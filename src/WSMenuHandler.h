@@ -19,6 +19,7 @@ public:
 	static const char* mqttMenu;
 	static const char* networkMenu;
 	static const char* infoMenu;
+	static const char* configurationMenu;
 
 private:
 	const char **items;
