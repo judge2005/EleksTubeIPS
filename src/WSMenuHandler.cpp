@@ -8,6 +8,8 @@ const char* WSMenuHandler::infoMenu = "{\"5\": { \"url\" : \"info.html\", \"titl
 const char* WSMenuHandler::networkMenu = "{\"6\": { \"url\" : \"network.html\", \"title\" : \"Network\" }}";
 const char* WSMenuHandler::weatherMenu = "{\"7\": { \"url\" : \"weather.html\", \"title\" : \"Weather\" }}";
 const char* WSMenuHandler::matrixMenu = "{\"8\": { \"url\" : \"matrix.html\", \"title\" : \"Screen Saver\" }}";
+// Not 9, which is for setting a value. It has no settings of its own, so main.cpp has no handler for it.
+const char* WSMenuHandler::configurationMenu = "{\"10\": { \"url\" : \"configuration.html\", \"title\" : \"Configuration\" }}";
 
 void WSMenuHandler::handle(AsyncWebSocketClient *client, char *data) {
 	String json("{\"type\":\"sv.init.menu\", \"value\":[");

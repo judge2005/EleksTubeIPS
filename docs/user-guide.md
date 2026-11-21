@@ -4,7 +4,7 @@ How to set up and use a clock running [this firmware](https://github.com/judge20
 
 * [Connecting to Wi-Fi](#connecting-to-wi-fi)
 * [Status messages](#status-messages)
-* [The web UI](#the-web-ui): [Clock](#clock), [LEDs](#leds), [Files](#files), [Weather](#weather), [Screen Saver](#screen-saver), [MQTT](#mqtt-and-home-assistant), [Network](#network), [Info](#info)
+* [The web UI](#the-web-ui): [Clock](#clock), [LEDs](#leds), [Files](#files), [Weather](#weather), [Screen Saver](#screen-saver), [MQTT](#mqtt-and-home-assistant), [Network](#network), [Configuration](#configuration), [Info](#info)
 * [Clock buttons](#clock-buttons)
 * [Showing your own text](#showing-your-own-text)
 * [Uploading files over MQTT](#uploading-files-over-mqtt)
@@ -22,7 +22,7 @@ The page has other buttons too:
 
 * **Configure Static WiFi** is the same as Configure WiFi, but also gives the clock a fixed IP address. An empty Subnet means 255.255.255.0, and an empty DNS1 means the gateway.
 * **Set Clock Time** sets the clock to your phone's or computer's time, for a clock with no internet connection.
-* **Configure Clock** opens the [web UI](#the-web-ui) over the access point.
+* **Configure Clock** opens the [web UI](#the-web-ui) over the access point. From there, [Configuration](#configuration) can restore a settings file, Wi-Fi network too.
 * **Info** says whether the clock has joined a network, or why it can't, and shows details of the clock. **Reset** restarts it.
 
 The clock makes up a new access point password each time the access point opens, and only shows it on the displays, so a password someone saw before won't work again. If your phone or computer saved an earlier one, it says the password is wrong: enter the one on the displays. To move the clock to a different network later, turn on **WiFi AP** on the [Network](#network) page and follow the steps above.
@@ -184,6 +184,26 @@ The clock publishes its state on `clock/<id>/volatile/state` (brightness, displa
 * **Time Server** is where the clock gets the time, by name or IP address, such as a server on your own network. The default is pool.ntp.org.
 * **Web UI User** and **Web UI Password** set a login for the web UI. Set both and the clock asks for them before every page, upload and `/custom` request. Clear the user, or remove the password, to turn the login off. Check the password with the eye button before leaving the field, as it's saved when you do. The user can have letters, digits and `. _ - @`, and the password letters, digits, spaces and punctuation, without accents. Setting or changing the login disconnects any web UI that's open, so reload it and log in. If you forget the login, start the clock where it can't join your Wi-Fi, connect to its access point, choose **Configure Clock** and change it here, since the clock doesn't ask for it over its access point.
 * **WiFi AP** turns the access point on or off, for example to move the clock to a different network, see [Connecting to Wi-Fi](#connecting-to-wi-fi). Its password is new each time and on the displays. If the clock is on your network, the access point closes by itself once nobody has been on it for 10 minutes.
+
+## Configuration
+
+<img src="ui/configuration.webp" alt="The Configuration page, checking a settings file" width="400">
+
+Backs up the clock's settings to a file and restores them, for example after resetting the clock, or to set up a second clock like the first.
+
+* **Download settings** saves every setting to a file named after the clock, such as `elekstubeips-settings.json`. The web UI password, MQTT password and weather API key are left empty. So is the Wi-Fi password, though the file has the Wi-Fi network's name.
+* **Restore settings**: choose a settings file, and the page shows what restoring it would change. Nothing changes until you choose **Apply**. The page lists:
+  * Warnings, if the file was saved by different firmware, from a different kind of clock, or from another clock.
+  * The settings that are different, with what the clock has and what the file has.
+  * **Restore these too?**: the hostname, fixed IP address, web UI login and Wi-Fi network, each with its own switch. They start on for a file from this clock and off for one from another clock, as two clocks shouldn't share a hostname or an address.
+  * Fields for the passwords and keys the file left empty. Type one in to restore it as well, or leave it empty to keep the one the clock has.
+  * Settings the file has that can't be restored, and why, and settings the file doesn't have. Both stay as they are.
+
+  **Apply** saves the settings and restarts the clock, which then uses them. If its hostname or fixed address changed, find it at the new one.
+
+**Editing a settings file.** It's a text file, so you can fill in passwords and keys before restoring it, such as `"mqtt_password": "my password"`. A `"` or `\` in one is written `\"` or `\\`. An empty one keeps what the clock has, so a restore can't clear a password; clear it on its page instead. One that's filled in is always restored, even if it's the one the clock has, as the clock doesn't say whether they match. Settings are found by name, wherever they are in the file, and the clock checks each value as the web UI would. A file saved by older or newer firmware restores the settings this clock has.
+
+**Restoring over the access point.** A new or reset clock opens its access point, see [Connecting to Wi-Fi](#connecting-to-wi-fi). Join it, choose **Configure Clock**, then **Configuration**, and restore your file. Over the access point, the page also asks for the Wi-Fi network's password, unless the file's `"wifi"` section has it. With it, **Apply** saves the network too, and the clock joins it as it restarts. If it can't, its access point comes back on, with a new password on the displays. Over your home network, a restore leaves the Wi-Fi network as it is. The window that opens by itself when you join the access point, on an iPhone or a Mac, may not let you choose a file. If so, open http://192.168.4.1/app.html in Safari or Chrome.
 
 ## Info
 

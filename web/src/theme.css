@@ -856,6 +856,10 @@ html body #menuList a::before {
 	--icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><path d='M2 8.5a15 15 0 0 1 20 0M5 12a10.5 10.5 0 0 1 14 0M8.5 15.5a5.5 5.5 0 0 1 7 0M12 19h.01'/></svg>");
 }
 
+#menuList a[pageid="Configuration"] {
+	--icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3v11M8 10l4 4 4-4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3'/></svg>");
+}
+
 /* Pop-ups */
 
 html body .ui-popup {
@@ -906,4 +910,114 @@ html body #clock-info tbody td {
 
 html body #clock-info tbody tr:last-child > * {
 	border-bottom: 0;
+}
+
+/* The Configuration page, see configuration.js */
+
+html body #Configuration .ui-content > form + form {
+	margin-top: 16px;
+}
+
+html body #Configuration .ui-content h3 {
+	margin: 8px 0 4px;
+	font-size: 1.05em;
+	font-weight: 600;
+}
+
+html body #Configuration .ui-content .settings-primary.ui-btn {
+	background: var(--accent-fill) !important;
+	border-color: transparent !important;
+	color: var(--on-accent) !important;
+	box-shadow: var(--glow) !important;
+}
+
+html body #Configuration .settings-summary {
+	margin: 14px 0 6px;
+	font-weight: 500;
+}
+
+html body #Configuration .settings-warnings {
+	margin: 14px 0 0;
+	padding: 10px 14px 10px 30px;
+	background: var(--accent-soft);
+	border-radius: 10px;
+	line-height: 1.45;
+}
+
+html body #Configuration .settings-error {
+	margin: 14px 0 0;
+	color: var(--error);
+	font-weight: 500;
+}
+
+html body #Configuration .settings-list, html body #Configuration .settings-group {
+	margin: 8px 0;
+	padding: 4px 0 6px;
+	border-top: 1px solid var(--line);
+}
+
+html body #Configuration .settings-subhead {
+	margin: 8px 0 4px;
+	font-weight: 500;
+}
+
+html body #Configuration .settings-change {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px 10px;
+	padding: 3px 0;
+	font-size: .92em;
+}
+
+html body #Configuration .settings-change .settings-value {
+	color: var(--muted);
+	word-break: break-word;
+}
+
+html body #Configuration .settings-refused .settings-value {
+	color: var(--error);
+}
+
+html body #Configuration .settings-asked {
+	margin-top: 14px;
+}
+
+html body #Configuration .settings-group-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+html body #Configuration .settings-group-head label {
+	margin: 0;
+}
+
+html body #Configuration .settings-group-head .ui-flipswitch {
+	flex: none;
+	margin: 4px 0;
+}
+
+html body #Configuration input[type="file"]::file-selector-button {
+	margin-right: 10px;
+	padding: .35em .9em;
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	color: var(--text);
+	font: inherit;
+	cursor: pointer;
+}
+
+html body #Configuration .settings-group .settings-change {
+	padding-left: 12px;
+}
+
+html body #Configuration .settings-secret {
+	padding: 6px 0 0;
+	border-top: 0;
+}
+
+html body #Configuration .settings-buttons {
+	margin-top: 12px;
 }

@@ -42,6 +42,7 @@
 #include "Uptime.h"
 #include "TLSArena.h"
 #include "WiFiWatchdog.h"
+#include "SettingsBackup.h"
 
 //#define DEBUG(...) { Serial.println(__VA_ARGS__); }
 #ifndef DEBUG
@@ -911,6 +912,18 @@ void clockTaskFn(void *pArg) {
 
 	*oldSlidesSet = slidesSet->value;
 
+	// A restore only saved which clock face, weather icons or slide show to use, so unpack them, see SettingsBackup
+	String restoredSets = SettingsBackup::takeChangedFileSets();
+	if (restoredSets.indexOf("faces") >= 0) {
+		ipsClock->reloadClockFace();
+	}
+	if (restoredSets.indexOf("weather") >= 0) {
+		weather->reloadIconPack();
+	}
+	if (restoredSets.indexOf("slides") >= 0) {
+		reloadSlides = true;
+	}
+
 	screenSaver = new ScreenSaver();
 
 #ifdef BUTTON_MENU_PINS
@@ -1082,6 +1095,7 @@ IRAMPtrArray<const char*> items {
 	WSMenuHandler::matrixMenu,
 	WSMenuHandler::mqttMenu,
 	WSMenuHandler::networkMenu,
+	WSMenuHandler::configurationMenu,
 	WSMenuHandler::infoMenu,
 	0
 };
@@ -1319,7 +1333,8 @@ void handleWSMsg(AsyncWebSocketClient *client, char *data) {
 	String wholeMsg(data);
 	int code = wholeMsg.substring(0, wholeMsg.indexOf(':')).toInt();
 
-	if (code < 9) {
+	// 9 sets a value. The Configuration page, 10, has no handler, see WSMenuHandler.cpp.
+	if (code != 9) {
 		if (code >= 0 && code < wsHandlers.length()) {
 			if (wsHandlers[code] != NULL) {
 				wsHandlers[code]->handle(client, data);
@@ -1608,6 +1623,7 @@ SETTINGS_PAGE(weather)
 SETTINGS_PAGE(matrix)
 SETTINGS_PAGE(mqtt)
 SETTINGS_PAGE(network)
+SETTINGS_PAGE(configuration)
 SETTINGS_PAGE(info)
 
 struct SettingsPage {
@@ -1626,6 +1642,7 @@ static const SettingsPage settingsPages[] = {
 	{ "/matrix.html", matrixPageStart, matrixPageEnd },
 	{ "/mqtt.html", mqttPageStart, mqttPageEnd },
 	{ "/network.html", networkPageStart, networkPageEnd },
+	{ "/configuration.html", configurationPageStart, configurationPageEnd },
 	{ "/info.html", infoPageStart, infoPageEnd }
 };
 
@@ -1795,6 +1812,8 @@ void configureWebServer() {
 		addWebLoginCookie(request, response);
 		request->send(response);
 	});
+
+	SettingsBackup::begin(*server);	// Before serveStatic(), like the pages
 
 	server->serveStatic("/", LittleFS, "/");
 	server->on("/", HTTP_GET, mainHandler).setFilter(ON_STA_FILTER);

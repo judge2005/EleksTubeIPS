@@ -334,6 +334,62 @@ void MQTTBroker::setConfigCoordinate(BaseConfigItem &item, const char *value, in
     setConfigItem(item, coordinate);
 }
 
+// A whole number, without anything after it
+static bool toWholeNumber(const String &value, long &number) {
+    char *end;
+    number = strtol(value.c_str(), &end, 10);
+    return value.length() > 0 && *end == 0;
+}
+
+bool MQTTBroker::checkSetting(const char *item, const String &value, String &why) {
+    for (const Setting &setting : settings) {
+        if (strcmp(item, setting.item) != 0) {
+            continue;
+        }
+
+        long number;
+        if (setting.type == SWITCH) {
+            why = "Must be true or false";
+            return value == "true" || value == "false";
+        } else if (setting.type == TEXT_SELECT || setting.type == SELECT) {
+            why = "Must be one of ";
+            const char *separator = "";
+            for (int i = 0; setting.options[i] != 0; i++) {
+                String option(setting.options[i]);
+                if (option.length() == 0) {
+                    continue;   // Can't be selected
+                }
+                if (setting.type == TEXT_SELECT) {
+                    option.toLowerCase();
+                    if (option == value) {
+                        return true;
+                    }
+                    why += separator;
+                    why += option;
+                } else {
+                    if (toWholeNumber(value, number) && number == i) {
+                        return true;
+                    }
+                    why += separator;
+                    why += String(i) + " (" + option + ")";
+                }
+                separator = ", ";
+            }
+            return false;
+        } else if (setting.type == COORDINATE) {
+            char *end;
+            double degrees = strtod(value.c_str(), &end);
+            why = String("Must be a number from ") + setting.min + " to " + setting.max;
+            return end != value.c_str() && *end == 0 && isfinite(degrees) && degrees >= setting.min && degrees <= setting.max;
+        } else {
+            why = String("Must be a whole number from ") + setting.min + " to " + setting.max;
+            return toWholeNumber(value, number) && number >= setting.min && number <= setting.max;
+        }
+    }
+
+    return true;
+}
+
 // topic looks like /set/<item name>, where the item is one of the settings or selects a file
 void MQTTBroker::setSetting(const char *topic, const char *value) {
     const char *setPrefix = "/set/";
