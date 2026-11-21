@@ -36,6 +36,4 @@ cp snow5.bmp 13n.bmp
 cp fog.bmp 50d.bmp
 cp fog_night.bmp 50n.bmp
 
-#On mac have to manually remove extended attributes from files using
-#xattrs -c running in mac terminal app. Sigh
-#tar cvfz maxclassic.tar.gz [0-9]*.bmp
+python ../../tools/pack_images.py -o maxclassic.tar.gz [0-9]*.bmp
