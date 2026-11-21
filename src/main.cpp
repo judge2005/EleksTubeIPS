@@ -2025,32 +2025,119 @@ void commitEEPROMTaskFn(void *pArg) {
 // config.init() resets every setting to its default if the set of settings has changed, which it
 // recognises by a checksum of their names. Settings added since then are stored after the others,
 // so if EEPROM holds an earlier set, keep it and just add the new settings.
+// config.init() resets every setting to its default if the set of settings has changed, which it
+// recognises by a checksum of their names. Settings added since then are stored after the others,
+// so if EEPROM holds an earlier set, keep it and just add the new settings.
+// config.init() resets every setting to its default if the set of settings has changed, which it
+// recognises by a checksum of their names. Settings added since then are stored after the others,
+// so if EEPROM holds an earlier set, keep it and just add the new settings.
 void upgradeEEPROM() {
-	unsigned int storedChecksum = 0;
-	EEPROM.get(0, storedChecksum);
+	unsigned int checksum = 0;
+	EEPROM.get(0, checksum);
 
-	if (storedChecksum == rootConfig.getChecksum(0)) {
-		return;
-	}
+	// 2.0.2 and earlier
+	IRAMPtrArray<BaseConfigItem*> set202 {
+		&globalConfig,
+		&clockConfig,
+		&ledConfig,
+		&facesConfig,
+		&weatherConfig,
+		&matrixConfig,
+		&mqttConfig,
+		0
+	};
+	CompositeConfigItem config202("root", 0, set202);
 
-	// Seed the checksum with "root" itself before walking its children
-	IRAMPtrArray<BaseConfigItem*> emptySet { 0 };
-	CompositeConfigItem rootHeader("root", 0, emptySet);
-	unsigned int runningChecksum = rootHeader.getChecksum(0);
+	// 2.0.3
+	IRAMPtrArray<BaseConfigItem*> set203 {
+		&globalConfig,
+		&clockConfig,
+		&ledConfig,
+		&facesConfig,
+		&weatherConfig,
+		&matrixConfig,
+		&mqttConfig,
+		&networkConfig,
+		0
+	};
+	CompositeConfigItem config203("root", 0, set203);
 
-	int upgradeFromIndex = -1;
-	for (int i = 0; configSetRoot[i] != 0; i++) {
-		runningChecksum = configSetRoot[i]->getChecksum(runningChecksum);
-		if (runningChecksum == storedChecksum) {
-			upgradeFromIndex = i + 1;
-			break;
-		}
-	}
+	// 2.0.5
+	IRAMPtrArray<BaseConfigItem*> set205 {
+		&globalConfig,
+		&clockConfig,
+		&ledConfig,
+		&facesConfig,
+		&weatherConfig,
+		&matrixConfig,
+		&mqttConfig,
+		&networkConfig,
+		&cycleConfig,
+		0
+	};
+	CompositeConfigItem config205("root", 0, set205);
 
-	if (upgradeFromIndex > 0) {
-		for (int i = upgradeFromIndex; configSetRoot[i] != 0; i++) {
-			configSetRoot[i]->put();
-		}
+	// 2.0.7
+	IRAMPtrArray<BaseConfigItem*> set207 {
+		&globalConfig,
+		&clockConfig,
+		&ledConfig,
+		&facesConfig,
+		&weatherConfig,
+		&matrixConfig,
+		&mqttConfig,
+		&networkConfig,
+		&cycleConfig,
+		&webLoginConfig,
+		0
+	};
+	CompositeConfigItem config207("root", 0, set207);
+
+	// 2.1.13
+	IRAMPtrArray<BaseConfigItem*> set2113 {
+		&globalConfig,
+		&clockConfig,
+		&ledConfig,
+		&facesConfig,
+		&weatherConfig,
+		&matrixConfig,
+		&mqttConfig,
+		&networkConfig,
+		&cycleConfig,
+		&webLoginConfig,
+		&accessPointConfig,
+		0
+	};
+	CompositeConfigItem config2113("root", 0, set2113);
+
+	if (checksum == config202.getChecksum(0)) {
+		networkConfig.put();
+		cycleConfig.put();
+		webLoginConfig.put();
+		accessPointConfig.put();
+		passwordConfig.put();
+		EEPROM.put(0, rootConfig.getChecksum(0));
+		config.commit();
+	} else if (checksum == config203.getChecksum(0)) {
+		cycleConfig.put();
+		webLoginConfig.put();
+		accessPointConfig.put();
+		passwordConfig.put();
+		EEPROM.put(0, rootConfig.getChecksum(0));
+		config.commit();
+	} else if (checksum == config205.getChecksum(0)) {
+		webLoginConfig.put();
+		accessPointConfig.put();
+		passwordConfig.put();
+		EEPROM.put(0, rootConfig.getChecksum(0));
+		config.commit();
+	} else if (checksum == config207.getChecksum(0)) {
+		accessPointConfig.put();
+		passwordConfig.put();
+		EEPROM.put(0, rootConfig.getChecksum(0));
+		config.commit();
+	} else if (checksum == config2113.getChecksum(0)) {
+		passwordConfig.put();
 		EEPROM.put(0, rootConfig.getChecksum(0));
 		config.commit();
 	}
@@ -2077,6 +2164,20 @@ String randomAPPassword() {
 	}
 
 	return password;
+}
+
+void simulateOldEEPROM() {
+    // Build the 2.1.13 config set (everything except passwordConfig)
+    IRAMPtrArray<BaseConfigItem*> set2113 {
+        &globalConfig, &clockConfig, &ledConfig, &facesConfig,
+        &weatherConfig, &matrixConfig, &mqttConfig, &networkConfig,
+        &cycleConfig, &webLoginConfig, &accessPointConfig, 0
+    };
+    CompositeConfigItem config2113("root", 0, set2113);
+
+    // Overwrite the stored checksum with the 2.1.13 checksum
+    EEPROM.put(0, config2113.getChecksum(0));
+    config.commit();
 }
 
 void initFromEEPROM() {
