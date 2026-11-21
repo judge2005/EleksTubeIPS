@@ -6,7 +6,6 @@ const uglify = require('gulp-uglify');
 const gzip = require('gulp-gzip');
 const inline = require('gulp-inline');
 const inlineImages = require('gulp-css-inline-images');
-const favicon = require('gulp-base64-favicon');
 
 const dataFolder = '../data';
 const srcFolder = 'src';
@@ -22,7 +21,6 @@ function clean(done) {
 
 function buildfs_inline() {
     return src(srcFolder + '/*.html')
-        // .pipe(favicon())
         .pipe(inline({
             base: srcFolder,
             js: uglify,
