@@ -12,10 +12,6 @@
 #include <mbedtls/sha256.h>
 #include <bootloader_random.h>
 #include <esp_ota_ops.h>
-#include <esp_rom_crc.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <unistd.h>
 #ifndef DS1302
 #include <EspRTCTimeSync.h>
 #else
@@ -1403,6 +1399,8 @@ void mainHandler(AsyncWebServerRequest *request) {
 	request->redirect("/app.html");	// Straight there, rather than through index.html and its refresh
 }
 
+static void sendTimePage(AsyncWebServerRequest *request);
+
 void timeHandler(AsyncWebServerRequest *request) {
 	DEBUG("Got time request")
 	String wifiTime = request->getParam("time", true, false)->value();
@@ -1416,7 +1414,7 @@ void timeHandler(AsyncWebServerRequest *request) {
 	rtcTimeSync->setTime(wifiTime);
 #endif
 
-	request->send(LittleFS, "/time.html");
+	sendTimePage(request);
 }
 
 /*
@@ -1611,11 +1609,14 @@ public:
 	}
 };
 
-// The files in board_build.embed_files
+// The files in board_build.embed_files: the whole web UI, built by web/gulpfile.js
 #define SETTINGS_PAGE(name) \
-	extern const uint8_t name##PageStart[] asm("_binary_data_" #name "_html_gz_start"); \
-	extern const uint8_t name##PageEnd[] asm("_binary_data_" #name "_html_gz_end");
+	extern const uint8_t name##PageStart[] asm("_binary_web_build_" #name "_html_gz_start"); \
+	extern const uint8_t name##PageEnd[] asm("_binary_web_build_" #name "_html_gz_end");
 
+SETTINGS_PAGE(app)
+SETTINGS_PAGE(index)
+SETTINGS_PAGE(time)
 SETTINGS_PAGE(clock)
 SETTINGS_PAGE(leds)
 SETTINGS_PAGE(faces)
@@ -1632,9 +1633,11 @@ struct SettingsPage {
 	const uint8_t *end;
 };
 
-// Served from the firmware rather than the filesystem, so they always match it, even when only the
-// firmware was installed. The filesystem image has copies, for anything older that looks for them there.
+// Served from the firmware, so they always match it, even when only the firmware was installed. app.html has
+// the widgets and the look, and opens the web socket. index.html only sends the browser there.
 static const SettingsPage settingsPages[] = {
+	{ "/app.html", appPageStart, appPageEnd },
+	{ "/index.html", indexPageStart, indexPageEnd },
 	{ "/clock.html", clockPageStart, clockPageEnd },
 	{ "/leds.html", ledsPageStart, ledsPageEnd },
 	{ "/faces.html", facesPageStart, facesPageEnd },
@@ -1646,11 +1649,17 @@ static const SettingsPage settingsPages[] = {
 	{ "/info.html", infoPageStart, infoPageEnd }
 };
 
-#define EMBEDDED_FILE(name, file) \
-	extern const uint8_t name##Start[] asm("_binary_data_" file "_gz_start"); \
-	extern const uint8_t name##End[] asm("_binary_data_" file "_gz_end");
+// After the Wi-Fi portal's Set Clock Time, a page that goes back to it
+static void sendTimePage(AsyncWebServerRequest *request) {
+	AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", timePageStart, timePageEnd - timePageStart);
+	response->addHeader("Content-Encoding", "gzip");
+	request->send(response);
+}
 
-EMBEDDED_FILE(theme, "theme_css")
+#define EMBEDDED_FILE(name, file) \
+	extern const uint8_t name##Start[] asm("_binary_web_build_" file "_gz_start"); \
+	extern const uint8_t name##End[] asm("_binary_web_build_" file "_gz_end");
+
 EMBEDDED_FILE(faviconSvg, "favicon_svg")
 EMBEDDED_FILE(faviconPng, "favicon_png")
 EMBEDDED_FILE(touchIcon, "apple_touch_icon_png")
@@ -1662,18 +1671,15 @@ struct EmbeddedFile {
 	const uint8_t *end;
 };
 
-// The web UI's look and its icons. The settings pages link the stylesheet as well as app.html, and theme.js
-// swaps in the icon, so a clock with an older filesystem image, and so an older app.html, gets them too.
+// The web UI's icons
 static const EmbeddedFile embeddedFiles[] = {
-	{ "/theme.css", "text/css", themeStart, themeEnd },
 	{ "/favicon.svg", "image/svg+xml", faviconSvgStart, faviconSvgEnd },
 	{ "/favicon.png", "image/png", faviconPngStart, faviconPngEnd },
 	{ "/apple-touch-icon.png", "image/png", touchIconStart, touchIconEnd }
 };
 
 // Browsers keep a page sent with an ETag and ask each time whether it has changed. When it hasn't, the
-// clock answers with a few hundred bytes instead of the page. That matters most for app.html, 147 KB that
-// was sent every time the web UI was opened, which left the clock short of memory while it did.
+// clock answers with a few hundred bytes instead of the page.
 
 // For the files built into the firmware, which only change with it
 static const String &firmwareEtag() {
@@ -1689,68 +1695,8 @@ static const String &firmwareEtag() {
 	return etag;
 }
 
-// For app.html, which only changes with a new filesystem image, so only after a restart. Empty if it's missing.
-static const String &appEtag() {
-	static String etag;
-
-	if (etag.length() == 0) {
-		// Whichever the server sends, see AsyncFileResponse
-		fs::File file = LittleFS.exists("/app.html") ? LittleFS.open("/app.html") : LittleFS.open("/app.html.gz");
-		if (file) {
-			uint8_t buffer[512];
-			uint32_t crc = 0;
-			size_t n;
-			while ((n = file.read(buffer, sizeof(buffer))) > 0) {
-				crc = esp_rom_crc32_le(crc, buffer, n);
-			}
-			etag = "\"" + String(crc, HEX) + "-" + String(file.size()) + "\"";
-		}
-	}
-
-	return etag;
-}
-
-// Sending app.html takes several KB for the few seconds it lasts. Several at once left Wi-Fi so little
-// memory that it could stop sending for good. A browser only needs one, so more than two wait.
-static uint8_t appSends = 0;	// Only used on async_tcp
-static const uint8_t maxAppSends = 2;
-
-// Where LittleFS is mounted, for calls that take a full path, like open()
+// Where LittleFS is mounted
 static const char *const fsMountPoint = "/littlefs";
-
-// app.html, read with open() and read(). Through a File, the C library gave each send a 4 KB buffer to read
-// it through, on top of the web server's own. Closes the file once the browser has disconnected. Returns NULL
-// if the file is missing.
-static AsyncWebServerResponse *appResponse(AsyncWebServerRequest *request) {
-	// Whichever the filesystem image has, as AsyncFileResponse did
-	bool gzipped = !LittleFS.exists("/app.html");
-	String path = String(fsMountPoint) + (gzipped ? "/app.html.gz" : "/app.html");
-	struct stat info;
-	if (stat(path.c_str(), &info) != 0 || info.st_size <= 0) {
-		return NULL;
-	}
-	int fd = open(path.c_str(), O_RDONLY);
-	if (fd < 0) {
-		return NULL;
-	}
-
-	// Called in order, each time for the next part
-	AsyncWebServerResponse *response = request->beginResponse("text/html", info.st_size, [fd](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
-		ssize_t n = read(fd, buffer, maxLen);
-		return n > 0 ? n : 0;
-	});
-	if (gzipped) {
-		response->addHeader("Content-Encoding", "gzip");
-	}
-
-	appSends++;
-	request->onDisconnect([fd]() {
-		close(fd);
-		appSends--;
-	});
-
-	return response;
-}
 
 // Answers the request if the browser's copy is current. Otherwise returns NULL.
 static AsyncWebServerResponse *notModified(AsyncWebServerRequest *request, const String &etag) {
@@ -1791,27 +1737,6 @@ void configureWebServer() {
 			request->send(response);
 		});
 	}
-
-	// The page that opens the web socket. It's in the filesystem, but served here to set the login cookie.
-	server->on("/app.html", HTTP_GET, [](AsyncWebServerRequest *request) {
-		AsyncWebServerResponse *response = notModified(request, appEtag());
-		if (response == NULL) {
-			if (appSends >= maxAppSends) {
-				response = request->beginResponse(503);
-				response->addHeader("Retry-After", "1");
-				request->send(response);
-				return;
-			}
-			response = appResponse(request);
-			if (response == NULL) {
-				request->send(404);	// The filesystem image is missing
-				return;
-			}
-		}
-		addEtag(response, appEtag());
-		addWebLoginCookie(request, response);
-		request->send(response);
-	});
 
 	SettingsBackup::begin(*server);	// Before serveStatic(), like the pages
 

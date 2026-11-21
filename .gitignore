@@ -9,4 +9,5 @@ releases
 scratch
 web/node_modules
 data/*.gz
+web/build
 

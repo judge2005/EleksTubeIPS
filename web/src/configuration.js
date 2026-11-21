@@ -1,7 +1,6 @@
 // The Configuration page's restore: the clock checks a settings file and says what it would change, the page
 // shows that and asks for anything the file left empty, then sends the file again to be restored. See
-// SettingsBackup.cpp. The build inlines this into configuration.html, which is in the firmware, so it doesn't
-// depend on app.html, which a clock whose filesystem image is older than its firmware has an older copy of.
+// SettingsBackup.cpp. The build inlines this into configuration.html. Widgets are from ui.js.
 
 var settingsFile = null;	// The file being restored
 var settingsReport = null;	// What the clock said about it
@@ -148,7 +147,8 @@ function settingsSecretField(name, report) {
 		if (secret.group && input.value.length > 0) {
 			var box = document.getElementById('settings_group_' + secret.group);
 			if (box && !box.checked) {
-				$(box).prop('checked', true).flipswitch('refresh');
+				box.checked = true;
+				UI.refresh(box);
 			}
 		}
 	};
@@ -312,8 +312,8 @@ function settingsShowReport(report) {
 	buttons.appendChild(cancel);
 	box.appendChild(buttons);
 
-	$(box).enhanceWithin();
-	addSecretControls($(box));
+	UI.enhance(box);
+	addSecretControls(box);
 }
 
 // Finds a setting in the file, whatever group it's in
