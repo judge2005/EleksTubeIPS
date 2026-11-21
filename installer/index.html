@@ -393,13 +393,23 @@
   </footer>
 </main>
 
-<script>
+<script type="module">
   const version = "$version$";
   const eightMB = ["ipstube", "ipstube_dim"];
   const radios = document.querySelectorAll('input[name="model"]');
+  const COUNTER_URL = "https://nixies.us/install-counter.php";
 
   if (!("serial" in navigator)) {
     document.getElementById("browser-notice").hidden = false;
+  }
+
+  function recordInstall(variant) {
+    fetch(COUNTER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ variant, version }),
+      keepalive: true
+    }).catch(() => {});
   }
 
   function choose(model) {
@@ -420,6 +430,15 @@
     document.querySelector('[data-files="full"]').innerHTML =
       `Writes <code>${firmware}</code>, <code>littlefs${size}-${version}.bin</code>, the bootloader and the partition table`;
     document.getElementById("choose-hint").hidden = true;
+  }
+
+  for (const el of document.querySelectorAll("esp-web-install-button")) {
+    el.addEventListener("click", () => {
+      const selected = document.querySelector('input[name="model"]:checked');
+      if (!selected) return;
+      const kind = el.dataset.kind || "unknown";
+      recordInstall(`${selected.value}_${kind}`);
+    });
   }
 
   for (const radio of radios) {
