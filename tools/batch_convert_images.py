@@ -1,6 +1,5 @@
 from PIL import Image, ImageChops, ImageEnhance
 from io import BytesIO
-import cairosvg
 import random, math
 import argparse
 import struct, os, sys, glob, pathlib
@@ -228,7 +227,7 @@ def trim(im):
         return im
 
 def resize(img, width, height):
-    if image.size[0] == width and image.size[1] == height:   # unchanged
+    if img.size[0] == width and img.size[1] == height:   # unchanged
         return img
     img_width = img.size[0]
     img_height = img.size[1]
@@ -309,6 +308,11 @@ def tile(file):
             process(img.crop(box), out)
 
 def svg2image(file):
+    # Only SVGs need cairosvg, which needs the Cairo library, so other images convert without either
+    try:
+        import cairosvg
+    except (ImportError, OSError) as e:
+        sys.exit(file + ": converting an SVG needs cairosvg and the Cairo library: " + str(e).splitlines()[0])
     out = BytesIO()
     cairosvg.svg2png(url=file, write_to=out)
     return Image.open(out)
