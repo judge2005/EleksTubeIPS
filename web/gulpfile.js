@@ -5,61 +5,55 @@ const cleancss = require('gulp-clean-css');
 const uglify = require('gulp-uglify');
 const gzip = require('gulp-gzip');
 const inline = require('gulp-inline');
-const inlineImages = require('gulp-css-inline-images');
-const favicon = require('gulp-base64-favicon');
+const UglifyJS = require('uglify-js');
 
-const dataFolder = '../data';
+// The whole web UI, built into the firmware: see board_build.embed_files in platformio.ini and settingsPages in
+// main.cpp. Not in the filesystem image, data, which only has the clock faces, weather icons and slide shows.
+const buildFolder = 'build';
 const srcFolder = 'src';
 
 function clean(done) {
-    for (const file of fs.readdirSync(dataFolder)) {
-        if (file.endsWith('.gz')) {
-            fs.rmSync(dataFolder + '/' + file);
+    // Builds before 2.1.16 put them in data, so a filesystem image built here could have old copies
+    for (const folder of [buildFolder, '../data']) {
+        if (fs.existsSync(folder)) {
+            for (const file of fs.readdirSync(folder)) {
+                if (file.endsWith('.gz')) {
+                    fs.rmSync(folder + '/' + file);
+                }
+            }
         }
     }
+    fs.mkdirSync(buildFolder, { recursive: true });
     done();
 }
 
-function buildfs_inline() {
+// Each page with its scripts and styles in it: app.html has the widgets and their look, and the settings pages
+// their own scripts. html-minifier's own copy of UglifyJS is too old for them, so they go through ours.
+function pages() {
     return src(srcFolder + '/*.html')
-        // .pipe(favicon())
         .pipe(inline({
             base: srcFolder,
             js: uglify,
             css: [cleancss],
-            disabledTypes: ['svg', 'img'],
-            ignore: ['/theme.css']   // The firmware serves it, see buildfs_theme()
+            disabledTypes: ['svg', 'img']
         }))
-    	.pipe(inlineImages({
-            webRoot: srcFolder
-    	}))
         .pipe(htmlmin({
             collapseWhitespace: true,
             removeComments: true,
             minifyCSS: true,
-            minifyJS: true
+            minifyJS: (code, attribute) => attribute ? code : (UglifyJS.minify(code).code || code)
         }))
         .pipe(gzip())
-        .pipe(dest(dataFolder));
+        .pipe(dest(buildFolder));
 }
 
-// Linked rather than inlined, and built into the firmware, so that the pages and app.html share it and a
-// clock that's only had its firmware updated gets it too
-function buildfs_theme() {
-    return src(srcFolder + '/theme.css')
-        .pipe(cleancss())
-        .pipe(gzip())
-        .pipe(dest(dataFolder));
-}
-
-exports.clean = clean;
-// Built into the firmware like the stylesheet. Gzipped like everything else here, though the PNGs barely shrink,
-// so the firmware serves them all the same way.
-function buildfs_icons() {
+// Gzipped like everything else here, though the PNGs barely shrink, so the firmware serves them all the same way
+function icons() {
     // Not as text, which is gulp's default and mangles the PNGs
     return src([srcFolder + '/favicon.svg', srcFolder + '/favicon.png', srcFolder + '/apple-touch-icon.png'], { encoding: false })
         .pipe(gzip())
-        .pipe(dest(dataFolder));
+        .pipe(dest(buildFolder));
 }
 
-exports.default = series(clean, buildfs_inline, buildfs_theme, buildfs_icons);
+exports.clean = clean;
+exports.default = series(clean, pages, icons);

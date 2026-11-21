@@ -1,6 +1,4 @@
         <div data-role="page" id="Files">
-            <link rel="stylesheet" href="/theme.css">
-            <script src="/theme.js"></script>
             <div data-role="header" data-position="fixed">
                 <h1>Files</h1>
 				<a href="#mainMenu" data-rel="main-menu-panel" class="ui-btn ui-btn-left ui-btn-icon-notext ui-icon-bars ui-corner-all"></a>
@@ -21,7 +19,7 @@
                 <div class="clearFloats"></div>
                 <p id="file_error"></p>
                 Free space: <span id="fs_free">...</span>
-                <a href="#" onclick="$('#upload_face_popup').popup('open');return false;" data-role="button" data-rel="popup" data-position-to="window" data-transition="pop">Upload</a>
+                <a href="#upload_face_popup" data-role="button" data-rel="popup" data-position-to="window" data-transition="pop">Upload</a>
                 <div data-role="popup" id="delete_face_popup" class="ui-content" style="max-width:340px; padding-bottom:2em;">
                     <h3>Delete file?</h3>
                     <p id="delete_face_text">Some text</p>

@@ -19,6 +19,7 @@ This firmware uses the WiFi support that your clock already has to sync the time
   * Configure the weather forecast
   * Upload, delete and select the icons used for the weather display
   * Upload, delete and select images for slide show mode
+  * Back up the settings to a file and restore them, even on a new clock over its access point
 * Clock faces and weather icons can be selected using the buttons.
 * You can switch between time, date, weather and slide show using the buttons.
 * You can automatically cycle through display modes.
