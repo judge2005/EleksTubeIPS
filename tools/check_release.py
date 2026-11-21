@@ -51,7 +51,8 @@ def manifest_names():
 def merge(built, out):
     """Combines one directory per clock. Clocks share some files, which must then be the same file.
 
-    Except the filesystem images: they hold the same pages, but gzip records when each build made them.
+    Except the filesystem images: they hold the same files, but mklittlefs records each file's time, which is
+    when that clock's build checked out the repository.
     """
     if os.path.exists(out):
         shutil.rmtree(out)
