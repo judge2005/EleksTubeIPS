@@ -183,6 +183,8 @@ StringConfigItem webPassword("web_password", 63, "");
 // Each clock makes up its own, see initFromEEPROM(). Upstream used "secretsauce" on every clock.
 StringConfigItem apPassword("ap_password", 63, "");
 
+BooleanConfigItem redactPasswords("redact_passwords", false);
+
 enum WEATHER_MESSAGE {
 	WEATHER_UPDATE = 1,
 	COORDINATES_UPDATE = 2
@@ -366,6 +368,14 @@ IRAMPtrArray<BaseConfigItem*> accessPointSet {
 
 CompositeConfigItem accessPointConfig("access_point", 0, accessPointSet);
 
+// Settings added after 2.1.13. Redact passwords.
+IRAMPtrArray<BaseConfigItem*> passwordSet {
+	&redactPasswords,
+	0
+};
+
+CompositeConfigItem passwordConfig("passwords", 0, passwordSet);
+
 // All configurations
 IRAMPtrArray<BaseConfigItem*> configSetRoot {
 	&globalConfig,
@@ -379,57 +389,11 @@ IRAMPtrArray<BaseConfigItem*> configSetRoot {
 	&cycleConfig,
 	&webLoginConfig,
 	&accessPointConfig,
+	&passwordConfig,
 	0
 };
 
 CompositeConfigItem rootConfig("root", 0, configSetRoot);
-
-// The configurations from upstream 1.9.4 to 2.0.2, to recognise them in EEPROM
-IRAMPtrArray<BaseConfigItem*> setRoot202 {
-	&globalConfig,
-	&clockConfig,
-	&ledConfig,
-	&facesConfig,
-	&weatherConfig,
-	&matrixConfig,
-	&mqttConfig,
-	0
-};
-
-CompositeConfigItem rootConfig202("root", 0, setRoot202);
-
-// And from 2.0.3 to 2.0.5
-IRAMPtrArray<BaseConfigItem*> setRoot205 {
-	&globalConfig,
-	&clockConfig,
-	&ledConfig,
-	&facesConfig,
-	&weatherConfig,
-	&matrixConfig,
-	&mqttConfig,
-	&networkConfig,
-	&cycleConfig,
-	0
-};
-
-CompositeConfigItem rootConfig205("root", 0, setRoot205);
-
-// And from 2.0.6 to 2.0.7
-IRAMPtrArray<BaseConfigItem*> setRoot207 {
-	&globalConfig,
-	&clockConfig,
-	&ledConfig,
-	&facesConfig,
-	&weatherConfig,
-	&matrixConfig,
-	&mqttConfig,
-	&networkConfig,
-	&cycleConfig,
-	&webLoginConfig,
-	0
-};
-
-CompositeConfigItem rootConfig207("root", 0, setRoot207);
 
 // Store the configurations in EEPROM
 EEPROMConfig config(rootConfig);
@@ -1028,7 +992,7 @@ void weatherTaskFn(void *pArg) {
 			if (lendDisplayBuffer) {
 				// Never seen, but if TLS kept some of the buffer, it mustn't end up in a later loan too
 				if (!TLSArena::end()) {
-					Serial.println("TLS didn't give back all of the display buffer, so it won't be lent again");
+					DEBUG("TLS didn't give back all of the display buffer, so it won't be lent again");
 					lendDisplayBuffer = false;
 				}
 				displayBufferLent = true;
@@ -1178,7 +1142,11 @@ void broadcastToWebUI(const BaseConfigItem& item) {
 const char *passwordPlaceholder = "********";
 
 String passwordJSON(const StringConfigItem &password) {
-	return String("\"") + password.name + "\":\"" + (password.value.length() > 0 ? passwordPlaceholder : "") + "\"";
+	if (redactPasswords.value) {
+		return String("\"") + password.name + "\":\"" + (password.value.length() > 0 ? passwordPlaceholder : "") + "\"";
+	} else {
+		return String("\"") + password.name + "\":\"" + password.value + "\"";
+	}
 }
 
 String webLoginJSON() {
@@ -1301,6 +1269,10 @@ void updateValue(int screen, String pair) {
 		setSecret(*(StringConfigItem*)item, value);
 	} else if (item == &apPassword) {
 		setAPPassword(value);
+	} else if (item == &redactPasswords) {
+		redactPasswords = value == "true" ? true : false;
+		redactPasswords.put();
+		broadcastUpdate(redactPasswords);
 	} else if (item == &hostName && !validHostname(value)) {
 		broadcastToWebUI(hostName);	// Puts back what was refused
 	} else if (item != 0 && !isSettingsGroup(item)) {
@@ -1948,8 +1920,10 @@ String wifiCallback() {
 	wifiStatus += hostName.toJSON();	// Escaped, as one saved before names were checked could have anything in it
 	wifiStatus += ",";
 	wifiStatus += webLoginJSON();
-	wifiStatus += ",\"ap_password\":";
-	wifiStatus += apPassword.toJSON();
+	wifiStatus += ",";
+	wifiStatus += passwordJSON(apPassword);
+	wifiStatus += ",\"redact_passwords\":";
+	wifiStatus += redactPasswords.toJSON();
 
 	return wifiStatus;
 }
@@ -2054,22 +2028,32 @@ void commitEEPROMTaskFn(void *pArg) {
 void upgradeEEPROM() {
 	unsigned int storedChecksum = 0;
 	EEPROM.get(0, storedChecksum);
-	// The new settings' defaults, nothing has been read yet
-	if (storedChecksum == rootConfig202.getChecksum(0)) {
-		networkConfig.put();
-		cycleConfig.put();
-		webLoginConfig.put();
-		accessPointConfig.put();
-	} else if (storedChecksum == rootConfig205.getChecksum(0)) {
-		webLoginConfig.put();
-		accessPointConfig.put();
-	} else if (storedChecksum == rootConfig207.getChecksum(0)) {
-		accessPointConfig.put();
-	} else {
+
+	if (storedChecksum == rootConfig.getChecksum(0)) {
 		return;
 	}
-	EEPROM.put(0, rootConfig.getChecksum(0));
-	config.commit();
+
+	// Seed the checksum with "root" itself before walking its children
+	IRAMPtrArray<BaseConfigItem*> emptySet { 0 };
+	CompositeConfigItem rootHeader("root", 0, emptySet);
+	unsigned int runningChecksum = rootHeader.getChecksum(0);
+
+	int upgradeFromIndex = -1;
+	for (int i = 0; configSetRoot[i] != 0; i++) {
+		runningChecksum = configSetRoot[i]->getChecksum(runningChecksum);
+		if (runningChecksum == storedChecksum) {
+			upgradeFromIndex = i + 1;
+			break;
+		}
+	}
+
+	if (upgradeFromIndex > 0) {
+		for (int i = upgradeFromIndex; configSetRoot[i] != 0; i++) {
+			configSetRoot[i]->put();
+		}
+		EEPROM.put(0, rootConfig.getChecksum(0));
+		config.commit();
+	}
 }
 
 // From letters and digits that can't be mistaken for each other, so it's easy to copy off the displays
@@ -2271,7 +2255,19 @@ void setup() {
 	fsSpaceMutex = xSemaphoreCreateMutex();
     weatherQueue = xQueueCreate(5, sizeof(uint32_t));
     wsPendingQueue = xQueueCreate(8, sizeof(String*));
+
 	tfts = new TFTs();
+
+	// Has to be early in the initialization so improv gets a quick response after the install.
+	xTaskCreatePinnedToCore(
+		improvTaskFn, /* Function to implement the task */
+		"Improv task", /* Name of the task */
+		2048,  /* Stack size in words */
+		NULL,  /* Task input parameter */
+		tskIDLE_PRIORITY + 3,  /* So improv is snappy */
+		&improvTask,  /* Task handle. */
+		0
+	);
 
 	LittleFS.begin(false, fsMountPoint);
 
@@ -2317,7 +2313,7 @@ void setup() {
 	MQTTBroker::getUser().setCallback(onMqttParamsChanged);
 	MQTTBroker::getPassword().setCallback(onMqttParamsChanged);
 
-IPSClock::getTimeZone().setCallback(onTimezoneChanged);
+	IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 
     xTaskCreatePinnedToCore(
           commitEEPROMTaskFn, /* Function to implement the task */
@@ -2350,16 +2346,6 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 		tskIDLE_PRIORITY + 1,  /* More than background tasks */
 		&clockTask,  /* Task handle. */
 		1
-	);
-
-	xTaskCreatePinnedToCore(
-		improvTaskFn, /* Function to implement the task */
-		"Improv task", /* Name of the task */
-		2048,  /* Stack size in words */
-		NULL,  /* Task input parameter */
-		tskIDLE_PRIORITY + 1,  /* More than background tasks */
-		&improvTask,  /* Task handle. */
-		0
 	);
 
 	tfts->setStatus("Connecting...");
@@ -2423,10 +2409,10 @@ IPSClock::getTimeZone().setCallback(onTimezoneChanged);
 		xPortGetCoreID()
 	);
 
-    Serial.print("setup() running on core ");
-    Serial.println(xPortGetCoreID());
+    DEBUG("setup() running on core ");
+    DEBUG(xPortGetCoreID());
 
-	Serial.println(getCpuFrequencyMhz());
+	DEBUG(getCpuFrequencyMhz());
 
     vTaskDelete(NULL);	// Delete this task (so loop() won't be called)
 }

@@ -83,8 +83,41 @@ var pages = {
 		]
 	}
 
+var secrets = ['web_password', 'ap_password', 'mqtt_password', 'weather_token'];
+var redactSecrets = false;
 
-var sendValues = function(conn, screen) {
+var redactSecretValues = function(values) {
+	if (!redactSecrets) {
+		return values;
+	}
+
+	if (Array.isArray(values)) {
+		return values.map(redactSecretValues);
+	}
+
+	if (values !== null && typeof values === 'object') {
+		var redacted = {};
+		Object.keys(values).forEach(function(key) {
+			var value = values[key];
+			var isSecret = secrets.indexOf(key) !== -1;
+			var hasValue = typeof value === 'string' ? value.length > 0 : value !== null && typeof value !== 'undefined';
+			redacted[key] = isSecret && hasValue
+				? '*******'
+				: redactSecretValues(value);
+		});
+		return redacted;
+	}
+
+	return values;
+}
+
+var sendValues = function(conn, type, values) {
+	var json = JSON.stringify({
+		type: type,
+		value: redactSecretValues(values)
+	});
+	console.log(json);
+	conn.send(json);
 }
 
 var sendPages = function(conn) {
@@ -94,67 +127,35 @@ var sendPages = function(conn) {
 }
 
 var sendClockValues = function(conn) {
-	var json = '{"type":"sv.init.clock","value":';
-	json += JSON.stringify(state[1]);
-	json += '}';
-	console.log(json);
-	conn.send(json);
+	sendValues(conn, 'sv.init.clock', state[1]);
 }
 
 var sendLEDValues = function(conn) {
-	var json = '{"type":"sv.init.leds","value":';
-	json += JSON.stringify(state[2]);
-	json += '}';
-	console.log(json);
-	conn.send(json);
+	sendValues(conn, 'sv.init.leds', state[2]);
 }
 
 var sendFacesValues = function(conn) {
-	var json = '{"type":"sv.init.faces","value":';
-	json += JSON.stringify(state[3]);
-	json += '}';
-	console.log(json);
-	conn.send(json);
+	sendValues(conn, 'sv.init.faces', state[3]);
 }
 
 var sendWeatherValues = function(conn) {
-	var json = '{"type":"sv.init.weather","value":';
-	json += JSON.stringify(state[7]);
-	json += '}';
-	console.log(json);
-	conn.send(json);
+	sendValues(conn, 'sv.init.weather', state[7]);
 }
 
 var sendInfoValues = function(conn) {
-	var json = '{"type":"sv.init.info","value":';
-	json += JSON.stringify(state[5]);
-	json += '}';
-	console.log(json);
-	conn.send(json);
+	sendValues(conn, 'sv.init.info', state[5]);
 }
 
 var sendMQTTValues = function(conn) {
-	var json = '{"type":"sv.init.mqtt","value":';
-	json += JSON.stringify(state[4]);
-	json += '}';
-	console.log(json);
-	conn.send(json);
+	sendValues(conn, 'sv.init.mqtt', state[4]);
 }
 
 var sendNetwork = function(conn) {
-	var json = '{"type":"sv.init.network","value":';
-	json += JSON.stringify(state[6]);
-	json += '}';
-	console.log(json);
-	conn.send(json);
+	sendValues(conn, 'sv.init.network', state[6]);
 }
 
 var sendMatrix = function(conn) {
-	var json = '{"type":"sv.init.matrix","value":';
-	json += JSON.stringify(state[8]);
-	json += '}';
-	console.log(json);
-	conn.send(json);
+	sendValues(conn, 'sv.init.matrix', state[8]);
 }
 
 var state = {
@@ -213,11 +214,12 @@ var state = {
 		'hostname' : 'localhost',
 		'time_server' : 'pool.ntp.org',
 		'web_user' : '',
-		'web_password' : '',
-		'ap_password' : 'abcd2345'
+		'web_password' : 'abcd2345',
+		'ap_password' : 'secretsauce',
+		'redact_passwords' : false
 	},
 	"7": {
-		"weather_token":"********",
+		"weather_token":"some token",
 		"weather_latitude":"21.2",
 		"weather_longitude":"-37.1",
 		"units":"imperial",
@@ -237,7 +239,11 @@ var state = {
 }
 
 var broadcastUpdate = function(conn, field, value) {
-	var json = '{"type":"sv.update","value":{' + '"' + field + '":' + JSON.stringify(value) + '}}';
+	var redactedValue = redactSecretValues({[field]: value})[field];
+	var json = JSON.stringify({
+		type: 'sv.update',
+		value: {[field]: redactedValue}
+	});
 	console.log(json);
 	try {
 		conn.send(json);
@@ -257,6 +263,18 @@ var updateValue = function(conn, screen, pair) {
 		value = JSON.parse(value);
 	} catch (e) {
 
+	}
+
+	if (key === 'redact_passwords') {
+		redactSecrets = value === true || value === 'true';
+		state[screen][key] = redactSecrets;
+		broadcastUpdate(conn, key, redactSecrets);
+		return;
+	}
+
+	if (redactSecrets && secrets.indexOf(key) !== -1 && value === '*******') {
+		broadcastUpdate(conn, key, state[screen][key]);
+		return;
 	}
 
 	state[screen][key] = value;
